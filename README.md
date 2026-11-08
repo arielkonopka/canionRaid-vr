@@ -166,6 +166,12 @@ wersjach włącz go ręcznie: Project Settings → Physics → 3D → Physics En
 
 ## Licencja
 
-GPL-3.0-or-later. Plik `LICENSE` zawiera tylko notę — pełny tekst
-licencji pobierz z <https://www.gnu.org/licenses/gpl-3.0.txt>
-i zapisz w jego miejscu.
+Stunt Track VR, Copyright (C) 2026 Ariel Konopka.
+
+GPL-3.0-or-later - pełny tekst w pliku `LICENSE`. Program jest wolnym
+oprogramowaniem: możesz go rozpowszechniać i modyfikować na warunkach
+GNU General Public License w wersji 3 albo (do wyboru) późniejszej.
+Rozpowszechniany jest BEZ JAKIEJKOLWIEK GWARANCJI.
+
+Wtyczka `addons/godotopenxrvendors` ma własną licencję (MIT, plik
+`addons/godotopenxrvendors/LICENSE`).

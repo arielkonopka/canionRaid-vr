@@ -324,8 +324,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   epoki, nie konkretny model.
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
-- Projekt **nie jest repozytorium git**. Nie rób `git init` ani commitów
-  bez prośby.
+- **Repozytorium git** (od 2026-11-08, prośba użytkownika):
+  `git@github.com:arielkonopka/canionRaid-vr.git`, gałąź `main`, klucze
+  SSH są w GitHubie. Commituj i wypychaj tylko na prośbę użytkownika
+  (albo gdy wprost poprosi o regularne wypychanie). Licencja GPL-3.0
+  (pełny tekst w `LICENSE` z GitHuba), wtyczka OpenXR Vendors w `addons/`
+  (MIT, ~82 MB binarek) jest w repo, żeby klon się budował; `build/`
+  i `android/` są w `.gitignore`.
 
 ## 3. Środowisko (sprawdzone 2026-11-07)
 
@@ -651,6 +656,28 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   stać na innej.
 - **Zawieszenie:** sprężyna, tłumik bump/rebound, odbój, stabilizatory.
   `SUSPENSION_PRESETS`: soft ~1,4 Hz, sport ~1,8 Hz, stiff ~2,4 Hz.
+- **Mieszanka opon** (`TIRE_COMPOUNDS`, `tires`, opcja menu "Opony"):
+  mnożnik `w.grip` zależny od nawierzchni. Całoroczne (domyślne,
+  użytkownik: "raczej całoroczne niż letnie") sucho 0,94 / mokro 1,08 /
+  lód 1,6; letnie 1/1/1 (dawne zachowanie); zimowe 0,86 / 1,05 / 2,3.
+  Limity prędkości na łukach generator liczy z `SURFACES` bez opon.
+- **Układ napędu** (`drive_layout`, `hub_motors`, opcje "Napędzane koła"
+  i "Silnik elektryczny"): "rwd" tył z LSD; "awd" - centralny dyferencjał
+  planetarny 40/60 (`AWD_FRONT_SHARE`; wał = 0,4·przód + 0,6·tył),
+  wiskoza między osiami (`center_coupling`), LSD na obu osiach.
+  Silniki w kołach (`_hub()` = hub_motors i elektryk; warsztat może
+  zmienić napęd): każde koło 1/4 momentu, bez dyferencjałów, TCS osobno
+  na koło (`_hub_tcs`), zawsze 4x4. TCS w 4x4 liczy poślizg względem
+  prędkości auta (nie ma kół nienapędzanych).
+- **Moc do 700 kW** (`POWER_TIERS` 90..700, użytkownik: "nierealistyczna,
+  700 kW"). Powyżej 350 kW (elektryk: 250 kW) dłuższe przełożenie
+  (×√(P0/P)), inaczej ogranicznik przy ~290/234 km/h. Prędkościomierz do
+  400 km/h. Pomiar (sucho, całoroczne): 700 kW benzyna tył 0-100 4,6 s,
+  0-200 9,9 s, 349 km/h po 25 s; 4x4 3,4 s / 7,1 s / 363; elektryk 4x4
+  3,1 / 6,5 / 361, w kołach 2,9 / 6,5. Napęd na tył ponad 350 kW jest
+  ograniczony przyczepnością - na rozbiegu do 150 m prawie nic nie
+  zyskuje (`RUNUP_CAP`, wiersze 500/700). Bot w szale dostaje
+  max(350 kW, moc gracza).
 - **Opony:** znormalizowana Magic Formula, połączony poślizg, load
   sensitivity, relaxation length całkowana wykładniczo, tłumienie przy
   niskich prędkościach, 4 podkroki na krok fizyki. `f_max = μ·grip·Fz`.
@@ -863,6 +890,12 @@ Wyniki (2026-11-08, sesja 3, `./quest.sh test` - wszystko OK):
   860-976 m przed zjazdem.
 - endless_test 180 petrol 777 150: jeden upadek (odc. 4), po 150 s
   odcinek 6, 3,48 km.
+- **Pułapka testów: `place()` przez 0,5 s mnoży prędkość przez 0,5
+  co krok** (`_settle_t`, poprawka odradzania). Test, który po `place()`
+  nadaje prędkość albo spuszcza auto z wysokości, musi ustawić
+  `car._settle_t = 0.0` - tak robią `assist_test`, `runup_test`,
+  `dent_test` (objaw: hamowanie z "100 km/h" na 0,1 m, rozbiegi ~15 km/h
+  niższe niż w tabeli, słabe wgniecenia po upadku).
 - **Naprawione testy**: `assist_test` ustawia `car._settle_t = 0` po
   `place()` (od poprawki odradzania `place()` przez 0,5 s zeruje
   prędkość - test wychodził z 0 km/h: "droga hamowania 0,1 m");
@@ -945,6 +978,11 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Akustyka otoczenia: echo od ścian wąwozu, pogłos tunelu, syk mokrych
   opon.
 - Mech i bluszcz na zacienionych ("północnych") zboczach.
+- Napęd 4x4, elektryk z silnikami w kołach, moc do 700 kW (dłuższe
+  przełożenia, prędkościomierz do 400), typ opon w menu (całoroczne
+  domyślnie). `engine_test` mierzy układy i 0-200; `RUNUP_CAP`
+  dopomiarowany dla 500/700 kW.
+- Repozytorium git na GitHubie (`canionRaid-vr`), pierwszy push.
 - Okna na morze (niska ściana ~100 m co 5 km), zielone tablice odcinków
   przeniesione ze ściany na pobocze.
 - Naprawione dwa testy (assist, drive), które psuły się po cichu od
@@ -967,6 +1005,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    stacja paliw (`service`), ziarno losowe - `endless_test` z kilkoma
    ziarnami do 12+ odcinków (`generator_test` sprawdza tylko generator,
    nie budowę geometrii) i sprawdzenie `EndlessTrack.update_progress`.
+0b. `engine_test` raz pokazał elektryk 700 kW z silnikami w kołach:
+   po 25 s tylko 243 km/h (0-200 6,5 s w normie); ten sam przejazd
+   osobno daje 360 km/h. Może zostaje stan z poprzedniego przejazdu
+   (4x4) - sprawdzić, uruchamiając `engine_test` i patrząc na tę linię.
 
 1. **Dalsze wrażenia z gogli**: czy przezroczystość, czułość drążka,
    meta i kamera lotu działają; płynność; komfort przy skokach.
