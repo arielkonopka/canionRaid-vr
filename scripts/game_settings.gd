@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 7
+const SETTINGS_VERSION := 8
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -68,7 +68,7 @@ var cockpit_alpha: int = 60
 ## Rozdzielczość obrazu w goglach [% zalecanej przez gogle]. Quest 3 ma
 ## ekrany ostrzejsze niż zalecany obraz (użytkownik: "gogle mogą wyciągnąć
 ## wyższą rozdzielczość"); koszt rośnie z kwadratem.
-var xr_resolution: int = 130
+var xr_resolution: int = 110
 ## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
@@ -326,14 +326,15 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "xr_resolution", "group": "look", "label": "Rozdzielczość w goglach",
-		"values": [100, 120, 130, 140, 160, 180],
-		"names": ["100%", "120%", "130%", "140%", "160%", "180%"],
+		"values": [100, 110, 120, 130, 140, 160, 180],
+		"names": ["100%", "110%", "120%", "130%", "140%", "160%", "180%"],
 		"hints": [
 			"Tyle, ile zalecają gogle - najlżej.",
-			"Trochę ostrzej.",
-			"Domyślnie: środek obrazu mniej więcej piksel w piksel z ekranem.",
-			"Ostro; przy wielu autach gogle mogą nie nadążać.",
-			"Najwięcej, co ekran pokaże - na Queście za ciężko (ok. 8 kl./s).",
+			"Domyślnie: najostrzej przy płynnych 72 kl./s (pomiar na Queście).",
+			"Ostrzej; na granicy płynności.",
+			"Środek obrazu piksel w piksel z ekranem; ok. 53 kl./s.",
+			"Ostro, ale gogle nie nadążają.",
+			"Najwięcej, co ekran pokaże - na Queście wyraźnie poniżej 72 kl./s, grzeje gogle.",
 			"Ponad możliwości ekranu - tylko wygładzanie krawędzi, bardzo ciężko.",
 		],
 	},
@@ -451,6 +452,12 @@ func load_settings() -> void:
 	if version < 7:
 		# Użytkownik po jeździe: "sedan najfajniejszy" - domyślny znowu sedan.
 		body_model = "sedan"
+	if version < 8:
+		# Do v7 gogle same zmniejszały obraz (dynamiczna rozdzielczość Meta,
+		# log VrApi SF=0.50 przy 160%) - zapisane 130-160% nie było prawdą.
+		# Bez niej (2026-11-09) uczciwy pomiar: 100% 10 ms GPU, 130% 15,8 ms
+		# (53 kl./s) - start od 110%, wyżej gracz podnosi sam.
+		xr_resolution = mini(xr_resolution, 110)
 	if version < 5:
 		# 160% bez dynamicznej rozdzielczości dawało na Queście ~8 kl./s
 		# (2026-11-08) - z powrotem 130% i średnia foweacja.

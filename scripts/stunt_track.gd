@@ -958,6 +958,10 @@ func _rock_material(kind := "cavern") -> Material:
 		m.set_shader_parameter("rock_scale", t[2])
 		m.set_shader_parameter("moss_albedo", load(MOSS_TEX[0]))
 		m.set_shader_parameter("moss_normal", load(MOSS_TEX[1]))
+		if not Bench.on("rock_simple"):
+			# Pomiar A/B: skała bez map normalnych i bez mchu.
+			m.set_shader_parameter("normal_dist", 0.0)
+			m.set_shader_parameter("moss_amount", 0.0)
 		_shared_mats[key] = m
 	return _shared_mats[key]
 
@@ -1251,7 +1255,7 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 				var lb: Vector3 = (tubes[ti][0] as Vector3) + Vector3.UP * (crown - 0.08)
 				var lo: Vector3 = prev["r"] * 0.18
 				_quad_facing(lamp, dummy, la - lo, lb - lo, lb + lo, la + lo, Vector3.DOWN)
-		if d >= light_next:
+		if d >= light_next and Bench.on("tunnel_lights"):
 			# Co 80 m (było 40): renderer mobilny płaci za każde światło na
 			# każdym oświetlanym obiekcie; jarzeniówka i tak świeci.
 			light_next = d + 80.0

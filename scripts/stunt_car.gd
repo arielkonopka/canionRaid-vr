@@ -2147,6 +2147,7 @@ const CONCEPT := {
 }
 @export var body_model: String = "sedan"
 var _concept: Node3D
+static var _concept_scene: PackedScene
 var _concept_steer: Node3D
 var _concept_steer_axis := Vector3.FORWARD
 var _concept_paint_mats: Array[BaseMaterial3D] = []
@@ -2237,7 +2238,12 @@ func set_body_model(kind: String) -> void:
 
 
 func _build_concept() -> void:
-	_concept = (load(CONCEPT["scene"]) as PackedScene).instantiate() as Node3D
+	# Scena wczytana raz na całą grę: przełączanie w menu (sedan <-> concept)
+	# nie czyta i nie importuje modelu od nowa przy każdym kroku (na Queście
+	# przełączenie przy 160% zamykało grę - GPU było już na 100%).
+	if _concept_scene == null:
+		_concept_scene = load(CONCEPT["scene"]) as PackedScene
+	_concept = _concept_scene.instantiate() as Node3D
 	_concept.name = "ConceptBody"
 	_concept.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, CONCEPT["model_y"], 0.0))
 	add_child(_concept)

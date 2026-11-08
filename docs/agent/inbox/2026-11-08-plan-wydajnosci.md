@@ -1,6 +1,6 @@
 # Zlecenie: pomiar bazowy wydajności na Queście (etap 0 planu)
 
-Status: nowe
+Status: w toku
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-08), na prośbę użytkownika ("trzeba zaplanować refaktoring, by
 zidentyfikować wszystkie wydajnościowe gorące punkty")
@@ -45,4 +45,15 @@ długie są szarpnięcia przy nowym bocie, wybuchu i nowym kawałku toru
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-09 - w toku. Narzędzia gotowe:
+- `scripts/bench.gd`: `user://bench.cfg` albo `--bench=`, scenariusze
+  S1-S5, wyłączniki A/B;
+- `tools/bench_quest.sh`: pliki przez adb run-as, czeka na "BENCH END",
+  średnie z VrApi;
+- `scripts/perf.gd`: maksima i znaczniki zdarzeń, linie PERF / PERF+ /
+  PERF#.
+
+Pierwsze pomiary pokazały, że gogle rysowały z dynamiczną rozdzielczością
+Meta, więc liczby były zawyżone. Do tego tekstury skał nie były
+skompresowane. Raport: `outbox/2026-11-09-pomiar-bazowy.md`. Pełną serię
+powtórzę na uczciwej rozdzielczości.

@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: strażnik wysokości jezdni - droga pod trawą / pod morzem; wątek w chmurze)
+Ostatnia aktualizacja: 2026-11-09, sesja 4 (noc: rozdzielczość działa od razu, kompresja tekstur skał, concept car przy 160%)
 
 ---
 
@@ -184,10 +184,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - **Maksimum ostrości, jakie da sprzęt** (użytkownik): rozdzielczość
     domyślnie 160% (opcja 100-180%), foweacja w menu (domyślnie słaba),
     bez dynamicznej rozdzielczości Meta, anizotropia 16x - **na Queście
-    ~8 kl./s i gogle "prawie się zagotowały"**. Wrócone: 130%, foweacja
-    średnia, anizotropia 4x, dynamiczna rozdzielczość Meta włączona.
-    Użytkownikowi 160% podobało się wizualnie - cel: odzyskać je
-    optymalizacjami. Prawdziwego "4K jak monitor" się nie da (~25 px/°).
+    ~8 kl./s i gogle "prawie się zagotowały"**. Foweacja średnia,
+    anizotropia 4x. Użytkownikowi 160% podobało się wizualnie - cel:
+    odzyskać je optymalizacjami. Prawdziwego "4K jak monitor" się nie
+    da (~25 px/°). Od 2026-11-09 domyślnie 110% (uczciwy pomiar, sekcja 5).
+  - **Zmiana rozdzielczości ma działać od razu, bez restartu aplikacji**
+    (użytkownik, 2026-11-09) - działa, pod warunkiem wyłączonej
+    dynamicznej rozdzielczości Meta (sekcja 3, pułapki).
   - **README ma opisywać obecną grę** (był jeszcze o torze na słupach).
   - **Autostrada zamiast wąwozu** (użytkownik, wybory z pytania): co
     kilka odcinków cały odcinek, wąwóz otwiera się i zamyka na jej
@@ -482,12 +485,37 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   gogle widziane dwa razy). Ważne do restartu gogli - potem znowu `wifi`
   z kablem. Gogle: 192.168.2.192 (sieć domowa użytkownika). Log w tle:
   `adb -s 192.168.2.192:5555 logcat -v time godot:V '*:S'`.
-- **Pułapka: serwer adb na PC sam się wyłącza** ("daemon not running"
-  przy kolejnym poleceniu) i wtedy gogle często wracają do
+- **Pułapka: serwer adb na PC sam się wyłączał** ("daemon not running")
+  - zabijał go eksport Godota (`shutdown_adb_on_exit`, wyłączone
+  2026-11-09, sekcja pułapek). Jeśli wróci, gogle często wracają do
   "unauthorized" - użytkownik musi znów zatwierdzić debugowanie
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Opcja rozdzielczości w menu nic nie zmienia / "działa dopiero po
+  restarcie", a VrApi pokazuje `SF=0.50`** → dynamiczna rozdzielczość
+  Meta (wtyczka vendors) nadpisuje mnożnik. Wyłączona w `project.godot`
+  (`openxr/extensions/meta/dynamic_resolution=false`). Nie włączaj -
+  fałszuje też pomiary wydajności.
+- **Skały kosztują pół klatki GPU** → tekstury z `textures/` miały import
+  `compress/mode=0` (bez kompresji VRAM) i `mipmaps/generate=false`;
+  auto-wykrywanie "3D" działa tylko w edytorze, którego nie otwieramy.
+  Teraz `compress/mode=2`, mipmapy, mapy normalnych z
+  `compress/normal_map=1` (tylko RG - `rock.gdshader` odtwarza Z
+  w `nrm_tap`). Pliki `.import` w `textures/` są lokalne (katalog poza
+  repo) - po ponownym rozpakowaniu tekstur ustaw to od nowa. Każdą nową
+  teksturę 3D importuj z kompresją VRAM i mipmapami.
+- **Demon adb pada po każdym `./quest.sh build`, gogle wracają do
+  "unauthorized"** → eksport Godota na Androida woła przy wyjściu
+  `adb kill-server`. Wyłączone w ustawieniach edytora:
+  `export/android/shutdown_adb_on_exit = false`
+  (`~/.config/godot/editor_settings-4.6.tres`). Po tej zmianie adb
+  przeżywa build.
+- **Gra na goglach w ogóle nie startuje (pomiar daje GPU 0 ms), logcat:
+  "TrackingService: Notifying idle due to no 6dof tracking"** → gogle
+  leżą w ciemnym pokoju, bez śledzenia aplikacja VR nie rusza. Pomiary
+  tylko przy zapalonym świetle.
 
 - **Godot z CLI "nic nie wypisuje" i wisi** → bez runtime'u OpenXR
   zawiesza się przy wyjściu, a zabicie procesu gubi buforowane wyjście.
@@ -665,17 +693,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   ograniczenie + przekroczenie, łuki zawsze (`_curve_speed`). Bot w szale
   dostaje max(350 kW, moc gracza).
 - **Rozdzielczość i foweacja** (`GameSettings.apply_xr_quality`, opcja
-  `xr_resolution`): `OpenXRInterface.render_target_size_multiplier`
-  ustawiany z kodu (Godot nie ma na to ustawienia projektu) - działa także
-  po starcie sesji: log z Questa "XR: rozdzielczość 130%, obraz na oko
-  (2184, 2288)" (zalecane 1680×1760), przy 160% (2688, 2816). Foweacja
-  z opcji `xr_foveation` (0-3, dynamiczna), w projekcie poziom 1.
-  `openxr/extensions/meta/dynamic_resolution=false` - inaczej gogle pod
-  obciążeniem obniżają obraz po cichu. Anizotropia 16x w projekcie.
-  `SETTINGS_VERSION` 4 przestawia zapisane 130% na 160%. Zmiana w menu
-  stosuje się od razu. Gra wpisuje do logu co 5 s "PERF: kl./s, proces,
-  fizyka, boty" (`xr_main._log_perf`) - po tym dobierać domyślną
-  rozdzielczość (Quest 3 domyślnie 72 Hz).
+  `xr_resolution`, domyślnie **110%**): `OpenXRInterface.
+  render_target_size_multiplier` ustawiany z kodu **działa od razu**
+  (log gogli: `OpenXR_GPUMemTrace: Swapchain creation, width: 2688`
+  zaraz po zmianie; VrApi `SF=` śledzi opcję w ciągu ~1 s). Warunek:
+  `openxr/extensions/meta/dynamic_resolution=false` w `project.godot`
+  (ustawienie wtyczki godotopenxrvendors, rozszerzenie
+  `XR_META_recommended_layer_resolution`). Z nim gogle same wybierały
+  rozmiar obrazu (`SF=0.50` przy opcji 160%) - opcja z menu nie działała,
+  użytkownik widział zmianę "dopiero po restarcie", a wszystkie pomiary
+  wydajności sprzed 2026-11-09 były zawyżone (gogle rysowały w połowie
+  rozdzielczości). Uczciwe pomiary (S1, po kompresji tekstur): 100% -
+  GPU 10 ms, 72 kl./s; 130% - 15,8 ms, 53 kl./s. Foweacja z opcji
+  `xr_foveation` (0-3, dynamiczna). `SETTINGS_VERSION` 8 obcina zapisane
+  >110% do 110%. Gra wpisuje do logu co 5 s "PERF..." (`xr_main._log_perf`).
 - **Liczniki wydajności** (`scripts/perf.gd`, `Perf.add/dump`, linia
   "PERF+ ms/s" w logu co 5 s obok "PERF:"): auto_fiz/bot_fiz, auto_wyg/
   bot_wyg, dzwiek, bot_ster, boty_mgr, trasa, budowa_trasy, hud, deszcz.
@@ -1353,9 +1384,38 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   testem `track_height_test` (w `quest.sh test`). Kod napisany bez
   Godota - lokalny agent musi uruchomić testy i sprawdzić na goglach.
 
+### 2026-11-09, sesja 4 (noc, użytkownik śpi, pracowałem sam)
+- Zgłoszenie: "gra się wyłącza, gdy w trybie wyższej rozdzielczości
+  przełączyć nadwozie na concept car". Pomiar w goglach: sam ekran
+  tytułowy przy 160% miał 19 kl./s, GPU 100%, ~950 MB pamięci GPU -
+  przeładowanie modelu dobijało grę. Przy 100% przełączanie (co 3 s,
+  wielokrotnie) nie zamyka gry. Poprawki: ekran tytułowy bez cieni
+  słońca (jak scena jazdy), scena concept cara wczytywana raz
+  (`StuntCar._concept_scene`), tekstury skompresowane (niżej). Przy 160%
+  po poprawkach **nie sprawdzone w goglach** (gogle straciły śledzenie).
+- Zgłoszenie: "zmiana rozdzielczości działa dopiero po restarcie".
+  Przyczyna: dynamiczna rozdzielczość Meta - wyłączona; zmiana działa od
+  razu (sprawdzone logiem gogli). Domyślnie 110% (pomiar), migracja v8.
+- Główny zysk wydajności: kompresja VRAM i mipmapy tekstur skał
+  (S1 100%: GPU 22,6 → 10,0 ms; 130%: 32 → 15,8 ms).
+- adb przestał padać po buildzie (ustawienie edytora, sekcja 3).
+- Testy (`./quest.sh test`): wszystkie OK.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+00. **Wydajność - stan 2026-11-09** (plan: `docs/PERF_PLAN.md`, inbox
+   `2026-11-08-plan-wydajnosci.md`). Pomiary sprzed tej daty są
+   nieważne (dynamiczna rozdzielczość Meta). Do zrobienia przy
+   zapalonym świetle (gogle muszą śledzić): seria
+   `tools/bench_quest.sh` S1-S5 przy 100/110/130%, A/B `rock_simple`,
+   `tunnel_lights`, `rain`, `mirror`; sprawdzić concept car przy 160%
+   (przełączanie w menu - wcześniej zamykało grę). Cel użytkownika:
+   160% płynnie. Pomysły na shader skał: mapowanie dwupłaszczyznowe
+   (biplanar, 2 odczyty zamiast 3), krótszy `normal_dist`, mech bez
+   mapy normalnych. Uwaga: ekran tytułowy przy 100% miał 29 ms GPU
+   jeszcze przed kompresją tekstur - po kompresji nie mierzony.
 
 0. **PILNE, odłożone na następną sesję (użytkownik, 2026-11-08):
    "po odcinku 8 skończyła mi się trasa"** - na goglach, na APK z sesji 3

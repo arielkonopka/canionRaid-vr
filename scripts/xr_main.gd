@@ -167,7 +167,10 @@ func _ready() -> void:
 
 	# GameSettings to autoload; w testach headless może go nie być.
 	var gs := get_node_or_null("/root/GameSettings")
+	Bench.load_config()
 	if gs:
+		if Bench.resolution > 0:
+			gs.xr_resolution = Bench.resolution     # pomiar: rozdzielczość z bench.cfg
 		gs.apply_to_car(car)
 		_xr_ready = gs.enable_xr(get_viewport())
 	if _xr_ready:
@@ -180,6 +183,8 @@ func _ready() -> void:
 		# XRCamera3D dziedziczy po Camera3D, więc bez XR działa jak zwykła kamera.
 		camera.current = true
 
+	if not Bench.on("shadows"):
+		($Sun as DirectionalLight3D).shadow_enabled = false
 	car.landed.connect(_on_car_landed)
 	car.wrecked.connect(_on_car_wrecked)
 	car.body_entered.connect(_on_player_hit)
@@ -196,6 +201,8 @@ func _ready() -> void:
 		# Trasa bez końca zamiast pokazowej: te same materiały, nowy losowy tor.
 		var et := EndlessTrack.new()
 		et.name = "EndlessTrack"
+		if Bench.active():
+			et.seed_value = Bench.seed_value       # powtarzalny przejazd pomiarowy
 		et.road_material = _demo_track.road_material
 		et.pillar_material = _demo_track.pillar_material
 		et.canyon = gs.track_mode == "canyon"
@@ -221,6 +228,10 @@ func _ready() -> void:
 ##   centrowanie widoku). Klik prawego drążka: nowe auto (strata życia),
 ##   klik lewego: wolna kamera. Biegi: drugi drążek (patrz _physics_process).
 func _on_xr_button(button: String, is_right: bool) -> void:
+	# Pomiar: kontrolery leżą obok gogli i potrafią wysyłać zdarzenia
+	# (powrót do menu przerywał przejazd) - wejście ignorowane.
+	if Bench.active():
+		return
 	match [is_right, button]:
 		[true, "ax_button"]:          # A
 			if race_state == Race.FINISHED:
@@ -276,10 +287,15 @@ func toggle_tcs() -> void:
 
 
 func _back_to_title() -> void:
+	if Bench.active():
+		print("BENCH: pominięty powrót do menu")
+		return
 	get_tree().change_scene_to_file(TITLE_SCENE)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if Bench.active():
+		return
 	if race_state == Race.WORKSHOP:
 		if event.is_action_pressed("ui_up"):
 			_ws_move(-1)
@@ -420,7 +436,7 @@ func _read_drive_input() -> void:
 # --------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if _mode == Mode.DRIVE:
+	if _mode == Mode.DRIVE and not Bench.active():
 		_read_drive_input()
 	else:
 		car.throttle = 0.0
@@ -450,6 +466,8 @@ func _update_bots(delta: float) -> void:
 	_bot_timer -= delta
 	if _bot_timer <= 0.0 and race_state == Race.RACING:
 		var limit := bot_limit(_last_section) if _endless else 2
+		if Bench.scenario == "S4":
+			limit = 20                         # pomiar: pełny ruch
 		# Im więcej brakuje do limitu, tym szybciej dochodzą nowe auta.
 		_bot_timer = _bot_rng.randf_range(2.0, 6.0) if _bots.size() < limit else 3.0
 		if _bots.size() < limit:
@@ -467,6 +485,7 @@ func _update_bots(delta: float) -> void:
 				var fell_out: bool = b.global_position.y < -50.0
 				score_chase_close(b, "wreck" if dead and not fell_out else "lost")
 			if dead:
+				Perf.mark("explosion")
 				var boom := Explosion.new()
 				boom.paint = b._paint_mat.albedo_color
 				boom.ignore = [car] + _bots
@@ -474,6 +493,7 @@ func _update_bots(delta: float) -> void:
 				boom.global_position = b.global_position
 			_bots.erase(b)
 			b.queue_free()
+			Perf.mark("bot_free")
 
 
 ## Posiłki: boty w promieniu `radius` m od wściekłego bota też wpadają w szał.
@@ -510,6 +530,7 @@ func _spawn_bot(d: float) -> void:
 		return
 	var lane_w := (float(smp[0]["width"]) - 1.0) / 3.0
 	var lim := float(smp[0]["limit"])
+	Perf.mark("bot_spawn")
 	var bot := StuntCar.new()
 	bot.name = "Bot%d" % Time.get_ticks_msec()
 	bot.is_bot = true
@@ -921,7 +942,8 @@ func _build_race_hud() -> void:
 	_result_label.visible = false
 	car.add_child(_result_label)
 
-	_build_mirror()
+	if Bench.on("mirror"):
+		_build_mirror()
 	_build_rain()
 	_build_popups()
 	_env = EnvAudio.new()
@@ -950,6 +972,8 @@ func _build_race_hud() -> void:
 
 
 func _process(delta: float) -> void:
+	_frame_stats(delta)
+	_bench_step(delta)
 	_update_popups(delta)
 	var t0 := Time.get_ticks_usec()
 	_update_rain(delta)
@@ -1441,6 +1465,10 @@ func _update_rain(delta: float) -> void:
 		return
 	# Szyba (krople, wycieraczki) mokrnie i schnie powoli; smugi i szum idą
 	# za opadem szybko - wjazd do tunelu ucina deszcz (tunel ma rain 0).
+	if not Bench.on("rain"):
+		_rain_target = 0.0
+	elif Bench.scenario == "S3":
+		_rain_target = 2.0                     # pomiar: wymuszona ulewa
 	car.rain = move_toward(car.rain, _rain_target, delta / 3.0 * 2.0)
 	var was := _rain_vis
 	_rain_vis = move_toward(_rain_vis, _rain_target, delta * 4.0)
@@ -1467,7 +1495,11 @@ func _update_rain(delta: float) -> void:
 func _update_env(s: Dictionary) -> void:
 	if _env == null:
 		return
-	_env.set_env(bool(s.get("roof", false)), _rain_target)
+	var roof := bool(s.get("roof", false))
+	if roof and not _was_roof:
+		Perf.mark("tunnel_enter")
+	_was_roof = roof
+	_env.set_env(roof, _rain_target)
 	var space := car.get_world_3d().direct_space_state
 	var from := car.global_position + car.global_basis.y * 0.5
 	var r := (s["right"] as Vector3) * Vector3(1, 0, 1)
@@ -1484,6 +1516,16 @@ func _update_env(s: Dictionary) -> void:
 ## Wydajność do logu co 5 s (na goglach: ./quest.sh log) - po tym
 ## dobieramy najwyższą rozdzielczość, przy której gogle trzymają klatki.
 var _perf_t := 0.0
+var _was_roof := false
+## Histogram klatek w oknie 5 s (etap 0 planu wydajności).
+var _hist := [0, 0, 0]                    # > 13,9 ms, > 20 ms, > 33 ms
+var _frames := 0
+var _worst_ms := 0.0
+var _worst_events := PackedStringArray()
+var _bench_t := 0.0
+var _bench_stage := 0
+var _bench_driver: BotDriver
+var _bench_sum := {"frames": 0, "over": 0, "over33": 0, "worst": 0.0, "gpu": [], "fps": []}
 var _perf_measure := false
 func _log_perf(delta: float) -> void:
 	_perf_t += delta
@@ -1505,7 +1547,24 @@ func _log_perf(delta: float) -> void:
 			RenderingServer.viewport_get_measured_render_time_gpu(vp),
 			RenderingServer.viewport_get_measured_render_time_cpu(vp),
 			_bots.size(), _bots.size() - rail, _last_section])
-	print("PERF+ ms/s: ", Perf.dump(5.0))
+	print("PERF+ ms/s (suma/maks ms): ", Perf.dump(5.0))
+	var gpu := RenderingServer.viewport_get_measured_render_time_gpu(vp)
+	print("PERF#: klatki %d, >13,9 ms %d, >20 ms %d, >33 ms %d, najdłuższa %.1f ms [%s] | draw %d, obiekty %d, prymitywy %d, VRAM %.0f MB, węzły %d, ciała %d, pary %d" % [
+			_frames, _hist[0], _hist[1], _hist[2], _worst_ms, ",".join(_worst_events),
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
+			Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+			Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS),
+			Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)])
+	if Bench.active() and _bench_stage >= 1:
+		_bench_sum["gpu"].append(gpu)
+		_bench_sum["fps"].append(Engine.get_frames_per_second())
+	_hist = [0, 0, 0]
+	_frames = 0
+	_worst_ms = 0.0
+	_worst_events = PackedStringArray()
 
 
 ## Szum deszczu: 2 s szumu przefiltrowanego dolnoprzepustowo, w pętli.
@@ -1737,3 +1796,102 @@ func _make_beep(freqs: Array) -> AudioStreamWAV:
 	wav.mix_rate = rate
 	wav.data = data
 	return wav
+
+
+
+# --------------------------------------------------------------------------
+# Pomiar (plan wydajności, etap 0): histogram klatek i przejazd porównawczy
+# --------------------------------------------------------------------------
+
+## Długość poprzedniej klatki = delta tej; zdarzenia z Perf.mark zebrane
+## w poprzedniej klatce - do najdłuższej klatki w oknie.
+func _frame_stats(delta: float) -> void:
+	var ms := delta * 1000.0
+	var ev := Perf.take_events()
+	_frames += 1
+	if ms > 13.9:
+		_hist[0] += 1
+	if ms > 20.0:
+		_hist[1] += 1
+	if ms > 33.0:
+		_hist[2] += 1
+	if ms > _worst_ms:
+		_worst_ms = ms
+		_worst_events = ev
+	if Bench.active() and _bench_stage >= 1:
+		_bench_sum["frames"] += 1
+		if ms > 13.9:
+			_bench_sum["over"] += 1
+		if ms > 33.0:
+			_bench_sum["over33"] += 1
+		_bench_sum["worst"] = maxf(_bench_sum["worst"], ms)
+
+
+## Przejazd porównawczy: autem jedzie sterownik bota (jak na ekranie
+## tytułowym), stałe ziarno; po ustawieniu scenariusza liczymy statystyki
+## przez Bench.duration s, wypisujemy "BENCH END" i kończymy grę.
+func _bench_step(delta: float) -> void:
+	if not Bench.active() or not _endless:
+		return
+	_bench_t += delta
+	if _bench_stage == 0 and _bench_t > 1.0:
+		_bench_stage = 1
+		_bench_t = 0.0
+		cranes_left = -1
+		var d := _bench_start_dist()
+		if d > 0.0:
+			track.update_progress(d)
+			_last_safe_dist = d
+			_max_dist = d
+			car.place(_safe_pose(d))
+		_bench_driver = BotDriver.new()
+		_bench_driver.name = "BenchDriver"
+		_bench_driver.car = car
+		_bench_driver.track = track
+		_bench_driver.dist = maxf(d, start_distance)
+		car.add_child(_bench_driver)
+		race_state = Race.RACING
+		print("BENCH START %s na %.0f m" % [Bench.scenario, d])
+	if _bench_stage == 1:
+		# S5: wybuchy botów w 20., 35. i 50. sekundzie (szarpnięcia C1).
+		if Bench.scenario == "S5":
+			for at in [20.0, 35.0, 50.0]:
+				if _bench_t - delta < at and _bench_t >= at:
+					_spawn_bot(_last_safe_dist + 40.0)
+					if not _bots.is_empty():
+						_bots[-1].is_wrecked = true
+		if _bench_t >= Bench.duration:
+			_bench_stage = 2
+			var g: Array = _bench_sum["gpu"]
+			var fps: Array = _bench_sum["fps"]
+			var gsum := 0.0
+			for v in g:
+				gsum += v
+			var fsum := 0.0
+			for v in fps:
+				fsum += v
+			print("BENCH END %s wyłączone=[%s] rozdzielczość %d%%: śr. %.0f kl./s, klatek %d, >13,9 ms %.0f%%, >33 ms %d, najdłuższa %.1f ms, GPU śr. %.1f ms" % [
+					Bench.scenario, ",".join(Bench.off), int(get_node("/root/GameSettings").xr_resolution) if get_node_or_null("/root/GameSettings") else 0,
+					fsum / maxf(fps.size(), 1), _bench_sum["frames"],
+					100.0 * _bench_sum["over"] / maxf(_bench_sum["frames"], 1), _bench_sum["over33"],
+					_bench_sum["worst"], gsum / maxf(g.size(), 1)])
+			get_tree().quit()
+
+
+## Dystans startu scenariusza: S2 - przed pierwszym tunelem dwunitkowym
+## (albo zwykłym), S4 - przed pierwszą autostradą; reszta od początku.
+func _bench_start_dist() -> float:
+	if Bench.scenario != "S2" and Bench.scenario != "S4":
+		return 0.0
+	var p := 0.0
+	while p < 30000.0:
+		track.update_progress(p)
+		for c in track._chunks:
+			if Bench.scenario == "S4" and c.highway:
+				return c.dist_range().x + 60.0
+			if Bench.scenario == "S2":
+				for smp in c._samples:
+					if smp["meta"].has("tunnel_len"):
+						return maxf(float(smp["dist"]) - 150.0, start_distance)
+		p += 400.0
+	return 0.0

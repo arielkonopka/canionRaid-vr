@@ -38,6 +38,7 @@ func _ready() -> void:
 
 
 func _add_section() -> void:
+	Perf.mark("chunk_build")
 	var start := {}
 	if _chunks.is_empty():
 		var h0 := 6.0 if canyon else start_height
@@ -85,6 +86,7 @@ func _update_progress(dist: float) -> void:
 	while _current > KEEP_BEHIND:
 		var old: StuntTrack = _chunks.pop_front()
 		old.queue_free()
+		Perf.mark("chunk_free")
 		_current -= 1
 
 
