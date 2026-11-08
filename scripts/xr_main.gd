@@ -90,7 +90,15 @@ var _lateral := 0.0                 # przesunięcie auta od osi toru [m], + w pr
 var _track_hud: TrackHud
 
 # --- boty: puste, zdalnie sterowane auta (trasa bez końca) ---
-const MAX_BOTS := 2                  # każdy bot to pełna fizyka auta - Quest
+## Liczba aut na trasie (użytkownik): 4 na start, +1 co 2 odcinki do 20,
+## potem +1 co 100 odcinków. Dalekie boty bez szału jadą "po szynie"
+## (BotDriver, bez fizyki), więc tylu naraz jest do udźwignięcia.
+static func bot_limit(section: int) -> int:
+	var n := 4 + maxi(section - 1, 0) / 2
+	if n <= 20:
+		return n
+	var at20 := 33                       # odcinek, na którym limit doszedł do 20
+	return 20 + (section - at20) / 100
 var _bots: Array[StuntCar] = []
 var _bot_timer := 6.0
 var _bot_rng := RandomNumberGenerator.new()
@@ -431,9 +439,11 @@ func player_compliant() -> bool:
 func _update_bots(delta: float) -> void:
 	_bot_timer -= delta
 	if _bot_timer <= 0.0 and race_state == Race.RACING:
-		_bot_timer = _bot_rng.randf_range(10.0, 25.0)
-		if _bots.size() < MAX_BOTS:
-			_spawn_bot(_last_safe_dist + _bot_rng.randf_range(220.0, 360.0))
+		var limit := bot_limit(_last_section) if _endless else 2
+		# Im więcej brakuje do limitu, tym szybciej dochodzą nowe auta.
+		_bot_timer = _bot_rng.randf_range(2.0, 6.0) if _bots.size() < limit else 3.0
+		if _bots.size() < limit:
+			_spawn_bot(_last_safe_dist + _bot_rng.randf_range(220.0, 900.0))
 	for b in _bots.duplicate():
 		var drv: BotDriver = b.get_node("Driver")
 		# Bot w szale nie znika tak łatwo - ma czas dogonić gracza.
@@ -449,6 +459,31 @@ func _update_bots(delta: float) -> void:
 				boom.global_position = b.global_position
 			_bots.erase(b)
 			b.queue_free()
+
+
+## Posiłki: boty w promieniu `radius` m od wściekłego bota też wpadają w szał.
+func call_reinforcements(from: StuntCar, radius: float) -> void:
+	for b in _bots:
+		if b == from or not is_instance_valid(b):
+			continue
+		var drv: BotDriver = b.get_node("Driver")
+		if drv.rage < 0.5 and b.global_position.distance_to(from.global_position) < radius:
+			drv.enrage()
+
+
+## Drugi bot w szale najbliżej gracza (partner do kleszczy) albo null.
+func rage_partner(me: StuntCar) -> StuntCar:
+	var best: StuntCar = null
+	var best_d := 120.0
+	for b in _bots:
+		if b == me or not is_instance_valid(b):
+			continue
+		var drv: BotDriver = b.get_node("Driver")
+		var dd := b.global_position.distance_to(car.global_position)
+		if drv.rage > 0.5 and dd < best_d:
+			best_d = dd
+			best = b
+	return best
 
 
 func _spawn_bot(d: float) -> void:
@@ -472,7 +507,10 @@ func _spawn_bot(d: float) -> void:
 	if gs:
 		var keys: Array = gs.PAINTS.keys()
 		bot.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
-	bot.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane_w + xf.basis.y * 0.9))
+	# Prawy albo środkowy pas - przy wielu autach nie wszystkie jednym torem.
+	var lane := lane_w if _bot_rng.randf() < 0.65 else 0.0
+	bot.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
+	bot._settle_t = 0.0         # place() zjadałby prędkość przepisową startu
 	var v := lim / 3.6
 	bot.linear_velocity = -xf.basis.z * v
 	for w in bot.wheels:
@@ -755,7 +793,14 @@ func _update_warning(delta: float) -> void:
 	var kind := ""
 	var value := 0
 	var prev_surf := ""
-	for s in track.samples_from(_last_safe_dist, 250.0):
+	# Zjazd do warsztatu albo na stację bliżej niż 400 m: niebieski znak ze
+	# strzałką ma pierwszeństwo przed ostrzeżeniami.
+	for svc in [[_next_ws, "repair"], [_next_station, "fuel"]]:
+		var sd: Dictionary = svc[0]
+		if not sd.is_empty() and float(sd["start"]) - 40.0 - _last_safe_dist < 400.0 \
+				and float(sd["start"]) > _last_safe_dist:
+			kind = svc[1]
+	for s in (track.samples_from(_last_safe_dist, 250.0) if kind == "" else []):
 		var m: Dictionary = s["meta"]
 		if m.has("curve_sign"):
 			kind = "curve_r" if m["curve_sign"] > 0 else "curve_l"

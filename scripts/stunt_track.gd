@@ -704,7 +704,7 @@ func _build_canyon() -> void:
 		_quad_facing(st, faces, c0 - r0 * w0 + Vector3.DOWN * 2.0, c0 + r0 * w0 + Vector3.DOWN * 2.0,
 				c0 + r0 * w0 + Vector3.UP * 45.0, c0 - r0 * w0 + Vector3.UP * 45.0, fwd0)
 	st.generate_normals()
-	st.set_material(_shale_material())
+	st.set_material(_rock_material("cavern"))
 	_build_sea()
 	var mi := MeshInstance3D.new()
 	mi.name = "CanyonWalls"
@@ -842,12 +842,39 @@ func _quad_facing(st: SurfaceTool, faces: PackedVector3Array, p0: Vector3, p1: V
 	faces.append_array(_quad_faces(p0, p1, p2, p3))
 
 
-func _shale_material() -> Material:
-	if not _shared_mats.has("shale"):
+## Skała z tekstur (shaders/rock.gdshader): "cavern" - ściany wąwozu
+## i wyspy (cavern walls), "ocean" - góry nad tunelami (ocean rock). Mech
+## na zboczach w cieniu w obu (mossy rock, textures/derived).
+const ROCK_TEXTURES := {
+	"cavern": ["res://textures/cavern-walls-bl/cavern-walls_albedo.png",
+			"res://textures/cavern-walls-bl/cavern-walls_normal-ogl.png", 1.0 / 6.0],
+	"ocean": ["res://textures/ocean-rock-bl/ocean-rock_albedo.png",
+			"res://textures/ocean-rock-bl/ocean-rock_normal-ogl.png", 1.0 / 10.0],
+}
+
+
+const MOSS_TEX := ["res://textures/derived/moss_albedo.png", "res://textures/derived/moss_normal.png"]
+
+
+func _rock_material(kind := "cavern") -> Material:
+	var key := "rock_" + kind
+	if not _shared_mats.has(key):
+		var t: Array = ROCK_TEXTURES[kind]
 		var m := ShaderMaterial.new()
-		m.shader = load("res://shaders/shale.gdshader")
-		_shared_mats["shale"] = m
-	return _shared_mats["shale"]
+		# Tekstury (freepbr.com) są tylko w lokalnych buildach - nie ma ich
+		# w publicznym repo. Bez nich proceduralny łupek (shale.gdshader).
+		if not (ResourceLoader.exists(t[0]) and ResourceLoader.exists(MOSS_TEX[0])):
+			m.shader = load("res://shaders/shale.gdshader")
+			_shared_mats[key] = m
+			return m
+		m.shader = load("res://shaders/rock.gdshader")
+		m.set_shader_parameter("rock_albedo", load(t[0]))
+		m.set_shader_parameter("rock_normal", load(t[1]))
+		m.set_shader_parameter("rock_scale", t[2])
+		m.set_shader_parameter("moss_albedo", load(MOSS_TEX[0]))
+		m.set_shader_parameter("moss_normal", load(MOSS_TEX[1]))
+		_shared_mats[key] = m
+	return _shared_mats[key]
 
 
 ## Znak drogowy wg polskich wzorów, przy prawej krawędzi jezdni:
@@ -898,6 +925,8 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 			_sign_box(root, Vector3(0.44, 0.44, 0.02), face + Vector3(0, 0.12, 0.012), mats["white"])
 			_sign_box(root, Vector3(0.14, 0.26, 0.01), face + Vector3(-0.03, 0.1, 0.025), mats["black"])
 			_sign_box(root, Vector3(0.04, 0.16, 0.01), face + Vector3(0.09, 0.14, 0.025), mats["black"])
+			if value == 1:
+				_exit_arrow(root, face, mats["white"])
 		"repair":
 			# Znak warsztatu: niebieska tablica, białe pole, klucz.
 			if not _shared_mats.has("sign_blue"):
@@ -909,6 +938,8 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 			var wr := _sign_box(root, Vector3(0.05, 0.3, 0.01), face + Vector3(0, 0.12, 0.025), mats["black"])
 			wr.rotation = Vector3(0, 0, 0.8)
 			_sign_box(root, Vector3(0.11, 0.07, 0.01), face + Vector3(0.09, 0.22, 0.025), mats["black"])
+			if value == 1:
+				_exit_arrow(root, face, mats["white"])
 		_:
 			# Trójkąt wierzchołkiem do góry: walec o 3 bokach patrzący w +Z.
 			_sign_tri(root, face, 0.52, mats["red"], 0.0)
@@ -1161,7 +1192,7 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 	st.generate_normals()
 	st.set_material(_concrete_material())
 	mount.generate_normals()
-	mount.set_material(_shale_material())
+	mount.set_material(_rock_material("ocean"))
 	lamp.generate_normals()
 	lamp.set_material(_lamp_material())
 	var mesh := st.commit()
@@ -1278,7 +1309,7 @@ func _build_island(d0: float, length: float, w: float) -> void:
 	if faces.is_empty():
 		return
 	st.generate_normals()
-	st.set_material(_shale_material())
+	st.set_material(_rock_material("cavern"))
 	var mi := MeshInstance3D.new()
 	mi.name = "Island"
 	mi.mesh = st.commit()
@@ -1483,9 +1514,27 @@ func samples_from(dist: float, length: float) -> Array:
 ## po prawej stacja (dystrybutory, ładowarki, zadaszenie) albo warsztat
 ## (hala z napisem). Tankuje się, jadąc powoli pasem zjazdu; do warsztatu
 ## trzeba wjechać i stanąć.
+## Biała strzałka "zjazd w prawo" w dolnym polu niebieskiego znaku.
+func _exit_arrow(root: Node3D, face: Vector3, mat: Material) -> void:
+	var shaft := _sign_box(root, Vector3(0.05, 0.2, 0.01), face + Vector3(-0.02, -0.26, 0.025), mat)
+	shaft.rotation = Vector3(0, 0, -0.785)
+	_sign_box(root, Vector3(0.13, 0.045, 0.01), face + Vector3(0.06, -0.19, 0.025), mat)
+	_sign_box(root, Vector3(0.045, 0.13, 0.01), face + Vector3(0.10, -0.23, 0.025), mat)
+
+
+## Zjazd do warsztatu / na stację. Oprócz znaku na początku odcinka
+## (>= 800 m wcześniej) przypomnienia 300 m i 100 m przed zjazdem i znak
+## ze strzałką na samym zjeździe (użytkownik nie znalazł zjazdu do warsztatu
+## - jedyny znak stał prawie kilometr wcześniej).
 func _build_service(d0: float, st: Dictionary) -> void:
 	var w0: float = st["road_w"]
 	var length: float = st["len"]
+	var kind := "fuel" if st["kind"] == "station" else "repair"
+	var exit_d := d0 - 40.0              # początek poszerzenia (pas zjazdu)
+	for back in [300.0, 100.0]:
+		if exit_d - back > float(_samples[0]["dist"]) + 2.0:
+			_road_sign(exit_d - back, kind)
+	_road_sign(exit_d, kind, 1)
 	_build_separator(d0, length, w0 * 0.5 + 0.7)
 	if st["kind"] == "station":
 		_build_station(d0, st)

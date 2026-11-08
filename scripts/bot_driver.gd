@@ -25,7 +25,27 @@ var strategy := "mixed"
 ##             hamuje przed nim (impulsami co kilka sekund);
 ##   "ram"   - gwałtownie dojeżdża od tyłu i stuka w zderzak; gdy jest przed
 ##             graczem, zwalnia i zjeżdża z jego linii, żeby być za nim;
-##   "mixed" - co 8-14 s zmienia jedno na drugie.
+##   "pit"   - podjeżdża równolegle i uderza w tylny bok (manewr PIT);
+##   "zigzag" - jedzie przed graczem od krawędzi do krawędzi, nie da się
+##             go wyprzedzić;
+##   "ambush" - wyprzedza, staje na poboczu i wyjeżdża graczowi przed maskę;
+##   "pincer" - dwa boty w szale biorą gracza w kleszcze z obu boków
+##             (bez partnera - jak "pit");
+##   "mixed" - co 8-14 s losuje jedną z powyższych (domyślnie).
+## Posiłki (rage_reinforce): gdy bot wpada w szał, boty w promieniu 400 m
+## też wpadają.
+const TACTICS := ["block", "ram", "pit", "zigzag", "ambush", "pincer"]
+var reinforce := true
+## Daleko od gracza i bez szału bot jedzie "po szynie": zamrożony,
+## przesuwany po torze z prędkością przepisową (bez fizyki - przy 20 autach
+## Quest by nie wydolił). Fizyka wraca bliżej niż LOD_NEAR.
+const LOD_FAR := 380.0
+const LOD_NEAR := 320.0
+var on_rail := false
+var _rail_v := 0.0
+var _rail_acc := 0.0                   # szyna liczona 30 razy na sekundę, nie 240
+var _lane_off := 0.0
+var _side := 1.0                       # strona dla kleszczy/PIT (-1 lewa, 1 prawa)
 var _tactic := "ram"
 var _tactic_t := 0.0
 var _brake_pulse := 0.0                # >0: trwa hamowanie przed graczem
@@ -54,6 +74,8 @@ var _window_timer := 0.0
 
 func _physics_process(delta: float) -> void:
 	if car == null or track == null:
+		return
+	if _update_rail(delta):
 		return
 	_window_timer -= delta
 	if _window_timer <= 0.0:
@@ -158,7 +180,10 @@ func _rage_plan(delta: float, best: Dictionary, right: Vector3, w: float,
 	_tactic_t -= delta
 	if strategy == "mixed":
 		if _tactic_t <= 0.0:
-			_tactic = "block" if _tactic == "ram" else "ram"
+			var nxt: String = TACTICS[randi() % TACTICS.size()]
+			while nxt == _tactic:
+				nxt = TACTICS[randi() % TACTICS.size()]
+			_tactic = nxt
 			_tactic_t = randf_range(8.0, 14.0)
 	else:
 		_tactic = strategy
@@ -169,7 +194,45 @@ func _rage_plan(delta: float, best: Dictionary, right: Vector3, w: float,
 	var p_off := clampf(prel.dot(right), -lim, lim)
 	var ahead := prel.dot(best["fwd"] as Vector3)     # >0: gracz przed botem
 	var pk := player.speed * 3.6
-	if _tactic == "ram":
+	var tactic := _tactic
+	if tactic == "pincer" and (main == null or main.rage_partner(car) == null):
+		tactic = "pit"                    # kleszcze wymagają drugiego bota
+	if tactic == "pit" or tactic == "pincer":
+		_brake_pulse = 0.0
+		# Pas obok gracza (strona stała dla bota); przy kleszczach drugi bot
+		# bierze przeciwną.
+		var sd := _side
+		if tactic == "pincer":
+			var partner: StuntCar = main.rage_partner(car)
+			sd = -1.0 if car.get_instance_id() < partner.get_instance_id() else 1.0
+		var beside := clampf(p_off + sd * lane_w * 0.9, -lim, lim)
+		if ahead > 4.0:
+			return Vector2(beside, pk + 25.0)           # dogania bokiem
+		if ahead > -1.0:
+			# Przód bota przy tylnym kole gracza: skręt w bok auta.
+			var squeeze := 1.9 if tactic == "pincer" else 1.2
+			return Vector2(clampf(p_off + sd * squeeze, -lim, lim), pk + 6.0)
+		return Vector2(beside, pk - 15.0)               # wyprzedził - zwalnia
+	if tactic == "zigzag":
+		_brake_pulse = 0.0
+		if ahead > -6.0:
+			var side_z := 1.0 if p_off < 0.0 else -1.0
+			return Vector2(clampf(p_off + side_z * lane_w * 1.2, -lim, lim), pk + 30.0)
+		# Przed graczem: zygzak przez całą szerokość, tempo gracza.
+		var zz := sin(Time.get_ticks_msec() * 0.0013 + float(car.get_instance_id() % 7)) * lim * 0.85
+		return Vector2(zz, pk + (2.0 if -ahead > 10.0 else -4.0))
+	if tactic == "ambush":
+		_brake_pulse = 0.0
+		if ahead > -60.0 and not (ahead < 0.0 and car.speed < 3.0):
+			# Wyprzedza z dużym zapasem.
+			var side_a := 1.0 if p_off < 0.0 else -1.0
+			return Vector2(clampf(p_off + side_a * lane_w * 1.2, -lim, lim), pk + 45.0)
+		if -ahead > 28.0:
+			# Czeka na poboczu.
+			return Vector2(_side * lim, 0.0)
+		# Gracz blisko: wyjeżdża mu przed maskę.
+		return Vector2(p_off, maxf(pk * 0.4, 25.0))
+	if tactic == "ram":
 		_brake_pulse = 0.0
 		if ahead > -3.0:
 			# Za graczem: gwałtowny dojazd i stuknięcie (szybciej niż gracz).
@@ -209,14 +272,61 @@ func _curve_speed() -> float:
 	return target
 
 
+## Jazda "po szynie" daleko od gracza. Zwraca true, gdy bot jest na
+## szynie (fizyka i sterowanie pominięte).
+func _update_rail(delta: float) -> bool:
+	if main == null:
+		return false
+	var gap := absf(dist - float(main._last_safe_dist))
+	if not on_rail:
+		if rage > 0.0 or gap < LOD_FAR or car.wheels_on_ground < 4:
+			return false
+		on_rail = true
+		_rail_v = maxf(car.speed, 5.0)
+		var smp: Array = track.samples_from(dist, 1.0)
+		if smp.is_empty():
+			on_rail = false
+			return false
+		_lane_off = (car.global_position - track.to_global(smp[0]["pos"])).dot(smp[0]["right"])
+		car.freeze = true
+	elif gap < LOD_NEAR or rage > 0.0:
+		# Z powrotem fizyka, z prędkością, jaką miał na szynie.
+		on_rail = false
+		car.freeze = false
+		var fwd := -car.global_basis.z
+		car.linear_velocity = fwd * _rail_v
+		car.angular_velocity = Vector3.ZERO
+		for w in car.wheels:
+			w.omega = _rail_v / car.wheel_radius
+		return false
+	# Daleko od gracza 30 Hz wystarcza (szukanie na trasie jest drogie).
+	_rail_acc += delta
+	if _rail_acc < 1.0 / 30.0:
+		return true
+	delta = _rail_acc
+	_rail_acc = 0.0
+	# Prędkość przepisowa w tym miejscu, płynnie.
+	var smp2: Array = track.samples_from(dist, 1.0)
+	if smp2.is_empty():
+		return true
+	_rail_v = move_toward(_rail_v, float(smp2[0]["limit"]) / 3.6, 3.0 * delta)
+	dist += _rail_v * delta
+	var xf: Transform3D = track.transform_at_distance(dist)
+	var lane := clampf(_lane_off, -float(smp2[0]["width"]) * 0.5 + 1.0, float(smp2[0]["width"]) * 0.5 - 1.0)
+	car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.62)
+	return true
+
+
 func _ready() -> void:
+	_side = -1.0 if get_instance_id() % 2 == 0 else 1.0
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		calm_time = float(gs.rage_calm)
 		min_rage_time = float(gs.rage_time)
 		overspeed = float(gs.rage_overspeed)
 		strategy = gs.rage_strategy
-	_tactic = "ram" if strategy == "mixed" else strategy
+		reinforce = gs.rage_reinforce
+	_tactic = TACTICS[randi() % TACTICS.size()] if strategy == "mixed" else strategy
 	# Zderzenie: sygnał body_entered (contact_monitor jest włączony w aucie) -
 	# odpytywanie kontaktów w klatce gubiło krótkie uderzenia.
 	car.body_entered.connect(_on_body_entered)
@@ -234,18 +344,29 @@ func _on_body_entered(b: Node) -> void:
 		return
 	var rel_v := (car.linear_velocity - player.linear_velocity).length()
 	if rel_v > 1.0:
-		if rage < 0.5:
+		var fresh := rage < 0.5
+		enrage()
+		if fresh:
 			print("Bot w szale drogowym!")
-			# Trąbi raz, przy wybuchu szału.
-			if _horn:
-				_horn.play()
-			# Oszustwo: zdalnie sterowane auto nagle dostaje mocniejszy silnik -
-			# co najmniej 350 kW i nie słabszy niż auto gracza (do 700 kW).
-			var cheat := maxf(350.0, player.engine_power_kw if player else 0.0)
-			if car.engine_power_kw < cheat:
-				car.apply_engine("petrol", cheat)
-		rage = 1.0
-		rage_time = 0.0
+			if reinforce and main:
+				main.call_reinforcements(car, 400.0)
+
+
+## Wejście w szał (zderzenie albo wezwanie posiłków). Trąbi raz, przy
+## wybuchu szału. Oszustwo: zdalnie sterowane auto nagle dostaje mocniejszy
+## silnik - co najmniej 350 kW i nie słabszy niż auto gracza.
+func enrage() -> void:
+	var fresh := rage < 0.5
+	rage = 1.0
+	rage_time = 0.0
+	if on_rail:
+		_update_rail(0.0)                 # rage > 0 - zejście z szyny
+	if fresh:
+		if _horn:
+			_horn.play()
+		var cheat := maxf(350.0, player.engine_power_kw if player else 0.0)
+		if car.engine_power_kw < cheat:
+			car.apply_engine("petrol", cheat)
 
 
 ## Klakson: dwa tony (~420 i ~500 Hz, jak typowy samochodowy), 0,4 s,

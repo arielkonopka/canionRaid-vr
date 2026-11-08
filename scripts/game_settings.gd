@@ -41,6 +41,8 @@ var rage_overspeed: int = 50
 var rage_time: int = 10
 var rage_calm: int = 6
 var rage_strategy: String = "mixed"
+## Posiłki: szał jednego bota zaraża boty w promieniu 400 m.
+var rage_reinforce: bool = true
 ## Opony: "all_season" całoroczne (domyślnie), "summer" letnie, "winter"
 ## zimowe (StuntCar.TIRE_COMPOUNDS).
 var tires: String = "all_season"
@@ -351,12 +353,25 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "rage_strategy", "group": "rage", "label": "Strategia",
-		"values": ["block", "ram", "mixed"],
-		"names": ["Zajeżdżanie drogi", "Stukanie w tył", "Na zmianę"],
+		"values": ["mixed", "block", "ram", "pit", "zigzag", "ambush", "pincer"],
+		"names": ["Wszystkie na zmianę", "Zajeżdżanie drogi", "Stukanie w tył",
+				"Spychanie z boku", "Zygzak", "Zasadzka", "Kleszcze"],
 		"hints": [
+			"Co kilka sekund inna sztuczka - nie wiesz, co zrobi.",
 			"Wyprzedza, zajeżdża drogę i gwałtownie hamuje przed tobą.",
 			"Gwałtownie podjeżdża od tyłu i stuka w zderzak.",
-			"Raz zajeżdża drogę, raz stuka w tył - nie wiesz, co zrobi.",
+			"Podjeżdża równolegle i uderza w tylny bok, żeby cię obrócić.",
+			"Jedzie przed tobą od krawędzi do krawędzi - nie wyprzedzisz.",
+			"Wyprzedza, staje na poboczu i wyjeżdża ci przed maskę.",
+			"Dwa boty w szale biorą cię z obu boków. Sam bot spycha z boku.",
+		],
+	},
+	{
+		"key": "rage_reinforce", "group": "rage", "label": "Posiłki",
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Szał jednego bota zaraża wszystkie boty w promieniu 400 m.",
+			"Każdy bot wściekły tylko za siebie.",
 		],
 	}
 ]
