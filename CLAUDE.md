@@ -35,6 +35,12 @@ Nie wpisuj tego, co łatwo wyczytać z kodu linijka po linijce. Wpisuj
 to, czego z kodu nie widać: dlaczego coś jest zrobione tak, a nie
 inaczej, co już próbowano, co nie działa i co ustalono z użytkownikiem.
 
+## Skrzynka od wątków w chmurze
+
+Na początku sesji (i po `git pull`) sprawdź `docs/agent/inbox/`: są tam
+specyfikacje i pytania z wątków projektowych w chmurze. Zasady
+w `docs/agent/README.md` (propozycja do ustalenia z użytkownikiem).
+
 ## Stałe zasady
 
 - Rozmawiaj z użytkownikiem po polsku.
