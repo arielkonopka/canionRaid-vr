@@ -56,7 +56,8 @@ func build(cluster: Vector3, tilt_deg: float) -> void:
 	var hood := MeshInstance3D.new()
 	var hb := BoxMesh.new()
 	hb.size = Vector3(0.36, 0.17, 0.05)
-	hb.material = _unshaded(Color(0.12, 0.08, 0.05))
+	# Prawie czarna, jak osłona zegarów we wnętrzu sedana (stunt_car.gd).
+	hb.material = _unshaded(Color(0.035, 0.035, 0.04))
 	hood.mesh = hb
 	hood.position = Vector3(0, 0, -0.03)
 	cl.add_child(hood)
