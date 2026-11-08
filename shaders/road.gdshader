@@ -3,6 +3,9 @@
 //   UV.x  - odległość od osi toru w poprzek [m], dodatnia w prawo
 //   UV.y  - dystans wzdłuż toru [m]
 //   UV2.x - szerokość jezdni w tym miejscu [m]
+//   UV2.y - tunel (plan wydajności G1): 0 = otwarta droga (domyślnie, bez
+//           zmian), (0, 1] = pojedyncza rura, [-1, 0) = dwie nitki;
+//           |UV2.y| = jak bardzo "w środku" (łagodnie przy wylotach).
 // Nawierzchnia: wetness (mokra) i ice (lód) jako parametry materiału.
 shader_type spatial;
 render_mode cull_back;
@@ -12,6 +15,16 @@ render_mode cull_back;
 uniform vec3 asphalt : source_color = vec3(0.251, 0.251, 0.251);
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 uniform float ice : hint_range(0.0, 1.0) = 0.0;
+
+// Jarzeniówki w tunelu bez OmniLight3D (G1): pas lamp co 2 m w szczycie
+// rury działa jak źródło liniowe na wysokości H nad osią rury. Na
+// jezdni w odległości d w poprzek od osi: natężenie ~ cos/odległość =
+// H/(H² + d²), względem miejsca pod lampą H²/(H² + d²).
+uniform vec3 tunnel_lamp : source_color = vec3(0.85, 0.95, 1.0);
+uniform float tunnel_lamp_energy = 0.9;
+uniform float tunnel_lamp_h = 11.0;       // szczyt rury nad jezdnią [m]
+uniform float tunnel_island_w = 5.0;      // TrackGenerator.ISLAND_W
+uniform float tunnel_daylight = 0.1;      // ile słońca i nieba zostaje w rurze
 
 varying vec3 wpos;
 
@@ -71,5 +84,16 @@ void fragment() {
 
 	ALBEDO = col;
 	ROUGHNESS = rough;
+
+	// Tunel: światło lamp jako emisja (albedo × natężenie), słońce i niebo
+	// przyciemnione przez AO (bez cieni dalej niż 80 m świeciłyby w rurze).
+	float enc = clamp(abs(UV2.y), 0.0, 1.0);
+	// Dwie nitki: osie rur w ±(szerokość + wyspa)/4 od osi całej jezdni.
+	float lamp_x = UV2.y < 0.0 ? (w + tunnel_island_w) * 0.25 : 0.0;
+	float dl = au - lamp_x;
+	float h2 = tunnel_lamp_h * tunnel_lamp_h;
+	EMISSION = col * tunnel_lamp * (tunnel_lamp_energy * enc * h2 / (h2 + dl * dl));
+	AO = 1.0 - (1.0 - tunnel_daylight) * enc;
+	AO_LIGHT_AFFECT = enc;
 	SPECULAR = mix(0.35, 0.75, max(wetness, ice));
 }
