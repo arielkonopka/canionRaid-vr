@@ -13,6 +13,8 @@
 #   ./quest.sh awake      gogle nie usypiają zdjęte z głowy (czujnik "na głowie"
 #                         wymuszony; zużywa baterię) - wygodne przy wgrywaniu
 #   ./quest.sh sleep      przywraca normalny czujnik
+#   ./quest.sh wifi       adb przez Wi-Fi: raz z kablem, potem bez kabla
+#                         (do restartu gogli; adres w build/.quest_wifi)
 #
 # Gogle: kabel USB, tryb dewelopera włączony, debugowanie USB zatwierdzone
 # w goglach. Jeśli gogle czekają na zgodę, skrypt mówi o tym i czeka.
@@ -121,14 +123,26 @@ do_build() {
 	ok "$APK ($(du -h "$APK" | cut -f1))"
 }
 
-# Czeka, aż gogle będą podłączone i zatwierdzone.
+# adb przez Wi-Fi: adres gogli zapisany przez "./quest.sh wifi".
+WIFI_FILE="build/.quest_wifi"
+
+# Czeka, aż gogle będą podłączone i zatwierdzone. Gdy jest zapisany adres
+# Wi-Fi, łączy się przez sieć; przy kilku urządzeniach (kabel + Wi-Fi to
+# te same gogle widziane dwa razy) wybiera jedno przez ANDROID_SERIAL.
 wait_device() {
 	"$ADB" start-server >/dev/null 2>&1 || true
-	local said="" st
+	local said="" st serial
 	for ((i = 0; i < WAIT_S; i++)); do
+		if [[ -f "$WIFI_FILE" ]] && ! "$ADB" devices | grep -q "^$(cat "$WIFI_FILE")"; then
+			"$ADB" connect "$(cat "$WIFI_FILE")" >/dev/null 2>&1 || true
+		fi
+		# Najpierw Wi-Fi (adres z dwukropkiem), potem kabel.
+		serial=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}' | grep ':' | head -1 || true)
+		[[ -n $serial ]] || serial=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1; exit}')
 		st=$("$ADB" devices | awk 'NR>1 && NF {print $2; exit}')
+		[[ -n $serial ]] && st=device
 		case "$st" in
-			device) ok "gogle: $("$ADB" devices | awk 'NR==2{print $1}')"; return 0 ;;
+			device) export ANDROID_SERIAL="$serial"; ok "gogle: $serial"; return 0 ;;
 			unauthorized)
 				[[ $said == u ]] || say "Gogle czekają na zgodę: załóż je i zatwierdź debugowanie USB (\"Zawsze zezwalaj\")."
 				said=u ;;
@@ -171,6 +185,22 @@ case "${1:-}" in
 	sleep)   wait_device
 	         "$ADB" shell am broadcast -a com.oculus.vrpowermanager.automation_disable >/dev/null
 	         ok "czujnik zbliżeniowy znów działa normalnie" ;;
-	-h|--help|help) sed -n '4,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+	wifi)    # Gogle muszą być raz podłączone kablem; potem kabel niepotrzebny.
+	         rm -f "$WIFI_FILE"
+	         wait_device
+	         ip=$("$ADB" shell ip -f inet addr show wlan0 | awk '/inet /{print $2}' | cut -d/ -f1 | tr -d '\r')
+	         [[ -n $ip ]] || fail "gogle nie mają adresu Wi-Fi (włącz Wi-Fi w goglach)"
+	         "$ADB" tcpip 5555 >/dev/null
+	         # adb w goglach restartuje się w trybie sieciowym - kilka prób.
+	         conn=""
+	         for _ in 1 2 3 4 5 6; do
+	         	sleep 2
+	         	"$ADB" connect "$ip:5555" 2>&1 | grep -q "connected to" && { conn=1; break; }
+	         done
+	         [[ -n $conn ]] || fail "nie udało się połączyć z $ip:5555"
+	         mkdir -p build
+	         echo "$ip:5555" > "$WIFI_FILE"
+	         ok "adb przez Wi-Fi: $ip:5555 - można odłączyć kabel (do restartu gogli)" ;;
+	-h|--help|help) sed -n '4,21p' "$0" | sed 's/^# \{0,1\}//' ;;
 	*)       fail "nieznane polecenie '$1' - zobacz ./quest.sh help" ;;
 esac

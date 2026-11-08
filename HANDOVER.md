@@ -474,6 +474,19 @@ Projekt-wzór: **`~/dev/asteroids-vr`** - inny projekt użytkownika na
 Questa 3 w Godocie 4.6, z działającym eksportem. Stamtąd pochodzą
 wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
+- **adb przez Wi-Fi** (od 2026-11-08, użytkownik chciał bez kabla):
+  `./quest.sh wifi` raz z kablem - czyta IP gogli (`wlan0`), `adb tcpip
+  5555`, łączy (kilka prób, adb w goglach się restartuje), zapisuje adres
+  w `build/.quest_wifi`. Potem `wait_device` sam robi `adb connect`
+  i wybiera urządzenie przez `ANDROID_SERIAL` (kabel i Wi-Fi to te same
+  gogle widziane dwa razy). Ważne do restartu gogli - potem znowu `wifi`
+  z kablem. Gogle: 192.168.2.192 (sieć domowa użytkownika). Log w tle:
+  `adb -s 192.168.2.192:5555 logcat -v time godot:V '*:S'`.
+- **Pułapka: serwer adb na PC sam się wyłącza** ("daemon not running"
+  przy kolejnym poleceniu) i wtedy gogle często wracają do
+  "unauthorized" - użytkownik musi znów zatwierdzić debugowanie
+  w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
+
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
 - **Godot z CLI "nic nie wypisuje" i wisi** → bez runtime'u OpenXR
