@@ -67,9 +67,9 @@ static func difficulty(dist: float) -> Dictionary:
 		# Promień łuków: coraz ciaśniej.
 		"curve_r": clampf(110.0 - 7.0 * km, 35.0, 110.0),
 		"bank_deg": clampf(12.0 + 1.6 * km, 12.0, 28.0),
-		# Jezdnia: na starcie trzy pasy (3 × 3,5 m + pobocza = 11 m), z dystansem
-		# coraz węższa - do 7 m po ~10 km.
-		"width": clampf(11.0 - 0.4 * km, 7.0, 11.0),
+		# Pasy na dwa auta obok siebie (użytkownik): 3 × 4,6 m + pobocza =
+		# 14,8 m na starcie, z dystansem węziej - najwyżej do 10 m.
+		"width": clampf(14.8 - 0.5 * km, 10.0, 14.8),
 		"p_wet": clampf(0.08 + 0.05 * km, 0.0, 0.45),
 		"p_ice": clampf(-0.05 + 0.03 * km, 0.0, 0.30),
 		"modules": clampi(2 + int(km * 0.35), 2, 5),
@@ -93,6 +93,9 @@ const RUNUP_CAP := [
 	# całoroczne, minimum z napędów). Skoki przestają tu szybko rosnąć.
 	[111.0, 128.0, 144.0, 158.0],   # 500 kW
 	[112.0, 129.0, 145.0, 159.0],   # 700 kW
+	# 1000 kW tylko dla elektryka z silnikami w kołach; w warsztacie można
+	# zostać przy starym silniku, więc trudność się już nie podnosi.
+	[112.0, 129.0, 145.0, 159.0],   # 1000 kW
 ]
 
 
@@ -330,6 +333,18 @@ static func _tunnel(out: Array, state: Dictionary, d: Dictionary, rng: RandomNum
 	# Dłuższe tunele (użytkownik): 300-800 m, łagodny łuk albo prosto.
 	var length := rng.randf_range(300.0, 800.0)
 	var curve := rng.randf_range(-0.06, 0.06) if rng.randf() < 0.5 else 0.0
+	if rng.randf() < 0.4:
+		# Dwie nitki (użytkownik): jezdnia rozdziela się przed górą (jak
+		# rozwidlenie ze skalną wyspą), każda połowa wjeżdża do osobno
+		# wierconej rury; za górą nitki znów się łączą.
+		var w: float = state.get("width", 9.0)
+		_push(out, state, {"len": 45.0, "width": w * 2.0 + ISLAND_W, "bank": 0.0, "pitch": 0.0,
+				"meta": {"island": {"start": 45.0, "len": length, "w": ISLAND_W}}})
+		_push(out, state, {"len": length, "pitch": 0.0, "bank": 0.0, "curve": curve,
+				"surface": "dry", "roof": true,
+				"meta": {"tunnel_len": length, "twin": {"road_w": w, "island_w": ISLAND_W}}})
+		_push(out, state, {"len": 45.0, "width": w, "curve": 0.0})
+		return
 	_push(out, state, {"len": 15.0, "pitch": 0.0, "bank": 0.0})
 	# Pod sklepieniem sucho i nie pada (strefa mokra trwa dalej za tunelem).
 	_push(out, state, {"len": length, "pitch": 0.0, "bank": 0.0, "curve": curve,

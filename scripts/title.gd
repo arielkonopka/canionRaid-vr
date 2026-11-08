@@ -225,8 +225,12 @@ func _hint_for(e: Dictionary) -> String:
 						h = "Elektryk ma jeden bieg - wybór skrzyni nie ma znaczenia."
 				"engine_type", "engine_power":
 					# Moment liczony z prawdziwej krzywej silnika, na aucie z tła.
-					car.apply_engine(GameSettings.engine_type, GameSettings.engine_power)
+					var kw: int = GameSettings.effective_power(GameSettings.engine_type,
+							GameSettings.motor_layout == "hub", GameSettings.engine_power)
+					car.apply_engine(GameSettings.engine_type, kw)
 					h += "\nMaks. moment: %d Nm" % roundi(car.peak_torque())
+					if kw != GameSettings.engine_power:
+						h += "\nTen napęd dostanie %d kW (1000 kW tylko z silnikami w kołach)." % kw
 					if opt["key"] == "motor_layout" and GameSettings.engine_type != "electric":
 						h = "Dotyczy tylko elektryka - teraz wybrany jest inny napęd."
 					elif opt["key"] == "drive_layout" and GameSettings.engine_type == "electric" \

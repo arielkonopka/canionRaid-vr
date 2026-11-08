@@ -136,6 +136,21 @@ const ENGINE_TYPES := {
 @export var body_inertia: Vector3 = Vector3(1750.0, 1950.0, 480.0)
 ## Opór powietrza 0,5·ρ·Cd·A [kg/m]. 0,46 ≈ Cd 0,36 przy 2,1 m² czoła.
 @export var aero_drag: float = 0.46
+## Masa nadwozia bez napędu [kg] - opcja menu "Masa" (950-2500 kg).
+## Bezwładność i zawieszenie skalują się proporcjonalnie do masy auta.
+@export var body_mass: float = 1150.0
+## Spojler (opcja menu): docisk F = ½·ρ·Cl·A·v² nad tylną osią, kosztem
+## oporu ½·ρ·Cd·A·v². Docisk = więcej przyczepności przy dużej prędkości.
+const SPOILERS := {
+	"none": {"cla": 0.0, "cda": 0.0},
+	"small": {"cla": 0.45, "cda": 0.03},
+	"large": {"cla": 1.1, "cda": 0.08},
+}
+const AIR_RHO := 1.225
+@export var spoiler: String = "none"
+var _spoiler_nodes := {}
+var _extra_mass := 0.0
+var _suspension_preset := "sport"
 
 @export_group("Zawieszenie")
 ## Długość sprężyny w spoczynku, od mocowania do osi koła.
@@ -489,11 +504,10 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	torque_curve = curve
 
 	# Masa i środek masy zależą od napędu (bateria, cięższy silnik).
-	car_mass = _base_mass + e["extra_mass"]
-	mass = car_mass
+	_extra_mass = e["extra_mass"]
+	_apply_mass()
 	com_offset = _base_com + Vector3(0.0, e["com_y"], 0.0)
 	center_of_mass = com_offset
-	inertia = _base_inertia * (car_mass / _base_mass)
 	engine_rpm = idle_rpm
 	gear = 1
 	_pending_gear = 1
@@ -544,12 +558,38 @@ func apply_suspension_preset(preset_name: String) -> void:
 	if not SUSPENSION_PRESETS.has(preset_name):
 		push_warning("StuntCar: nieznany zestaw zawieszenia '%s'." % preset_name)
 		return
+	_suspension_preset = preset_name
 	var p: Dictionary = SUSPENSION_PRESETS[preset_name]
-	spring_k = p["spring_k"]
-	damper_bump = p["damper_bump"]
-	damper_rebound = p["damper_rebound"]
-	anti_roll_front = p["anti_roll_front"]
-	anti_roll_rear = p["anti_roll_rear"]
+	# Zestawy strojone dla 1150 kg - przy innej masie ta sama częstotliwość
+	# drgań: sprężyny, tłumiki i stabilizatory proporcjonalnie do masy.
+	var k := car_mass / (_base_mass + _extra_mass) if _base_mass > 0.0 else 1.0
+	spring_k = p["spring_k"] * k
+	damper_bump = p["damper_bump"] * k
+	damper_rebound = p["damper_rebound"] * k
+	anti_roll_front = p["anti_roll_front"] * k
+	anti_roll_rear = p["anti_roll_rear"] * k
+
+
+## Masa nadwozia [kg]: przelicza masę, bezwładność i zawieszenie.
+func set_body_mass(kg: float) -> void:
+	body_mass = kg
+	_apply_mass()
+	apply_suspension_preset(_suspension_preset)
+
+
+func _apply_mass() -> void:
+	car_mass = body_mass + _extra_mass
+	mass = car_mass
+	# _base_mass to masa odniesienia (1150 kg z _ready), dla niej body_inertia.
+	inertia = _base_inertia * (car_mass / maxf(_base_mass, 1.0))
+
+
+func set_spoiler(kind: String) -> void:
+	if not SPOILERS.has(kind):
+		return
+	spoiler = kind
+	for k in _spoiler_nodes:
+		(_spoiler_nodes[k] as Node3D).visible = k == kind
 
 
 # --------------------------------------------------------------------------
@@ -726,7 +766,13 @@ func _physics_process(delta: float) -> void:
 	# --- 6. opór powietrza ---
 	var v2 := linear_velocity.length_squared()
 	if v2 > 0.01:
-		apply_central_force(-linear_velocity.normalized() * v2 * aero_drag)
+		var sp: Dictionary = SPOILERS[spoiler]
+		apply_central_force(-linear_velocity.normalized() * v2 * (aero_drag + 0.5 * AIR_RHO * sp["cda"]))
+		if sp["cla"] > 0.0:
+			# Docisk z prędkości wzdłuż auta, nad tylną osią (spojler na klapie).
+			var vf := linear_velocity.dot(fwd)
+			var rear_axle := (wheels[2].mount + wheels[3].mount) * 0.5
+			apply_force(-up * 0.5 * AIR_RHO * sp["cla"] * vf * vf, xf.basis * rear_axle)
 
 	_update_engine_rpm(delta)
 	abs_active = _abs_hit
@@ -1337,6 +1383,7 @@ func _build_body() -> void:
 		_dbox("paint", Vector3(0.06, 0.43, 1.40), Vector3(sx, -0.235, 0.15))
 	# tył (bagażnik)
 	_dbox("paint", Vector3(1.78, 0.14, 0.74), Vector3(0.0, 0.05, 1.92))
+	_build_spoilers(dark)
 	_dbox("paint", Vector3(1.78, 0.43, 0.64), Vector3(0.0, -0.235, 1.97))
 
 	# kabina: szyby, słupki, winylowy dach
@@ -1957,3 +2004,33 @@ func _update_wipers(delta: float) -> void:
 	_drops_mat.set_shader_parameter("rate", 0.12 * rain if rain < 1.0 else lerpf(0.12, 0.6, rain - 1.0))
 	if drops:
 		drops.visible = rain > 0.01
+
+
+## Spojlery na klapie bagażnika: mała lotka na krawędzi albo duże skrzydło
+## na dwóch wspornikach. Widoczny tylko wybrany (set_spoiler).
+func _build_spoilers(mat: Material) -> void:
+	var small := Node3D.new()
+	small.name = "SpoilerSmall"
+	_spoiler_box(small, Vector3(1.6, 0.035, 0.16), Vector3(0.0, 0.15, 2.18), mat, -0.25)
+	var large := Node3D.new()
+	large.name = "SpoilerLarge"
+	for x in [-0.62, 0.62]:
+		_spoiler_box(large, Vector3(0.05, 0.28, 0.12), Vector3(x, 0.26, 2.08), mat, 0.0)
+	_spoiler_box(large, Vector3(1.74, 0.035, 0.34), Vector3(0.0, 0.41, 2.10), mat, -0.18)
+	for x in [-0.87, 0.87]:
+		_spoiler_box(large, Vector3(0.02, 0.12, 0.38), Vector3(x, 0.41, 2.10), mat, 0.0)
+	for n in [small, large]:
+		add_child(n)
+	_spoiler_nodes = {"small": small, "large": large}
+	set_spoiler(spoiler)
+
+
+func _spoiler_box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material, pitch: float) -> void:
+	var mi := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = size
+	b.material = mat
+	mi.mesh = b
+	mi.position = pos
+	mi.rotation = Vector3(pitch, 0.0, 0.0)
+	parent.add_child(mi)

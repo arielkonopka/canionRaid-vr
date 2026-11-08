@@ -29,6 +29,18 @@ var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
 ## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
 var drive_layout: String = "rwd"
+## Masa nadwozia [kg] (bez napędu: diesel +50, elektryk +200).
+var body_mass: int = 1150
+## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
+var spoiler: String = "none"
+## Szał drogowy botów: o ile km/h przekraczają ograniczenie (0 = bez
+## limitu), najkrótszy szał [s], ile sekund przepisowej jazdy gracza go
+## gasi, strategia: "block" (wyprzedza, zajeżdża, hamuje przed graczem),
+## "ram" (dojeżdża od tyłu i stuka), "mixed" (na zmianę).
+var rage_overspeed: int = 50
+var rage_time: int = 10
+var rage_calm: int = 6
+var rage_strategy: String = "mixed"
 ## Opony: "all_season" całoroczne (domyślnie), "summer" letnie, "winter"
 ## zimowe (StuntCar.TIRE_COMPOUNDS).
 var tires: String = "all_season"
@@ -54,7 +66,11 @@ var track_mode: String = "canyon"
 var cranes: int = 3
 ## Progi mocy silnika na trasie bez końca: start na pierwszym, każdy
 ## warsztat (co 10 odcinków) pozwala przejść na następny.
-const POWER_TIERS := [90, 130, 180, 250, 350, 500, 700]
+const POWER_TIERS := [90, 130, 180, 250, 350, 500, 700, 1000]
+## Najwyższy próg tylko dla elektryka z silnikiem w każdym kole (4 × 250 kW,
+## użytkownik: "wariant 1"). Inne napędy dostają w jego miejsce 700 kW.
+const HUB_ONLY_KW := 1000
+const MAX_KW_OTHERS := 700
 ## Rekord trasy pokazowej [s], 0 = brak. Zapisywany razem z ustawieniami.
 var best_time: float = 0.0
 ## Rekord trasy bez końca [m].
@@ -67,9 +83,11 @@ var persist := true
 const GROUPS: Array[Dictionary] = [
 	{"id": "track", "label": "Trasa"},
 	{"id": "car", "label": "Samochód"},
+	{"id": "body", "label": "Nadwozie i opony"},
 	{"id": "assist", "label": "Systemy wspomagania"},
 	{"id": "controls", "label": "Sterowanie"},
 	{"id": "look", "label": "Wygląd i widok"},
+	{"id": "rage", "label": "Szał drogowy botów"},
 ]
 
 ## Lakiery w duchu lat 70.
@@ -109,10 +127,10 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "engine_power", "group": "car", "label": "Moc maksymalna",
-		"values": [90, 130, 180, 250, 350, 500, 700],
+		"values": [90, 130, 180, 250, 350, 500, 700, 1000],
 		"names": ["90 kW (122 KM)", "130 kW (177 KM)", "180 kW (245 KM)",
 				"250 kW (340 KM)", "350 kW (476 KM)", "500 kW (680 KM)",
-				"700 kW (952 KM)"],
+				"700 kW (952 KM)", "1000 kW (1360 KM)"],
 		"hints": [
 			"Spokojne auto - łatwo utrzymać przyczepność.",
 			"Żwawe, wybacza błędy.",
@@ -120,11 +138,34 @@ var OPTIONS: Array[Dictionary] = [
 			"Bardzo mocne - bez kontroli trakcji tył ucieka łatwo.",
 			"Potwór - pełny gaz na niskim biegu to poślizg nawet na suchym.",
 			"Hipersamochód w sedanie z lat 70. Bez 4x4 tylko kontrola trakcji ratuje.",
-			"Nierealne. Dłuższe przełożenia, ponad 400 km/h, 4x4 prawie konieczne.",
+			"Nierealne. Dłuższe przełożenia, ponad 350 km/h, 4x4 prawie konieczne.",
+			"Tylko elektryk z silnikiem w każdym kole: 4 × 250 kW. Inny napęd dostanie 700 kW.",
 		],
 	},
 	{
-		"key": "tires", "group": "car", "label": "Opony",
+		"key": "body_mass", "group": "body", "label": "Masa",
+		"values": [950, 1150, 1500, 2000, 2500],
+		"names": ["950 kg", "1150 kg", "1500 kg", "2000 kg", "2500 kg"],
+		"hints": [
+			"Lekkie jak wyczynówka: żwawe, ale łatwo traci przyczepność i fruwa na garbach.",
+			"Tyle, ile sedan z epoki.",
+			"Cięższe: spokojniejsze, dłużej hamuje.",
+			"Jak duży SUV: stabilne, ale wolniej przyspiesza i hamuje.",
+			"Czołg: bot się od ciebie odbija, ty od niego nie. Zawieszenie wzmocnione.",
+		],
+	},
+	{
+		"key": "spoiler", "group": "body", "label": "Spojler",
+		"values": ["none", "small", "large"],
+		"names": ["Brak", "Lotka", "Skrzydło"],
+		"hints": [
+			"Bez docisku - przy dużej prędkości auto lekkie w zakrętach.",
+			"Mały docisk: ok. 70 kg przy 200 km/h na tylną oś, trochę więcej oporu.",
+			"Duży docisk: ok. 170 kg przy 200 km/h, ok. 480 kg przy 300 km/h; większy opór.",
+		],
+	},
+	{
+		"key": "tires", "group": "body", "label": "Opony",
 		"values": ["all_season", "summer", "winter"],
 		"names": ["Całoroczne", "Letnie", "Zimowe"],
 		"hints": [
@@ -161,7 +202,7 @@ var OPTIONS: Array[Dictionary] = [
 		],
 	},
 	{
-		"key": "suspension", "group": "car", "label": "Zawieszenie",
+		"key": "suspension", "group": "body", "label": "Zawieszenie",
 		"values": ["soft", "sport", "stiff"],
 		"names": ["Miękkie", "Sportowe", "Twarde"],
 		"hints": [
@@ -272,6 +313,52 @@ var OPTIONS: Array[Dictionary] = [
 			"Prawie sama jezdnia - kabina tylko jako zarys.",
 		],
 	},
+	{
+		"key": "rage_overspeed", "group": "rage", "label": "Przekraczanie przepisów",
+		"values": [20, 50, 100, 0],
+		"names": ["+20 km/h", "+50 km/h", "+100 km/h", "bez limitu"],
+		"hints": [
+			"Bot w szale jedzie najwyżej 20 km/h ponad ograniczenie.",
+			"Bot w szale jedzie najwyżej 50 km/h ponad ograniczenie.",
+			"Bot w szale prawie nie patrzy na znaki.",
+			"Bot w szale jedzie tak szybko, jak potrafi (tylko łuki go hamują).",
+		],
+	},
+	{
+		"key": "rage_time", "group": "rage", "label": "Szał trwa co najmniej",
+		"values": [5, 10, 20, 40, 120, -1],
+		"names": ["5 s", "10 s", "20 s", "40 s", "2 min", "nigdy nie mija"],
+		"hints": [
+			"Po tym czasie od ostatniego zderzenia przepisowa jazda zaczyna bota uspokajać.",
+			"Po tym czasie od ostatniego zderzenia przepisowa jazda zaczyna bota uspokajać.",
+			"Po tym czasie od ostatniego zderzenia przepisowa jazda zaczyna bota uspokajać.",
+			"Po tym czasie od ostatniego zderzenia przepisowa jazda zaczyna bota uspokajać.",
+			"Po tym czasie od ostatniego zderzenia przepisowa jazda zaczyna bota uspokajać.",
+			"Szał nie mija - bot ściga cię, dopóki nie zostanie daleko w tyle.",
+		],
+	},
+	{
+		"key": "rage_calm", "group": "rage", "label": "Uspokojenie po",
+		"values": [3, 6, 12, 20, 60],
+		"names": ["3 s", "6 s", "12 s", "20 s", "60 s"],
+		"hints": [
+			"Tyle sekund jazdy zgodnie z przepisami gasi szał (po minimalnym czasie).",
+			"Tyle sekund jazdy zgodnie z przepisami gasi szał (po minimalnym czasie).",
+			"Tyle sekund jazdy zgodnie z przepisami gasi szał (po minimalnym czasie).",
+			"Tyle sekund jazdy zgodnie z przepisami gasi szał (po minimalnym czasie).",
+			"Tyle sekund jazdy zgodnie z przepisami gasi szał (po minimalnym czasie).",
+		],
+	},
+	{
+		"key": "rage_strategy", "group": "rage", "label": "Strategia",
+		"values": ["block", "ram", "mixed"],
+		"names": ["Zajeżdżanie drogi", "Stukanie w tył", "Na zmianę"],
+		"hints": [
+			"Wyprzedza, zajeżdża drogę i gwałtownie hamuje przed tobą.",
+			"Gwałtownie podjeżdża od tyłu i stuka w zderzak.",
+			"Raz zajeżdża drogę, raz stuka w tył - nie wiesz, co zrobi.",
+		],
+	}
 ]
 
 
@@ -310,13 +397,23 @@ func save_settings() -> void:
 
 
 ## Ustawia samochód zgodnie z wyborem gracza.
+## Moc, jaką auto naprawdę dostanie: próg HUB_ONLY_KW tylko dla elektryka
+## z silnikami w kołach, inne napędy w jego miejsce MAX_KW_OTHERS.
+static func effective_power(type_name: String, hub: bool, kw: int) -> int:
+	if kw > MAX_KW_OTHERS and not (type_name == "electric" and hub):
+		return MAX_KW_OTHERS
+	return kw
+
+
 func apply_to_car(car: StuntCar) -> void:
 	car.drive_layout = drive_layout
 	car.tires = tires
 	car.hub_motors = motor_layout == "hub"
-	car.apply_engine(engine_type, engine_power)
+	car.apply_engine(engine_type, effective_power(engine_type, motor_layout == "hub", engine_power))
 	car.automatic = transmission == "auto"
 	car.apply_suspension_preset(suspension)
+	car.set_body_mass(body_mass)
+	car.set_spoiler(spoiler)
 	car.abs_enabled = abs_enabled
 	car.tcs_enabled = tcs_enabled
 	car.esp_enabled = esp_enabled

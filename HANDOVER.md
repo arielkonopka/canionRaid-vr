@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (strefy śliskie, deszcz i wycieraczki, LCD uszkodzeń, wąwóz jedynym trybem, menu za wzrokiem, biegi na drążku, akustyka otoczenia)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: napęd 4x4, silniki w kołach, 1000 kW, opony, masa, spojler, szał drogowy w menu, szersze pasy, tunele wiercone i dwunitkowe, repo git)
 
 ---
 
@@ -79,6 +79,21 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     zatrzymywać auta - przeskoczenie = upadek, strata auta.
   - **Zielone tablice odcinków nie mogą wchodzić w ścianę** - teraz
     mniejsze (1,9 m) i na poboczu.
+  - **Auto (sesja 3, cd.)**: moc do 700 kW ("nierealistyczna"), napęd na
+    tył albo 4x4, elektryk z jednym silnikiem albo w każdym kole; **1000 kW
+    (4 × 250) tylko dla silników w kołach** ("wariant 1": najmocniejszy
+    sumarycznie; ma dawać wyższą prędkość maksymalną, nie musi lepszego
+    przyspieszenia). Opony do wyboru (całoroczne domyślnie), masa
+    950-2500 kg, spojler jako docisk.
+  - **Szał drogowy konfigurowalny** w podmenu: przekraczanie przepisów,
+    minimalny czas szału (aż do "nigdy nie mija" - użytkownik sam
+    ustawiał w kodzie 500/1024 s), czas uspokajania, strategia:
+    zajeżdżanie drogi z hamowaniem / stukanie w tył / na zmianę.
+  - **Pasy na dwa auta obok siebie** - jezdnia 14,8 m na starcie.
+  - **Tunele wiercone, przekrój koła**; przy rozwidleniu **dwie osobno
+    wiercone nitki**, które za górą znów się łączą.
+  - **Instalacja na goglach razem z użytkownikiem** - po przygotowaniu
+    zmian poczekaj na niego, nie wgrywaj sam (prośba 2026-11-08).
   - **Dźwięk ma odwzorowywać otoczenie**: inaczej w wąwozie, w tunelu,
     w deszczu (pogłos, echo).
 - **Trasa bez końca** (decyzje użytkownika): generowana odcinkami jak
@@ -455,6 +470,31 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   z materiałem: `road.gdshader` z uniformem `asphalt` ustawianym
   w `_surface_material` (#404040 / #101010 / #304070), mokra i lód
   różnią się też połyskiem (roughness).
+- **Tunele wiercone** (`_build_tunnel`, `_tunnel_arc`, `_tunnel_facade`,
+  `TUNNEL_YC` 0,35, `TUNNEL_SEG` 24): rura o przekroju koła, środek
+  0,35·R nad jezdnią, okrąg przecina poziom jezdni tuż za krawędziami
+  (R ≈ 9,2 m przy 14,8 m jezdni, szczyt ~12,4 m). Ściana czołowa: każdy
+  odcinek łuku łączony z brzegiem prostokąta w tym samym kierunku od
+  środka koła + trójkąty w narożnikach; betonowy pierścień. **Pułapka**:
+  kierunek jazdy z prawego wektora to `UP.cross(r)`, nie `r.cross(UP)` -
+  przy odwrotnym ściana czołowa patrzyła do środka tunelu i z zewnątrz
+  jej nie było (niebo wokół rury, góra "wisiała").
+  **Dwie nitki** (`TrackGenerator._tunnel`, szansa 0,4, meta `twin`):
+  45 m rozszerzenia jak w rozwidleniu (wyspa `ISLAND_W` przez całą
+  długość), dwie rury nad połowami jezdni, wspólna ściana czołowa (każda
+  rura domyka ją do osi między nitkami), 45 m zwężenia za górą.
+- **Szerokość jezdni**: `difficulty().width` = 14,8 - 0,5/km, min. 10 m
+  (3 pasy po ~4,6 m); start `EndlessTrack` 14,8. Linie i koleiny
+  w `road.gdshader` liczą się z szerokości.
+- **Szał drogowy** (`bot_driver.gd`, grupa menu "rage"): parametry
+  z `GameSettings` w `_ready` (`rage_overspeed` 0 = bez limitu,
+  `rage_time` -1 = nigdy nie mija, `rage_calm`, `rage_strategy`).
+  `_rage_plan`: "ram" - za graczem dojazd +18/+35 km/h na jego tor,
+  przed nim zwalnia i schodzi z linii; "block" - wyprzedza sąsiednim
+  pasem (+30), wjeżdża przed gracza i co 3-5 s hamuje 1,2 s
+  (`_brake_pulse`); "mixed" - zmiana co 8-14 s. Limit szału =
+  ograniczenie + przekroczenie, łuki zawsze (`_curve_speed`). Bot w szale
+  dostaje max(350 kW, moc gracza).
 - **Okna na morze** (`StuntTrack.sea_factor`, `SEA_*`, `_canyon_profile`,
   `_build_sea`, `shaders/ocean.gdshader`): w każdym przedziale 5 km jedno
   okno 100 m (+ przejścia po 40 m) w miejscu i po stronie z hasha numeru
@@ -669,6 +709,18 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   zmienić napęd): każde koło 1/4 momentu, bez dyferencjałów, TCS osobno
   na koło (`_hub_tcs`), zawsze 4x4. TCS w 4x4 liczy poślizg względem
   prędkości auta (nie ma kół nienapędzanych).
+- **Masa** (`body_mass`, `set_body_mass`, opcja "Masa" 950-2500 kg):
+  masa i bezwładność; zawieszenie (sprężyny, tłumiki, stabilizatory)
+  skalowane proporcjonalnie, więc częstotliwość drgań zostaje.
+- **Spojler** (`SPOILERS`, `set_spoiler`): docisk ½ρ·ClA·v² nad tylną osią
+  (lotka ClA 0,45, skrzydło 1,1 - ~480 kg przy 300 km/h) i dodatkowy opór
+  CdA 0,03 / 0,08 - spojler podnosi przyczepność, prędkość maks. trochę
+  spada. Widoczne bryły na klapie (`_build_spoilers`).
+- **1000 kW** (`GameSettings.HUB_ONLY_KW`, `effective_power`): tylko
+  elektryk z silnikami w kołach; inny napęd z tą opcją dostaje 700 kW
+  (podpowiedź w menu to mówi). Ostatni warsztat (po 700) proponuje tylko
+  ten wariant (`opt.hub`). Pomiar: 0-100 2,9 s, 0-200 6,2 s, 409 km/h
+  po 25 s (wciąż przyspiesza; przełożenie ×0,5 → ogranicznik ~440).
 - **Moc do 700 kW** (`POWER_TIERS` 90..700, użytkownik: "nierealistyczna,
   700 kW"). Powyżej 350 kW (elektryk: 250 kW) dłuższe przełożenie
   (×√(P0/P)), inaczej ogranicznik przy ~290/234 km/h. Prędkościomierz do
@@ -983,6 +1035,12 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   domyślnie). `engine_test` mierzy układy i 0-200; `RUNUP_CAP`
   dopomiarowany dla 500/700 kW.
 - Repozytorium git na GitHubie (`canionRaid-vr`), pierwszy push.
+- Dalej w sesji 3: 1000 kW tylko dla silników w kołach, masa i spojler
+  (nowa grupa menu "Nadwozie i opony"), podmenu "Szał drogowy botów"
+  (przekraczanie, czas, uspokojenie, 3 strategie), pasy na dwa auta,
+  tunele wiercone okrągłe i dwunitkowe, poprawiona ściana czołowa tunelu.
+  `engine_test` naprawia auto między przejazdami (uszkodzenia się
+  sumowały - kolejne auta coraz wolniejsze, ostatnie stało).
 - Okna na morze (niska ściana ~100 m co 5 km), zielone tablice odcinków
   przeniesione ze ściany na pobocze.
 - Naprawione dwa testy (assist, drive), które psuły się po cichu od
@@ -1005,10 +1063,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    stacja paliw (`service`), ziarno losowe - `endless_test` z kilkoma
    ziarnami do 12+ odcinków (`generator_test` sprawdza tylko generator,
    nie budowę geometrii) i sprawdzenie `EndlessTrack.update_progress`.
-0b. `engine_test` raz pokazał elektryk 700 kW z silnikami w kołach:
-   po 25 s tylko 243 km/h (0-200 6,5 s w normie); ten sam przejazd
-   osobno daje 360 km/h. Może zostaje stan z poprzedniego przejazdu
-   (4x4) - sprawdzić, uruchamiając `engine_test` i patrząc na tę linię.
+0b. Do przetestowania w goglach z użytkownikiem (instaluje razem z nim):
+   nowe opcje auta, strategie szału, tunele, szersza jezdnia.
+   Propozycje kolejnych strategii szału czekają na wybór użytkownika
+   (sekcja 9).
 
 1. **Dalsze wrażenia z gogli**: czy przezroczystość, czułość drążka,
    meta i kamera lotu działają; płynność; komfort przy skokach.
@@ -1102,6 +1160,13 @@ Propozycje (do uzgodnienia):
   klik lewego drążka).
 
 ## 9. Otwarte pytania do użytkownika
+
+- Kolejne strategie szału drogowego (zaproponowane 2026-11-08, bez
+  odpowiedzi): spychanie z boku (manewr PIT), wezwanie posiłków (inne
+  boty dołączają do pościgu), zasadzka przed skocznią/tunelem, jazda
+  zygzakiem przed graczem (nie da się wyprzedzić), "eskorta" -
+  dwa boty po bokach ściskają gracza.
+- Zasięg paliwa: 150 km czy ~10-15 km?
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone. Kokpit ma się wzorować na zdjęciu SUV-a.

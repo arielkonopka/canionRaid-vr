@@ -160,7 +160,7 @@ func build() -> void:
 			var n: int = meta["checkpoint"]
 			_town_sign(float(smp["dist"]) + 12.0, "ODCINEK %d" % n)
 		if meta.has("tunnel_len"):
-			_build_tunnel(float(smp["dist"]), float(meta["tunnel_len"]))
+			_build_tunnel(float(smp["dist"]), float(meta["tunnel_len"]), meta.get("twin", {}))
 		if meta.has("island"):
 			var isl: Dictionary = meta["island"]
 			_build_island(float(smp["dist"]) + float(isl["start"]), float(isl["len"]), float(isl["w"]))
@@ -1021,15 +1021,38 @@ func _sign_text(root: Node3D, t: String, pos: Vector3, px: float, col: Color) ->
 	root.add_child(l)
 
 
-## Tunel od `d0` na długości `length`: betonowe ściany i sklepienie
-## (z kolizją), pas jarzeniówek na suficie, co 40 m światło punktowe bez
-## cieni (Quest). Nad tunelem GÓRA: masyw z łupku, który od wylotu wznosi
-## się stokiem do grani ~70-80 m (wyraźnie ponad krawędź wąwozu) i opada
-## przy drugim wylocie - wąwóz wjeżdża pod górę, a nie w płaską ścianę.
-## Na wylotach betonowy portal: wystające filary i belka nad wjazdem.
-func _build_tunnel(d0: float, length: float) -> void:
-	const H := 6.0                  # wysokość tunelu
-	const HP := 8.5                 # górna krawędź portalu (belki)
+## Tunel od `d0` na długości `length`, z kolizją; co 40 m światło punktowe
+## bez cieni (Quest). Nad tunelem GÓRA: masyw z łupku, który od wylotu
+## wznosi się stokiem do grani ~70-80 m i opada przy drugim wylocie.
+## Tunel wiercony (użytkownik: "przekrój koła, jakby wiercony, nie
+## wykuwany"): okrągła rura, jezdnia jak pomost poniżej środka koła
+## (środek TUNNEL_YC·R nad jezdnią, okrąg przecina poziom jezdni tuż za jej
+## krawędziami). Pas jarzeniówek w szczycie. Wyloty: ściana czołowa
+## z okrągłym otworem i betonowy pierścień; nad nimi stok góry z łupku.
+const TUNNEL_YC := 0.35
+const TUNNEL_SEG := 24
+
+
+func _tunnel_radius(hw: float) -> float:
+	return hw / sqrt(1.0 - TUNNEL_YC * TUNNEL_YC)
+
+
+## Punkty łuku od prawej krawędzi jezdni przez szczyt do lewej (układ toru).
+func _tunnel_arc(c: Vector3, r_h: Vector3, rad: float) -> Array:
+	var a0 := -asin(TUNNEL_YC)
+	var a1 := PI - a0
+	var ctr := c + Vector3.UP * (TUNNEL_YC * rad)
+	var pts: Array = []
+	for k in range(TUNNEL_SEG + 1):
+		var a := lerpf(a0, a1, float(k) / TUNNEL_SEG)
+		pts.append(ctr + r_h * (cos(a) * rad) + Vector3.UP * (sin(a) * rad))
+	return pts
+
+
+## `twin` (niepusty): dwie nitki - rura nad każdą połową szerokiej jezdni
+## (road_w każda, między nimi wyspa island_w); wspólna ściana czołowa
+## z dwoma otworami (każda rura domyka ją do osi między nitkami).
+func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 	const PEAK := 74.0              # grań góry nad jezdnią
 	const RISE := 45.0              # stok od wylotu do pełnej wysokości [m]
 	var st := SurfaceTool.new()
@@ -1044,76 +1067,97 @@ func _build_tunnel(d0: float, length: float) -> void:
 	var first := {}
 	var last := {}
 	var light_next := d0 + 10.0
+	var hp := 0.0                   # górna krawędź ściany czołowej
 	for smp in _samples:
 		var d := float(smp["dist"])
 		if d < d0 or d > d0 + length:
 			continue
-		var hw := float(smp["width"]) * 0.5 + 1.2
 		var c: Vector3 = smp["pos"]
 		var r_h: Vector3 = (smp["right"] * Vector3(1, 0, 1)).normalized()
+		var hw := float(smp["width"]) * 0.5 + 1.2
+		# Rury: [środek jezdni pod rurą, półszerokość rury].
+		var tubes: Array = [[c, hw]]
+		if not twin.is_empty():
+			var rw: float = twin["road_w"]
+			var off: float = rw * 0.5 + float(twin["island_w"]) * 0.5
+			var thw := rw * 0.5 + 1.0
+			tubes = [[c - r_h * off, thw], [c + r_h * off, thw]]
+		var rad := _tunnel_radius(float(tubes[0][1]))
+		var crown := rad * (1.0 + TUNNEL_YC)
+		hp = crown + 2.5
 		# Wysokość grani: stok od obu wylotów, trochę nierówna.
 		var e := minf(d - d0, d0 + length - d)
 		var rise := smoothstep(0.0, RISE, e)
-		var hc := HP + (PEAK - HP + 8.0 * sin(d * 0.05)) * rise
+		var hc := hp + (PEAK - hp + 8.0 * sin(d * 0.05)) * rise
 		var prof: Array = []
 		for pt in [[-(hw + 45.0), 0.3], [-(hw + 15.0), 0.75], [0.0, 1.0], [hw + 15.0, 0.8], [hw + 45.0, 0.35]]:
-			prof.append(c + r_h * pt[0] + Vector3.UP * (HP + (hc - HP) * pt[1]))
-		var p := {
-			"wl0": c - r_h * hw, "wl1": c - r_h * hw + Vector3.UP * H,
-			"wr0": c + r_h * hw, "wr1": c + r_h * hw + Vector3.UP * H,
-			"c": c, "r": r_h, "hw": hw, "prof": prof,
-		}
+			prof.append(c + r_h * pt[0] + Vector3.UP * (hp + (hc - hp) * pt[1]))
+		var arcs: Array = []
+		for t in tubes:
+			arcs.append(_tunnel_arc(t[0], r_h, rad))
+		var p := {"arcs": arcs, "tubes": tubes, "c": c, "r": r_h, "hw": hw,
+				"rad": rad, "crown": crown, "prof": prof}
 		if first.is_empty():
 			first = p
 		last = p
 		if not prev.is_empty():
-			_quad_facing(st, faces, prev["wl0"], p["wl0"], p["wl1"], prev["wl1"], r_h)
-			_quad_facing(st, faces, prev["wr0"], p["wr0"], p["wr1"], prev["wr1"], -r_h)
-			_quad_facing(st, faces, prev["wl1"], p["wl1"], p["wr1"], prev["wr1"], Vector3.DOWN)
+			for ti in range(tubes.size()):
+				var center: Vector3 = (tubes[ti][0] as Vector3) + Vector3.UP * (TUNNEL_YC * rad)
+				var pa: Array = prev["arcs"][ti]
+				var ca: Array = p["arcs"][ti]
+				for k in range(TUNNEL_SEG):
+					# Ściana rury patrzy do środka koła.
+					_quad_facing(st, faces, pa[k], ca[k], ca[k + 1], pa[k + 1], center - (ca[k] as Vector3))
 			# Stoki góry między przekrojami.
 			for k in range(4):
 				_quad_facing(mount, dummy, prev["prof"][k], p["prof"][k], p["prof"][k + 1],
 						prev["prof"][k + 1], Vector3.UP)
-			# Pas jarzeniówek: wąski, świecący, tuż pod sufitem.
-			var la: Vector3 = prev["c"] + Vector3.UP * (H - 0.06)
-			var lb: Vector3 = p["c"] + Vector3.UP * (H - 0.06)
-			var off: Vector3 = prev["r"] * 0.18
-			_quad_facing(lamp, dummy, la - off, lb - off, lb + off, la + off, Vector3.DOWN)
+			# Pas jarzeniówek: wąski, świecący, w szczycie każdej rury.
+			for ti in range(tubes.size()):
+				var la: Vector3 = (prev["tubes"][ti][0] as Vector3) + Vector3.UP * (float(prev["crown"]) - 0.08)
+				var lb: Vector3 = (tubes[ti][0] as Vector3) + Vector3.UP * (crown - 0.08)
+				var lo: Vector3 = prev["r"] * 0.18
+				_quad_facing(lamp, dummy, la - lo, lb - lo, lb + lo, la + lo, Vector3.DOWN)
 		if d >= light_next:
 			light_next = d + 40.0
-			var ol := OmniLight3D.new()
-			ol.light_color = Color(0.85, 0.95, 1.0)
-			ol.light_energy = 1.6
-			ol.omni_range = 18.0
-			ol.shadow_enabled = false
-			ol.position = c + Vector3.UP * (H - 0.4)
-			_adopt(ol)
+			for t in tubes:
+				var ol := OmniLight3D.new()
+				ol.light_color = Color(0.85, 0.95, 1.0)
+				ol.light_energy = 1.8
+				ol.omni_range = 22.0
+				ol.shadow_enabled = false
+				ol.position = (t[0] as Vector3) + Vector3.UP * (crown - 0.6)
+				_adopt(ol)
 		prev = p
 	if first.is_empty():
 		return
-	# Wyloty: betonowa ściana czołowa do wysokości portalu (dalej zaczyna się
-	# stok góry) i portal - wystające filary oraz belka nad wjazdem.
+	# Wyloty: ściana czołowa (prostokąt do hp, szeroki na 45 m w bok) z
+	# okrągłym otworem - każdy odcinek łuku łączony z punktem na brzegu
+	# prostokąta w tym samym kierunku od środka koła; w rogach dokładane
+	# trójkąty do narożnika. Na krawędzi otworu betonowy pierścień.
 	for end in [first, last]:
 		var e: Dictionary = end
 		var r: Vector3 = e["r"]
-		var fwd_e := r.cross(Vector3.UP)                          # kierunek jazdy
+		var fwd_e := Vector3.UP.cross(r)                          # kierunek jazdy
 		var out_dir: Vector3 = fwd_e * (1.0 if e == last else -1.0)
-		var hw2: float = e["hw"]
 		var c: Vector3 = e["c"]
-		var lo_l: Vector3 = c - r * (hw2 + 45.0)
-		var lo_r: Vector3 = c + r * (hw2 + 45.0)
-		_quad_facing(st, faces, e["wl1"], e["wr1"], c + r * hw2 + Vector3.UP * HP, c - r * hw2 + Vector3.UP * HP, out_dir)
-		_quad_facing(st, faces, lo_l, e["wl0"], c - r * hw2 + Vector3.UP * HP, lo_l + Vector3.UP * HP, out_dir)
-		_quad_facing(st, faces, e["wr0"], lo_r, lo_r + Vector3.UP * HP, c + r * hw2 + Vector3.UP * HP, out_dir)
-		# Przednia krawędź stoku góry - domyka przekrój od portalu w górę.
+		var rad: float = e["rad"]
+		var big: float = float(e["hw"]) + 45.0
+		var tubes_e: Array = e["tubes"]
+		for ti in range(tubes_e.size()):
+			var tc: Vector3 = tubes_e[ti][0]
+			var tx := (tc - c).dot(r)                             # środek rury w poprzek
+			# Ta rura domyka ścianę od -big do osi (lewa nitka) / od osi do
+			# +big (prawa nitka); pojedyncza - całą szerokość.
+			var xmin := -big if (tubes_e.size() == 1 or ti == 0) else 0.0
+			var xmax := big if (tubes_e.size() == 1 or ti == 1) else 0.0
+			_tunnel_facade(st, faces, tc, r, rad, tx, xmin, xmax, hp, (e["arcs"] as Array)[ti], out_dir)
+		# Przednia krawędź stoku góry - domyka przekrój od ściany czołowej w górę.
+		var lo_l: Vector3 = c - r * big
 		var pr: Array = e["prof"]
 		for k in range(4):
-			_quad_facing(mount, dummy, lo_l + Vector3.UP * HP if k == 0 else pr[k], pr[k + 1],
+			_quad_facing(mount, dummy, lo_l + Vector3.UP * hp if k == 0 else pr[k], pr[k + 1],
 					pr[k + 1], pr[k], out_dir)
-		var front := c + out_dir * 0.4
-		for side in [-1.0, 1.0]:
-			_obox(st, front + r * side * (hw2 - 0.1) + Vector3.UP * (HP * 0.5), r, out_dir, Vector3(1.4, HP, 0.8))
-		_obox(st, front + Vector3.UP * (H + (HP - H) * 0.5), r, out_dir, Vector3(hw2 * 2.0 + 1.2, HP - H, 0.8))
 	st.generate_normals()
 	st.set_material(_concrete_material())
 	mount.generate_normals()
@@ -1128,6 +1172,72 @@ func _build_tunnel(d0: float, length: float) -> void:
 	mi.mesh = mesh
 	_adopt(mi)
 	_collision_body("TunnelBody", faces, "rock", 0.55)
+
+
+## Ściana czołowa z okrągłym otworem dla jednej rury: każdy odcinek łuku
+## łączony z punktem na brzegu prostokąta [xmin, xmax] × [0, hp] (w układzie
+## jezdni pod środkiem tej rury przesuniętym o tx) w tym samym kierunku od
+## środka koła; w narożnikach trójkąty. Na krawędzi otworu betonowy
+## pierścień wystający 0,6 m.
+func _tunnel_facade(st: SurfaceTool, faces: PackedVector3Array, tc: Vector3, r: Vector3,
+		rad: float, tx: float, xmin: float, xmax: float, hp: float, arc: Array,
+		out_dir: Vector3) -> void:
+	var yc := TUNNEL_YC * rad
+	var a0 := -asin(TUNNEL_YC)
+	# Granice prostokąta względem środka rury.
+	var bx0 := xmin - tx
+	var bx1 := xmax - tx
+	var outer: Array = []
+	var edge_id: Array = []
+	for k in range(TUNNEL_SEG + 1):
+		var a := lerpf(a0, PI - a0, float(k) / TUNNEL_SEG)
+		var dx := cos(a)
+		var dy := sin(a)
+		var t := INF
+		var eid := -1
+		if dx > 0.001 and bx1 / dx < t:
+			t = bx1 / dx
+			eid = 0
+		if dx < -0.001 and bx0 / dx < t:
+			t = bx0 / dx
+			eid = 2
+		if dy > 0.001 and (hp - yc) / dy < t:
+			t = (hp - yc) / dy
+			eid = 1
+		if dy < -0.001 and yc / -dy < t:
+			t = yc / -dy
+			eid = 3
+		outer.append(tc + r * (dx * t) + Vector3.UP * (yc + dy * t))
+		edge_id.append(eid)
+	for k in range(TUNNEL_SEG):
+		_quad_facing(st, faces, arc[k], arc[k + 1], outer[k + 1], outer[k], out_dir)
+		if edge_id[k] != edge_id[k + 1]:
+			# Narożnik górny: prawy przy przejściu bok prawy -> góra, lewy przy
+			# góra -> bok lewy.
+			var cx := bx1 if (edge_id[k] == 0 or edge_id[k + 1] == 0) else bx0
+			var corner: Vector3 = tc + r * cx + Vector3.UP * hp
+			_tri_facing(st, outer[k], outer[k + 1], corner, out_dir)
+	var ctr: Vector3 = tc + Vector3.UP * yc
+	var f := out_dir * 0.6
+	for k in range(TUNNEL_SEG):
+		var p0: Vector3 = arc[k]
+		var p1: Vector3 = arc[k + 1]
+		var o0: Vector3 = ctr + (p0 - ctr) * ((rad + 1.2) / rad)
+		var o1: Vector3 = ctr + (p1 - ctr) * ((rad + 1.2) / rad)
+		_quad_facing(st, faces, p0 + f, p1 + f, o1 + f, o0 + f, out_dir)
+		_quad_facing(st, faces, p0, p1, p1 + f, p0 + f, ctr - p0)
+		_quad_facing(st, faces, o0, o1, o1 + f, o0 + f, o0 - ctr)
+
+
+## Trójkąt nawinięty przodem w stronę `facing` (front: zgodnie z zegarem).
+func _tri_facing(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, facing: Vector3) -> void:
+	if (c - a).cross(b - a).dot(facing) < 0.0:
+		var t := b
+		b = c
+		c = t
+	st.add_vertex(a)
+	st.add_vertex(b)
+	st.add_vertex(c)
 
 
 func _lamp_material() -> Material:

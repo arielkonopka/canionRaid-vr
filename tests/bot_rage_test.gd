@@ -39,11 +39,13 @@ func _physics_process(delta: float) -> bool:
 		drv = bot.get_node("Driver")
 		var xb: Transform3D = trk.transform_at_distance(60.0)
 		bot.place(Transform3D(xb.basis, xb.origin + xb.basis.y * 0.9))
+		bot._settle_t = 0.0       # place() zjada prędkość - test nadaje ją od razu
 		bot.linear_velocity = -xb.basis.z * 60.0 / 3.6
 		for w in bot.wheels:
 			w.omega = (60.0 / 3.6) / bot.wheel_radius
 		var xp: Transform3D = trk.transform_at_distance(30.0)
 		car.place(Transform3D(xp.basis, xp.origin + xp.basis.y * 0.9))
+		car._settle_t = 0.0
 		car.linear_velocity = -xp.basis.z * 100.0 / 3.6
 		for w in car.wheels:
 			w.omega = (100.0 / 3.6) / car.wheel_radius

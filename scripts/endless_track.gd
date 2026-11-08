@@ -42,7 +42,7 @@ func _add_section() -> void:
 	if _chunks.is_empty():
 		var h0 := 6.0 if canyon else start_height
 		start = {"pos": Vector3(0.0, h0, 0.0), "yaw": 0.0, "pitch": 0.0,
-				"bank": 0.0, "width": 11.0, "dist": 0.0}
+				"bank": 0.0, "width": 14.8, "dist": 0.0}
 	else:
 		start = _chunks[-1].end_state()
 	_sections += 1

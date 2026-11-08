@@ -11,10 +11,25 @@ class_name BotDriver
 ##   5 km/h) - szał opada w ~6 s takiej jazdy, inaczej trwa.
 ## Zderzenia to zwykła fizyka dwóch brył - nic tu nie jest udawane.
 
-const CALM_TIME := 1024.0                 # s przepisowej jazdy gracza do uspokojenia
-## Najkrótszy pościg po zderzeniu - dopiero potem przepisowa jazda gracza
-## może bota uspokajać (inaczej gracz jadący przepisowo nie widział pościgu).
-const MIN_RAGE_TIME := 500.0
+## Parametry szału z menu "Szał drogowy botów" (GameSettings, czytane
+## w _ready): ile sekund przepisowej jazdy gracza gasi szał, najkrótszy
+## pościg po zderzeniu (dopiero potem przepisowa jazda uspokaja; <0 = szał
+## nie mija nigdy), o ile km/h bot może przekroczyć ograniczenie (0 = bez
+## limitu) i strategia.
+var calm_time := 6.0
+var min_rage_time := 10.0
+var overspeed := 50.0
+var strategy := "mixed"
+## Strategie:
+##   "block" - wyprzedza gracza innym pasem, zajeżdża mu drogę i gwałtownie
+##             hamuje przed nim (impulsami co kilka sekund);
+##   "ram"   - gwałtownie dojeżdża od tyłu i stuka w zderzak; gdy jest przed
+##             graczem, zwalnia i zjeżdża z jego linii, żeby być za nim;
+##   "mixed" - co 8-14 s zmienia jedno na drugie.
+var _tactic := "ram"
+var _tactic_t := 0.0
+var _brake_pulse := 0.0                # >0: trwa hamowanie przed graczem
+var _brake_cd := 0.0
 const WINDOW_AHEAD := 180.0
 
 var car: StuntCar
@@ -58,8 +73,8 @@ func _physics_process(delta: float) -> void:
 
 	if rage > 0.0:
 		rage_time += delta
-		if rage_time > MIN_RAGE_TIME and main and main.player_compliant():
-			rage = maxf(rage - delta / CALM_TIME, 0.0)
+		if min_rage_time >= 0.0 and rage_time > min_rage_time and main and main.player_compliant():
+			rage = maxf(rage - delta / calm_time, 0.0)
 
 	car.set_rage_lights(rage * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)))
 
@@ -72,14 +87,11 @@ func _physics_process(delta: float) -> void:
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh)
 	if rage > 0.05 and player:
-		# Szał: na auto gracza (jego przesunięcie w poprzek drogi) i szybciej.
-		var prel := player.global_position - (best["pos"] as Vector3)
-		target_off = clampf(prel.dot(right), -w * 0.5 + 1.0, w * 0.5 - 1.0)
-		var ahead := prel.dot(best["fwd"] as Vector3)
-		# Goni tak szybko, jak trzeba, żeby dogonić (gracz przed nim) - limitem
-		# jest tylko auto i łuki (bot w szale ich nie odpuszcza całkiem).
-		var chase := player.speed * 3.6 + (30.0 if ahead > 0.0 else -10.0)
-		target_kmh = lerpf(target_kmh, clampf(chase, 30.0, 230.0), rage)
+		var plan := _rage_plan(delta, best, right, w, lane_w, offset)
+		target_off = plan.x
+		# Limit szału: ograniczenie + przekroczenie z menu; łuki hamują zawsze.
+		var cap := 400.0 if overspeed <= 0.0 else float(best["limit"]) + overspeed
+		target_kmh = lerpf(target_kmh, clampf(plan.y, 0.0, minf(cap, _curve_speed())), rage)
 
 	var fwd := -car.global_basis.z
 	var head_err := fwd.signed_angle_to(best["fwd"], car.global_basis.y)
@@ -87,6 +99,10 @@ func _physics_process(delta: float) -> void:
 			if car.wheels_on_ground > 0 else 0.0
 	car.throttle = 1.0 if kmh < target_kmh - 1.0 else (0.3 if kmh < target_kmh + 2.0 else 0.0)
 	car.brake = clampf((kmh - target_kmh - 4.0) * 0.12, 0.0, 1.0)
+	if _brake_pulse > 0.0 and rage > 0.5:
+		# Hamowanie przed graczem: ostro, jak przy "nauczce".
+		car.throttle = 0.0
+		car.brake = 0.9
 
 	# Utknięcie: stoi z gazem albo jest odwrócony (> 100° od kierunku drogi).
 	var backwards := absf(head_err) > deg_to_rad(100.0)
@@ -135,7 +151,72 @@ func _calm_speed(_kmh: float) -> float:
 	return target
 
 
+## Plan szału na ten krok: x = docelowe przesunięcie w poprzek drogi,
+## y = docelowa prędkość [km/h] (przed limitem z menu).
+func _rage_plan(delta: float, best: Dictionary, right: Vector3, w: float,
+		lane_w: float, offset: float) -> Vector2:
+	_tactic_t -= delta
+	if strategy == "mixed":
+		if _tactic_t <= 0.0:
+			_tactic = "block" if _tactic == "ram" else "ram"
+			_tactic_t = randf_range(8.0, 14.0)
+	else:
+		_tactic = strategy
+	_brake_pulse = maxf(_brake_pulse - delta, 0.0)
+	_brake_cd = maxf(_brake_cd - delta, 0.0)
+	var lim := w * 0.5 - 1.0
+	var prel := player.global_position - (best["pos"] as Vector3)
+	var p_off := clampf(prel.dot(right), -lim, lim)
+	var ahead := prel.dot(best["fwd"] as Vector3)     # >0: gracz przed botem
+	var pk := player.speed * 3.6
+	if _tactic == "ram":
+		_brake_pulse = 0.0
+		if ahead > -3.0:
+			# Za graczem: gwałtowny dojazd i stuknięcie (szybciej niż gracz).
+			return Vector2(p_off, pk + (35.0 if ahead > 12.0 else 18.0))
+		# Przed graczem: zwalnia i zjeżdża z jego linii, żeby być za nim.
+		return Vector2(clampf(p_off + (lane_w if p_off < 0.0 else -lane_w), -lim, lim), pk - 25.0)
+	# "block": wyprzedzanie sąsiednim pasem, zajechanie drogi, hamowanie.
+	if ahead > -6.0:
+		var side := 1.0 if p_off < 0.0 else -1.0
+		return Vector2(clampf(p_off + side * lane_w * 1.2, -lim, lim), pk + 30.0)
+	# Przed graczem: wjeżdża na jego tor, trzyma się tuż przed nim i co
+	# kilka sekund gwałtownie hamuje.
+	var gap := -ahead
+	if gap < 18.0 and absf(offset - p_off) < 1.2 and _brake_cd <= 0.0:
+		_brake_pulse = 1.2
+		_brake_cd = randf_range(3.0, 5.0)
+	return Vector2(p_off, pk + (5.0 if gap > 12.0 else -3.0))
+
+
+## Prędkość bezpieczna na łukach w oknie (bez znaków ograniczenia).
+func _curve_speed() -> float:
+	var target := 400.0
+	for i in range(0, _window.size() - 12, 4):
+		var a0: Dictionary = _window[i]
+		var k := float(a0["dist"]) - dist
+		if k < -2.0:
+			continue
+		var a1: Dictionary = _window[i + 12]
+		var f0: Vector3 = (a0["fwd"] as Vector3) * Vector3(1, 0, 1)
+		var f1: Vector3 = (a1["fwd"] as Vector3) * Vector3(1, 0, 1)
+		var ang := f0.angle_to(f1)
+		if ang > 0.01:
+			var span := float(a1["dist"]) - float(a0["dist"])
+			var grip: float = StuntTrack.SURFACES[a0["surface"]]["grip"]
+			var vc := sqrt(0.8 * grip * 9.8 * span / ang)
+			target = minf(target, sqrt(vc * vc + 2.0 * 6.0 * maxf(k, 0.0)) * 3.6)
+	return target
+
+
 func _ready() -> void:
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs:
+		calm_time = float(gs.rage_calm)
+		min_rage_time = float(gs.rage_time)
+		overspeed = float(gs.rage_overspeed)
+		strategy = gs.rage_strategy
+	_tactic = "ram" if strategy == "mixed" else strategy
 	# Zderzenie: sygnał body_entered (contact_monitor jest włączony w aucie) -
 	# odpytywanie kontaktów w klatce gubiło krótkie uderzenia.
 	car.body_entered.connect(_on_body_entered)

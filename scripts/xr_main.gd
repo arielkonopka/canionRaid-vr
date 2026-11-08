@@ -676,17 +676,23 @@ func _enter_workshop(tier: int) -> void:
 	# Moment liczony na prawdziwej krzywej silnika (tymczasowe auto).
 	_ws_options.clear()
 	var probe := StuntCar.new()
-	for t in ["petrol", "diesel", "electric"]:
+	var hub_only: bool = gs != null and kw >= gs.HUB_ONLY_KW
+	for t in (["electric"] if hub_only else ["petrol", "diesel", "electric"]):
 		probe.apply_engine(t, kw)
 		var name_pl: String = StuntCar.ENGINE_TYPES[t]["label"]
-		_ws_options.append({"type": t, "kw": kw, "tier": tier,
-				"label": "%s %d kW   %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]})
+		var opt := {"type": t, "kw": kw, "tier": tier,
+				"label": "%s %d kW   %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]}
+		if hub_only:
+			# Ostatni próg: tylko elektryk z silnikiem w każdym kole.
+			opt["hub"] = true
+			opt["label"] = "Elektryk 4 x 250 kW w kołach   %d Nm" % roundi(probe.peak_torque())
+		_ws_options.append(opt)
 	probe.free()
 	var cur: String = StuntCar.ENGINE_TYPES[car.engine_type]["label"]
 	_ws_options.append({"type": "", "label": "bez zmian (%s %d kW)" % [cur, car.engine_power_kw]})
 	# Domyślnie podświetlony ten sam rodzaj napędu, mocniejszy.
 	_ws_selected = 0
-	for i in range(3):
+	for i in range(_ws_options.size() - 1):
 		if _ws_options[i]["type"] == car.engine_type:
 			_ws_selected = i
 	_ws_refresh()
@@ -716,6 +722,8 @@ func workshop_choose(i: int) -> void:
 		return
 	var opt: Dictionary = _ws_options[clampi(i, 0, _ws_options.size() - 1)]
 	if opt["type"] != "":
+		if opt.get("hub", false):
+			car.hub_motors = true
 		car.apply_engine(opt["type"], opt["kw"])
 		_tier = opt["tier"]
 	car.repair()
@@ -1153,7 +1161,8 @@ func _safe_pose(d: float) -> Transform3D:
 ## Potrącenie innego auta: -20 s od czasu (raz na zderzenie). Kusi - ale
 ## bot wpada w szał, oszukuje (mocniejszy silnik), goni i taranuje.
 func _on_player_hit(body: Node) -> void:
-	if not (body in _bots) or race_state != Race.RACING:
+	# Najpierw typ: "in" na tablicy typowanej zgłasza błąd dla ściany (StaticBody3D).
+	if not (body is StuntCar and body in _bots) or race_state != Race.RACING:
 		return
 	var now := race_time
 	if now - float(_last_hit.get(body, -100.0)) < 2.0:
