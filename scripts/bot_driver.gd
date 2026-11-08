@@ -41,6 +41,15 @@ var reinforce := true
 ## wzywa dopiero przy pierwszym kontakcie (_reinforced).
 var overtake_chance := 0.25
 var _reinforced := false
+## Punktacja (ScoreKeeper w scenie jazdy): fazy ataku i obrażenia zadane.
+## Liczone tylko w szale, ~10 Hz.
+var _score_t := 0.0
+var _attacking := false
+var _atk_hit := false
+var _atk_min_gap := INF
+var _atk_tactic := ""
+var _struct_before := 0.0
+var _dmg_check_t := 0.0
 var _prev_ahead := 0.0
 ## Daleko od gracza i bez szału bot jedzie "po szynie": zamrożony,
 ## przesuwany po torze z prędkością przepisową (bez fizyki - przy 20 autach
@@ -106,12 +115,15 @@ func _drive_step(delta: float) -> void:
 	dist = float(best["dist"])
 
 	_check_overtake(best, best["right"])
+	_score_step(delta, best)
 	if rage > 0.0:
 		rage_time += delta
 		if min_rage_time >= 0.0 and rage_time > min_rage_time and main and main.player_compliant():
 			rage = maxf(rage - delta / calm_time, 0.0)
 			if rage <= 0.0:
 				_reinforced = false
+				if main and main.has_method("score_chase_close"):
+					main.score_chase_close(car, "calmed")
 
 	car.set_rage_lights(rage * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)))
 
@@ -362,7 +374,24 @@ func _on_body_entered(b: Node) -> void:
 	if rel_v > 1.0:
 		if rage < 0.5:
 			print("Bot w szale drogowym!")
-		enrage()
+			# Gracz uderzył spokojnego bota - mandat, pościg bez punktów.
+			enrage("player_hit")
+		else:
+			enrage()
+		# Kontakt w pościgu; obrażenia zadane liczone chwilę później (fizyka
+		# uszkodzeń dolicza je w kolejnych krokach).
+		if main and main.has_method("score_contact"):
+			main.score_contact(car)
+		if _dmg_check_t <= 0.0:
+			_struct_before = float(car.damage["structure"])
+		_dmg_check_t = 0.2
+		# Kontakt otwiera fazę ataku z trafieniem (sprawdzanie strefy jest
+		# 10 Hz - inaczej wejście w strefę po zderzeniu kasowałoby trafienie).
+		if not _attacking:
+			_attacking = true
+			_atk_min_gap = 0.0
+			_atk_tactic = _tactic
+		_atk_hit = true
 		# Posiłki przy pierwszym kontakcie - także gdy szał zaczął się od
 		# wyprzedzenia.
 		if not _reinforced and reinforce and main:
@@ -381,15 +410,17 @@ func _check_overtake(best: Dictionary, right: Vector3) -> void:
 	if _prev_ahead < -1.0 and ahead >= 0.0 and side < 6.0 and player.speed > car.speed + 2.0 \
 			and rage < 0.5 and randf() < overtake_chance:
 		print("Bot wyprzedzony - furia drogowa!")
-		enrage()
+		enrage("overtake")
 	_prev_ahead = ahead
 
 
 ## Wejście w szał (zderzenie albo wezwanie posiłków). Trąbi raz, przy
 ## wybuchu szału. Oszustwo: zdalnie sterowane auto nagle dostaje mocniejszy
 ## silnik - co najmniej 350 kW i nie słabszy niż auto gracza.
-func enrage() -> void:
+func enrage(origin := "self") -> void:
 	var fresh := rage < 0.5
+	if fresh and main and main.has_method("score_chase_open"):
+		main.score_chase_open(car, origin)
 	rage = 1.0
 	rage_time = 0.0
 	if on_rail:
@@ -421,3 +452,42 @@ static func _make_horn() -> AudioStreamWAV:
 	wav.mix_rate = rate
 	wav.data = data
 	return wav
+
+
+
+## Zdarzenia punktowane z perspektywy bota (tylko w szale, ~10 Hz):
+## koniec fazy ataku (bot w strefie ataku przy graczu i z niej wychodzi -
+## unik, gdy bez kontaktu i minął blisko) i obrażenia zadane przez gracza.
+func _score_step(delta: float, best: Dictionary) -> void:
+	if main == null or not main.has_method("score_end_attack"):
+		return
+	if _dmg_check_t > 0.0:
+		_dmg_check_t -= delta
+		if _dmg_check_t <= 0.0:
+			var d := float(car.damage["structure"]) - _struct_before
+			if d > 0.002:
+				main.score_damage(car, d)
+	if rage <= 0.05 or player == null:
+		_attacking = false
+		return
+	_score_t -= delta
+	if _score_t > 0.0:
+		return
+	_score_t = 0.1
+	var rel := player.global_position - car.global_position
+	var ahead := rel.dot(best["fwd"] as Vector3)
+	var side := absf(rel.dot(best["right"] as Vector3))
+	# Odstęp boków aut w poprzek (szerokość auta ~1,8 m).
+	var gap := maxf(side - 1.8, 0.0)
+	var in_zone := absf(ahead) < 6.0 and gap < 3.0
+	if in_zone and not _attacking:
+		_attacking = true
+		_atk_hit = false
+		_atk_min_gap = INF
+		_atk_tactic = _tactic
+	if _attacking:
+		if absf(ahead) < 4.0:
+			_atk_min_gap = minf(_atk_min_gap, gap)
+		if not in_zone:
+			_attacking = false
+			main.score_end_attack(car, _atk_hit, _atk_min_gap, _atk_tactic)

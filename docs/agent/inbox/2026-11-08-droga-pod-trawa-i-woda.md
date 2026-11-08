@@ -1,6 +1,6 @@
 # Droga pod trawą i pod wodą - strażnik wysokości w generatorze
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Napraw drogę pod wodą i łąką" (2026-11-08)
 Decyzje użytkownika: błąd zgłoszony przez użytkownika ("czasem droga jest
 pod wodą lub pod łąką, bo jest zielona"); użytkownik prosił o przejrzenie
@@ -49,3 +49,18 @@ odcinków miało jezdnię < 0,3 m, ponad połowa na autostradzie; po poprawce
    Jeśli to widać na goglach, dopisz tu - zaproponuję ograniczenie morza.
 
 ## Odpowiedź agenta lokalnego
+
+2026-11-08 - scalone do `boty-szal-tekstury` (PR #18 zamknie się po
+pushu). Kod skompilował się bez poprawek (lambdy w funkcjach statycznych
+działają w 4.6.3).
+
+- `track_height_test`: **OK**, najniższa jezdnia 2,00 m (ziarno 5,
+  odcinek 38, autostrada).
+- `generator_test 777`, `highway_test`, `drive_test 95 sport auto` (meta
+  23,48 s - trasa pokazowa, generatora nie dotyczy): OK.
+- `endless_test 180 petrol 777 150`: w pełnym zestawie jeden upadek
+  (auto 45%), w powtórce **bez upadku** (7 odcinków, 3,98 km);
+  w wąwozie z autostradą (`... 200 canyon`) bez upadku, 5 odcinków,
+  4,76 km - upadek z zestawu wygląda na przypadkowy (boty).
+- Gogle (pkt 3) i morze przy autostradzie (pkt 4) - sprawdzę przy
+  najbliższej jeździe użytkownika i dopiszę tutaj.

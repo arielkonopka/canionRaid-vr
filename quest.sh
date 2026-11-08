@@ -100,6 +100,7 @@ do_test() {
 	run_test endless_test "180 petrol 777 150" "upadek|KONIEC|LIMIT"
 	run_test highway_test ""             "spadek|highway_test"
 	run_test score_test ""               "score_test|pkt"
+	run_test score_play_test ""          "score_play_test"
 	run_test stunt_shop_test ""          "stunt_shop_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

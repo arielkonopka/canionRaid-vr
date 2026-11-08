@@ -72,6 +72,22 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   zmiana statusu + commit. Wątki w chmurze nie zmieniają kodu ani
   HANDOVER.md (tylko `docs/agent/`, osobna gałąź + PR). Specyfikacje to
   propozycje - decyzje należą do użytkownika.
+- **Punktacja wpięta w grę** (2026-11-08): `xr_main.score`
+  (ScoreKeeper z chmury) zamiast "-20 s za potrącenie" (`HIT_BONUS`
+  usunięty). Zdarzenia: `BotDriver.enrage(origin)` - "player_hit"
+  (uderzenie spokojnego bota: mandat -100, pościg bez punktów),
+  "reinforce" (posiłki), "overtake" (furia po wyprzedzeniu);
+  `_on_body_entered` → `score_contact` + po 0,2 s `score_damage`
+  (przyrost `damage["structure"]` bota); `_score_step` (10 Hz, tylko
+  w szale): strefa ataku |ahead| < 6 m i odstęp boków < 3 m, wyjście ze
+  strefy → `score_end_attack(hit, min_gap, taktyka)` (unik / unik
+  zasadzki); szał wygasł → "calmed"; `_update_bots`: bot w szale znika
+  za graczem → "lost", wybucha → "wreck". Wyświetlanie: "N pkt xS"
+  w kolumnie przy mapce, pula 3 Label3D z napisami ("+150 UNIK x2", gasną
+  w 1,6 s, tylko modulate), 8-bitowy sygnał (mandat - niższy).
+  Linie "SCORE: ..." w logu do strojenia. Test `tests/score_play_test.gd`
+  (w `./quest.sh test`). Jeszcze nie: sklep w warsztacie (WorkshopShop),
+  StuntTracker, manekiny.
 - **Plan gry z chmury** (`docs/agent/inbox/2026-11-08-plan-gry-podzial-pracy.md`,
   przyjęty): tryb ciągły "Furia" (unikanie albo walka z botami w szale,
   punkty na naprawy w warsztacie, styl gier zręcznościowych z lat 80.)
