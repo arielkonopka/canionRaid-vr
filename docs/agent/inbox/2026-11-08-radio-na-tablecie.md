@@ -6,6 +6,8 @@ użytkownika (2026-11-08, "dodaj do kolejki prac")
 Decyzje użytkownika: chce darmowej muzyki w radiu auta (tablet na desce,
 patrz HANDOVER "Na tablecie: radio"), o którą nie musi się troszczyć.
 Zlecił dodanie do kolejki wariantu rekomendowanego poniżej.
+Użytkownik (2026-11-08): "to co możesz weź na siebie, żeby odciążyć
+agenta" - część bez Godota zrobiła chmura (sekcja niżej).
 Otwarte: czy gra zostanie darmowa (od tego zależy stacja Jamendo, krok 5);
 wybór konkretnych utworów.
 
@@ -52,6 +54,35 @@ wybór konkretnych utworów.
    filtr licencji w zapytaniu API. Wymaga uprawnienia INTERNET w eksporcie
    Androida i wzmianki o sieci w polityce prywatności. Brak sieci = cicha
    zmiana na stację lokalną.
+
+## Zrobione w chmurze (bez Godota - testu nie uruchomiono!)
+
+- `scripts/radio_catalog.gd` (`RadioCatalog`) - czysta logika: filtr
+  licencji (CC0/PD/CC-BY/CC-BY-SA, bez NC/ND), odrzucanie złych wpisów
+  z opisem w `errors`, zawijanie stacji, tasowanie bez powtórki pod rząd,
+  losowe wejście w środek utworu, napis na tablet, sekcja do CREDITS.md.
+- `scripts/radio_stations.gd` (`RadioStations.STATIONS`) - lista stacji,
+  na razie pusta. GDScript zamiast JSON, bo `export_filter="all_resources"`
+  nie wrzuca .json do APK.
+- `scripts/car_radio.gd` (`CarRadio`, Node) - szyna "Radio" (górno-
+  i dolnoprzepustowy 140 Hz / 8 kHz, mały pogłos kabiny, wysyłka na
+  Master), szum eteru generowany w kodzie, `toggle()`, `next_station(dir)`,
+  `skip()`, `set_volume_db()`, sygnał `now_playing(text)`. Bez stacji lub
+  plików nie sypie się, tylko podaje komunikat.
+  `AudioStreamPlayer` (nie 3D) - do decyzji, czy dźwięk ma iść z tabletu.
+- `tests/radio_test.gd` - test headless tych modułów.
+- `audio/radio/README.md` - gdzie kłaść pliki.
+
+## Zostaje dla agenta lokalnego
+
+1. Uruchomić `tests/radio_test.gd` (chmura nie ma Godota), poprawić
+   ewentualne błędy składni, dodać pliki `.uid`, wynik do HANDOVER.md.
+2. Wpiąć `CarRadio` w scenę jazdy (`xr_main.gd`): przycisk na
+   kontrolerze/kierownicy, napis `now_playing` na tablecie.
+3. Odsłuch na Queście: głośność `VOLUME_DB` względem silnika, brzmienie
+   szyny, ewentualnie `AudioStreamPlayer3D` przy tablecie.
+4. Muzyka: chmura może przygotować listę kandydatów (CC0/CC-BY/CC-BY-SA)
+   do akceptacji użytkownika; pobranie plików tylko za jego zgodą.
 
 ## Do sprawdzenia na Queście
 
