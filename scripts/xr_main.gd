@@ -1532,7 +1532,6 @@ const ONCOMING_MAX := 4
 var _oncoming: Array[Dictionary] = []      # {"car", "dist", "v", "lane"}
 var _oncoming_timer := 0.0
 var _oncoming_pool: Array[StuntCar] = []
-const BASE_WHEEL_R := 0.33                  # auta z naprzeciwka to sedany
 
 
 func _update_oncoming(delta: float) -> void:
@@ -1551,10 +1550,11 @@ func _update_oncoming(delta: float) -> void:
 			if is_instance_valid(c):
 				c.visible = false
 				c.global_position.y -= 500.0
+				c.process_mode = Node.PROCESS_MODE_DISABLED   # w puli nic nie liczy
 				_oncoming_pool.append(c)
 			_oncoming.erase(o)
 			continue
-		c.global_transform = _oncoming_xf(d2, float(o["lane"]))
+		c.global_transform = _oncoming_xf(d2, float(o["lane"]), c.wheel_radius)
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = float(o["v"]) / c.wheel_radius
@@ -1566,7 +1566,7 @@ func _is_highway_at(d: float) -> bool:
 
 ## Położenie auta z naprzeciwka: druga jezdnia (w lewo o szerokość jezdni
 ## + pas rozdziału), pas `lane` licząc od pasa rozdziału, przodem do gracza.
-func _oncoming_xf(d: float, lane: float) -> Transform3D:
+func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var xf: Transform3D = track.transform_at_distance(d)
 	var smp: Array = track.samples_from(d, 2.0)
 	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
@@ -1575,7 +1575,7 @@ func _oncoming_xf(d: float, lane: float) -> Transform3D:
 	var b := xf.basis.rotated(xf.basis.y, PI)
 	# Kołami na jezdni: środek koła 0,41 m pod mocowaniem + promień koła
 	# (przegląd PR #7: przy 0,62 koła wchodziły ~0,16 m w asfalt).
-	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * (0.41 + BASE_WHEEL_R))
+	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * (0.41 + wheel_r))
 
 
 func _spawn_oncoming(d: float) -> void:
@@ -1583,6 +1583,7 @@ func _spawn_oncoming(d: float) -> void:
 	if not _oncoming_pool.is_empty():
 		c = _oncoming_pool.pop_back()
 		c.visible = true
+		c.process_mode = Node.PROCESS_MODE_INHERIT
 	else:
 		c = StuntCar.new()
 		c.name = "Oncoming%d" % Time.get_ticks_msec()
@@ -1597,5 +1598,5 @@ func _spawn_oncoming(d: float) -> void:
 		var keys: Array = gs.PAINTS.keys()
 		c.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
 	var lane := float(_bot_rng.randi_range(-1, 1))     # trzy pasy drugiej jezdni
-	c.global_transform = _oncoming_xf(d, lane)
+	c.global_transform = _oncoming_xf(d, lane, c.wheel_radius)
 	_oncoming.append({"car": c, "dist": d, "v": _bot_rng.randf_range(110.0, 140.0) / 3.6, "lane": lane})

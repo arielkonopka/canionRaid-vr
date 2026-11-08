@@ -100,6 +100,9 @@ func _ready() -> void:
 
 	_build_menu()
 	enter_group("")
+	var oxr := XRServer.find_interface("OpenXR")
+	if oxr and oxr.has_signal("pose_recentered"):
+		oxr.pose_recentered.connect(func(): _menu_placed_t = 0.0)
 	if _xr:
 		XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, false)
 
@@ -370,7 +373,9 @@ func _place_menu() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _menu_placed_t < 0.6:
+	# Ustawiane przez 1,5 s od startu (śledzenie głowy bywa opóźnione, np.
+	# po wybudzeniu Questa) i od nowa po przecentrowaniu widoku.
+	if _menu_placed_t < 1.5:
 		_menu_placed_t += _delta
 		_place_menu()
 	if _driver:

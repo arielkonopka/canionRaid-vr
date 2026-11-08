@@ -23,7 +23,9 @@ while true; do
 		# Commity nowe względem stanu z początku nasłuchu.
 		EXCL=""
 		for o in $OLD; do EXCL="$EXCL ^$o"; done
-		C="$(git log --format='%h %s' "$r" $EXCL -- docs/agent 2>/dev/null)"
+		# Tylko commity wątków w chmurze (autor Claude, noreply@anthropic.com)
+		# - własnych commitów agenta lokalnego nie zgłaszamy.
+		C="$(git log --format='%h %s' --author='noreply@anthropic.com' "$r" $EXCL -- docs/agent 2>/dev/null)"
 		[ -n "$C" ] && FOUND="$FOUND
 == ${r#refs/remotes/}:
 $C"
