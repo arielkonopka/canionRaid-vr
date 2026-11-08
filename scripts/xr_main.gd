@@ -124,8 +124,15 @@ var _mirror_cam: Camera3D
 var _mirror_frame := 0
 
 # --- nagroda za potrącenie innych aut (kusi, ale bot w szale oszukuje) ---
-const HIT_BONUS := 20.0
 var _penalty_flash := 0.0
+## Punkty za furię drogową (scripts/score_keeper.gd, logika z wątku
+## w chmurze): zastępują dawne "-20 s za potrącenie bota" (decyzja
+## użytkownika). Zdarzenia zgłaszają BotDriver i _update_bots.
+var score := ScoreKeeper.new()
+var _popups: Array[Label3D] = []
+var _popup_t: Array[float] = []
+var _beep: AudioStreamPlayer
+var _beep_fine: AudioStreamPlayer
 var _last_hit := {}                  # bot -> czas ostatniej kary (bez kar z jednego zderzenia)
 
 var _xr_ready: bool = false
@@ -456,6 +463,8 @@ func _update_bots(delta: float) -> void:
 		var gone: bool = drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0
 		var dead: bool = b.is_wrecked or drv.flipped_time > 3.0 or b.global_position.y < -50.0
 		if gone or dead:
+			if drv.rage > 0.05:
+				score_chase_close(b, "wreck" if dead else "lost")
 			if dead:
 				var boom := Explosion.new()
 				boom.paint = b._paint_mat.albedo_color
@@ -473,7 +482,7 @@ func call_reinforcements(from: StuntCar, radius: float) -> void:
 			continue
 		var drv: BotDriver = b.get_node("Driver")
 		if drv.rage < 0.5 and b.global_position.distance_to(from.global_position) < radius:
-			drv.enrage()
+			drv.enrage("reinforce")
 
 
 ## Drugi bot w szale najbliżej gracza (partner do kleszczy) albo null.
@@ -583,9 +592,11 @@ func update_race(delta: float) -> void:
 			elif not _next_station.is_empty():
 				fuel_line = "\nstacja %.1f km" % maxf((float(_next_station["start"]) - _last_safe_dist) / 1000.0, 0.0)
 			cr += fuel_line
-			var pen := "\n-20 s!" if _penalty_flash > 0.0 and int(_penalty_flash * 4.0) % 2 == 0 else ""
+			var pts := "\n%d pkt" % score.points
+			if score.combo > 1 and race_time - score._combo_t <= ScoreKeeper.COMBO_WINDOW:
+				pts += " x%d" % score.combo
 			_race_label.text = "odcinek %d\n%.2f km\n%s%s%s" % [
-					track.section_at(_last_safe_dist), _max_dist / 1000.0, _fmt_time(race_time), cr, pen]
+					track.section_at(_last_safe_dist), _max_dist / 1000.0, _fmt_time(race_time), pts, cr]
 		else:
 			_race_label.text = _fmt_time(race_time)
 
@@ -911,6 +922,7 @@ func _build_race_hud() -> void:
 
 	_build_mirror()
 	_build_rain()
+	_build_popups()
 	_env = EnvAudio.new()
 	_env.name = "EnvAudio"
 	add_child(_env)
@@ -937,6 +949,7 @@ func _build_race_hud() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_popups(delta)
 	var t0 := Time.get_ticks_usec()
 	_update_rain(delta)
 	Perf.add("deszcz", t0)
@@ -1099,6 +1112,7 @@ func _watch_track(delta: float) -> void:
 		if sec > _last_section:
 			_last_section = sec
 			_chirp.play()
+			score.new_section()
 			_reset_bot_pattern(sec)
 		if _next_ws.is_empty() or float(_next_ws["stop"]) < _last_safe_dist - 5.0:
 			# Nie ten sam warsztat drugi raz: auto staje tuż przy linii postoju.
@@ -1224,9 +1238,8 @@ func _on_player_hit(body: Node) -> void:
 	if now - float(_last_hit.get(body, -100.0)) < 2.0:
 		return
 	_last_hit[body] = now
-	race_time = maxf(race_time - HIT_BONUS, 0.0)
-	_penalty_flash = 2.5
-	print("Potrącenie: -%d s" % int(HIT_BONUS))
+	# Potrącenie: mandat i punkty liczy ScoreKeeper (BotDriver zgłasza
+	# pościg "player_hit" i kontakt) - bez dawnej premii czasowej.
 
 
 func _on_car_wrecked() -> void:
@@ -1600,3 +1613,122 @@ func _spawn_oncoming(d: float) -> void:
 	var lane := float(_bot_rng.randi_range(-1, 1))     # trzy pasy drugiej jezdni
 	c.global_transform = _oncoming_xf(d, lane, c.wheel_radius)
 	_oncoming.append({"car": c, "dist": d, "v": _bot_rng.randf_range(110.0, 140.0) / 3.6, "lane": lane})
+
+
+
+# --------------------------------------------------------------------------
+# Punkty za furię drogową (ScoreKeeper)
+# --------------------------------------------------------------------------
+
+## Zdarzenia od BotDriver. `now` = czas jazdy, prędkość gracza do mnożnika
+## niebezpieczeństwa. Każde zwraca wypłaty -> _score_pay.
+func score_chase_open(bot: StuntCar, origin: String) -> void:
+	_score_pay(score.open_chase(bot.get_instance_id(), origin, race_time))
+
+
+func score_contact(bot: StuntCar) -> void:
+	score.note_contact(bot.get_instance_id(), race_time)
+
+
+func score_damage(bot: StuntCar, d_structure: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_score_pay(score.damage_dealt(bot.get_instance_id(), d_structure, race_time, absf(car.speed) * 3.6))
+	Perf.add("punkty", t0)
+
+
+func score_end_attack(bot: StuntCar, hit: bool, min_gap: float, tactic: String) -> void:
+	var t0 := Time.get_ticks_usec()
+	_score_pay(score.end_attack(bot.get_instance_id(), hit, min_gap, absf(car.speed) * 3.6,
+			race_time, tactic))
+	Perf.add("punkty", t0)
+
+
+func score_chase_close(bot: StuntCar, reason: String) -> void:
+	_score_pay(score.close_chase(bot.get_instance_id(), reason, race_time, absf(car.speed) * 3.6))
+
+
+## Wypłaty: linia do logu (strojenie na Queście), napis z puli i dźwięk.
+## Tylko przy zdarzeniu - nic co klatkę (Label3D przebudowuje siatkę przy
+## zmianie tekstu).
+func _score_pay(pays: Array) -> void:
+	for p in pays:
+		print(ScoreKeeper.log_line(p))
+		_show_popup(p["text"], int(p["points"]) < 0)
+		var snd := _beep_fine if int(p["points"]) < 0 else _beep
+		if snd:
+			snd.play()
+
+
+## Pula 3 gotowych napisów nad kolumną postępu: najstarszy ustępuje
+## nowemu, gasną w 1,6 s (tylko modulate - bez przebudowy siatki).
+func _build_popups() -> void:
+	for i in range(3):
+		var l := Label3D.new()
+		l.font_size = 40
+		l.pixel_size = 0.00045
+		l.outline_size = 10
+		l.no_depth_test = true
+		l.render_priority = 5
+		l.visible = false
+		car.add_child(l)
+		_popups.append(l)
+		_popup_t.append(0.0)
+	_beep = AudioStreamPlayer.new()
+	_beep.stream = _make_beep([880.0, 1320.0])
+	_beep.volume_db = -14.0
+	add_child(_beep)
+	_beep_fine = AudioStreamPlayer.new()
+	_beep_fine.stream = _make_beep([440.0, 294.0])
+	_beep_fine.volume_db = -14.0
+	add_child(_beep_fine)
+
+
+func _show_popup(text: String, bad: bool) -> void:
+	if _popups.is_empty() or _race_label == null:
+		return
+	# Najstarszy (najmniej czasu zostało) ustępuje.
+	var k := 0
+	for i in range(_popups.size()):
+		if _popup_t[i] < _popup_t[k]:
+			k = i
+	for i in range(_popups.size()):
+		if _popup_t[i] > 0.0:
+			_popups[i].position.y += 0.022      # starsze wyżej
+	var l := _popups[k]
+	l.text = text
+	l.modulate = Color(1.0, 0.35, 0.3) if bad else Color(1.0, 0.85, 0.2)
+	l.position = _race_label.position + Vector3(0.0, 0.05, 0.0)
+	l.visible = true
+	_popup_t[k] = 1.6
+
+
+func _update_popups(delta: float) -> void:
+	for i in range(_popups.size()):
+		if _popup_t[i] <= 0.0:
+			continue
+		_popup_t[i] -= delta
+		var a := clampf(_popup_t[i] / 0.5, 0.0, 1.0)
+		_popups[i].modulate.a = a
+		_popups[i].outline_modulate.a = a
+		if _popup_t[i] <= 0.0:
+			_popups[i].visible = false
+
+
+## Krótki 8-bitowy sygnał (fala prostokątna, kolejne tony po 0,06 s).
+func _make_beep(freqs: Array) -> AudioStreamWAV:
+	var rate := 22050
+	var seg := int(rate * 0.06)
+	var data := PackedByteArray()
+	data.resize(seg * freqs.size())
+	for k in range(freqs.size()):
+		var f: float = freqs[k]
+		for i in range(seg):
+			var t := float(i) / rate
+			var v := 1.0 if fmod(t * f, 1.0) < 0.5 else -1.0
+			var env := clampf((seg - i) / (seg * 0.3), 0.0, 1.0)
+			data[k * seg + i] = int(128.0 + 40.0 * v * env)
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_8_BITS
+	wav.mix_rate = rate
+	wav.data = data
+	return wav

@@ -197,40 +197,98 @@ static func generate_section(index: int, start: Dictionary, rng: RandomNumberGen
 
 
 ## Jeden moduł trasy (wybór losowy z uwzględnieniem wysokości i skoków).
+## Każdy moduł idzie przez _guarded - jezdnia nigdzie nie schodzi poniżej
+## d.hmin (patrz niżej).
 static func _module(out: Array, state: Dictionary, d: Dictionary, rng: RandomNumberGenerator,
 		canyon: bool, m: int, modules: int, jumps_left: int) -> void:
-	for _once in [0]:
-		# Skok co najmniej raz na sekcję, w losowym miejscu (ostatni moduł,
-		# jeśli wcześniej nie wypadł).
-		var want_jump := jumps_left > 0 and (rng.randf() < 0.45 or modules - m <= jumps_left)
-		if want_jump:
-			_jump(out, state, d, rng)
-			state["_jumps_left"] = jumps_left - 1    # stan wraca do pętli sekcji
-			if state["pos"].y < d["hmin"] + 10.0:
-				_climb(out, state, d, +1)
-			continue
-		var h: float = state["pos"].y
-		var roll := rng.randf()
-		# Każdy skok obniża tor o ~10 m (przerwa i lądowisko w dół) - podjazd
-		# tylko blisko dolnej granicy, inaczej wypierał zakręty.
-		if h < d["hmin"] + 4.0:
+	var lift := func(o: Array, s: Dictionary, need: float) -> void: _rise(o, s, d, need)
+	# Skok co najmniej raz na sekcję, w losowym miejscu (ostatni moduł,
+	# jeśli wcześniej nie wypadł).
+	var want_jump := jumps_left > 0 and (rng.randf() < 0.45 or modules - m <= jumps_left)
+	if want_jump:
+		_guarded(out, state, d, rng, func(o: Array, s: Dictionary) -> void: _jump(o, s, d, rng), lift)
+		state["_jumps_left"] = jumps_left - 1    # stan wraca do pętli sekcji
+		if state["pos"].y < d["hmin"] + 10.0:
 			_climb(out, state, d, +1)
-		elif h > d["hmax"] - 6.0:
-			_climb(out, state, d, -1)
-		elif canyon and roll < 0.10 + clampf(0.03 * d["km"], 0.0, 0.2):
-			# Tunel - częściej na dalszych, trudniejszych odcinkach.
-			_tunnel(out, state, d, rng)
-		elif canyon and roll > 0.88:
-			# Rozwidlenie (jak w River Raid): dwie jezdnie wokół skalnej wyspy.
-			_split(out, state, d, rng)
-		elif roll < 0.40:
-			_curve(out, state, d, rng)
-		elif roll < 0.55:
-			_chicane(out, state, d, rng)
-		elif roll < 0.75:
-			_hill(out, state, d, rng)
-		else:
-			_straight(out, state, d, rng)
+		return
+	var h: float = state["pos"].y
+	var roll := rng.randf()
+	var build: Callable
+	# Każdy skok obniża tor o ~10 m (przerwa i lądowisko w dół) - podjazd
+	# tylko blisko dolnej granicy, inaczej wypierał zakręty.
+	if h < d["hmin"] + 4.0:
+		build = func(o: Array, s: Dictionary) -> void: _climb(o, s, d, +1)
+	elif h > d["hmax"] - 6.0:
+		build = func(o: Array, s: Dictionary) -> void: _climb(o, s, d, -1)
+	elif canyon and roll < 0.10 + clampf(0.03 * d["km"], 0.0, 0.2):
+		# Tunel - częściej na dalszych, trudniejszych odcinkach.
+		build = func(o: Array, s: Dictionary) -> void: _tunnel(o, s, d, rng)
+	elif canyon and roll > 0.88:
+		# Rozwidlenie (jak w River Raid): dwie jezdnie wokół skalnej wyspy.
+		build = func(o: Array, s: Dictionary) -> void: _split(o, s, d, rng)
+	elif roll < 0.40:
+		build = func(o: Array, s: Dictionary) -> void: _curve(o, s, d, rng)
+	elif roll < 0.55:
+		build = func(o: Array, s: Dictionary) -> void: _chicane(o, s, d, rng)
+	elif roll < 0.75:
+		build = func(o: Array, s: Dictionary) -> void: _hill(o, s, d, rng)
+	else:
+		build = func(o: Array, s: Dictionary) -> void: _straight(o, s, d, rng)
+	_guarded(out, state, d, rng, build, lift)
+
+
+# --------------------------------------------------------------------------
+# Strażnik wysokości
+# --------------------------------------------------------------------------
+# Teren to wciąż jedna płaska trawa na y = 0 (z czasów toru na palach),
+# a okno na morze kładzie lustro wody na StuntTrack.SEA_Y. Wąwóz nie ma
+# własnego dna - jezdnia w nim to ta sama płyta, co na palach. Kiedy
+# jezdnia zejdzie niżej niż ~0,3 m, przykrywa ją trawa albo morze
+# (błąd zgłoszony przez użytkownika 2026-11-08: "droga pod wodą / pod
+# łąką"). Wcześniej wysokość sprawdzano tylko PRZED modułem, a skocznia
+# (stół + zeskok -12°) schodzi o 5-10 m w jego trakcie: na autostradzie
+# (4 m) prawie zawsze pod trawę, w wąwozie od ~6 m w dół.
+
+## Buduje moduł `build(out, state)` tak, żeby najniższy punkt jezdni
+## (z krawędzią na przechyłce) nie zszedł poniżej d.hmin. Najpierw próba
+## na kopii stanu przy tym samym stanie losowania; jeśli za nisko, przed
+## modułem idzie `lift(out, state, brakujące_metry)` i próba od nowa.
+## Geometria modułu nie zależy od wysokości startu, więc po podjeździe
+## moduł wychodzi taki sam, tylko wyżej.
+static func _guarded(out: Array, state: Dictionary, d: Dictionary, rng: RandomNumberGenerator,
+		build: Callable, lift: Callable) -> void:
+	var hmin: float = d["hmin"]
+	for _try in range(6):
+		var rng_state := rng.state
+		var trial: Array = []
+		build.call(trial, state.duplicate())
+		rng.state = rng_state
+		var need := hmin - lowest_edge(trial, state)
+		if need <= 0.0:
+			break
+		lift.call(out, state, need)
+	build.call(out, state)
+
+
+## Najniższa wysokość jezdni [m] odcinków `segs` od stanu `start` - środek
+## albo niższa krawędź przy przechyłce.
+static func lowest_edge(segs: Array, start: Dictionary) -> float:
+	if segs.is_empty():
+		return INF
+	var low := INF
+	for smp in StuntTrack.sample_segments(segs, start, 2.0):
+		var hw := float(smp["width"]) * 0.5
+		low = minf(low, (smp["pos"] as Vector3).y - absf((smp["right"] as Vector3).y) * hw)
+	return low
+
+
+## Podjazd o co najmniej `need` metrów (kolejne podjazdy 7°).
+static func _rise(out: Array, state: Dictionary, d: Dictionary, need: float) -> void:
+	var y0: float = state["pos"].y
+	for _k in range(8):
+		if float(state["pos"].y) - y0 >= need:
+			return
+		_climb(out, state, d, +1)
 
 
 # --------------------------------------------------------------------------
@@ -522,10 +580,14 @@ static func _highway_section(index: int, start: Dictionary, rng: RandomNumberGen
 	_push(out, state, {"len": 30.0, "pitch": 0.0, "limit": LIMIT_HIGHWAY,
 			"meta": {"road_sign": "highway"}})
 	var jump_at := rng.randi_range(1, 3)
+	# Strażnik wysokości (_guarded): skocznia schodzi poniżej poziomu
+	# autostrady - podnosimy jezdnię przed nią łagodną rampą.
+	var lift := func(o: Array, s: Dictionary, need: float) -> void:
+		_highway_level(o, s, float(s["pos"].y) + need + 0.5)
 	for m in range(5):
 		_maybe_slippery_zone(state, d, rng)
 		if m == jump_at:
-			_jump(out, state, d, rng)
+			_guarded(out, state, d, rng, func(o: Array, s: Dictionary) -> void: _jump(o, s, d, rng), lift)
 			_highway_level(out, state, HIGHWAY_HEIGHT)
 			_push(out, state, {"len": 20.0, "pitch": 0.0, "limit": LIMIT_HIGHWAY})
 			continue
@@ -544,9 +606,11 @@ static func _highway_section(index: int, start: Dictionary, rng: RandomNumberGen
 		elif roll < 0.65:
 			# Łagodny garb (2-3°), bez ograniczenia prędkości.
 			var p := rng.randf_range(2.0, 3.0)
-			_push(out, state, {"len": 80.0, "pitch": p})
-			_push(out, state, {"len": 120.0, "pitch": -p})
-			_push(out, state, {"len": 60.0, "pitch": 0.0})
+			var hump := func(o: Array, s: Dictionary) -> void:
+				_push(o, s, {"len": 80.0, "pitch": p})
+				_push(o, s, {"len": 120.0, "pitch": -p})
+				_push(o, s, {"len": 60.0, "pitch": 0.0})
+			_guarded(out, state, d, rng, hump, lift)
 			_highway_level(out, state, HIGHWAY_HEIGHT)
 		else:
 			_push(out, state, {"len": rng.randf_range(150.0, 300.0), "pitch": 0.0, "curve": 0.0,

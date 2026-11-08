@@ -1,6 +1,6 @@
 # Canion Raid VR - założenia projektu (wizja)
 
-Ostatnia aktualizacja: 2026-11-08. Źródło: słowa użytkownika
+Ostatnia aktualizacja: 2026-11-08 (dopisane filary 9-11). Źródło: słowa użytkownika
 (2026-11-08), spisane przez wątek projektowy w chmurze. To jest stały
 punkt odniesienia dla wszystkich agentów - decyzje szczegółowe są
 w `HANDOVER.md`, zlecenia w `docs/agent/inbox/`.
@@ -41,6 +41,21 @@ drogowych**, a za kierownicą siedzą **manekiny od testów zderzeniowych**.
 8. **Zręcznościówka.** Ma pędzić jak gry z lat 80. - wynik zawsze
    widoczny, krótkie krzykliwe napisy, rytm zdarzeń - ale "w kompletnie
    nowym odkryciu": VR, fizyka, emergentne zachowania botów.
+
+9. **Samodzielnie na goglach, wysoko zoptymalizowana - ale nie kosztem
+   fizyki.** Gra działa na samym Queście 3 (bez PC). Optymalizujemy
+   grafikę, liczbę obiektów, LOD, boty "na szynie" daleko od gracza,
+   sterowanie botów i budowę toru - **fizyki auta gracza i botów
+   blisko gracza nie upraszczamy** dla wydajności. Każda nowa funkcja
+   ma pomiar kosztu (`Perf.add`, linie "PERF+" z Questa).
+10. **Estetyka względnie realistyczna.** Realistyczne światło, materiały,
+    skały, auta i drogi - bez kreskówki - na tyle, na ile pozwala Quest.
+    Styl lat 80. żyje w rytmie gry i napisach, nie w grafice.
+11. **Emocje stopniowane w czasie.** Doświadczenie ma być jak najbardziej
+    ekscytujące i coraz trudniejsze: z odcinkiem rośnie liczba i agresja
+    furiatów, trudniejsze taktyki i formacje, ciaśniejsze i szybsze
+    trasy, mocniejsze auto z warsztatu - krzywa trudności bez końca, ze
+    chwilami oddechu (autostrada, stacja, warsztat) między szczytami.
 
 ## Manekiny crash-testowe
 
