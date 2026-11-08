@@ -124,7 +124,6 @@ var _mirror_cam: Camera3D
 var _mirror_frame := 0
 
 # --- nagroda za potrącenie innych aut (kusi, ale bot w szale oszukuje) ---
-var _penalty_flash := 0.0
 ## Punkty za furię drogową (scripts/score_keeper.gd, logika z wątku
 ## w chmurze): zastępują dawne "-20 s za potrącenie bota" (decyzja
 ## użytkownika). Zdarzenia zgłaszają BotDriver i _update_bots.
@@ -429,7 +428,6 @@ func _physics_process(delta: float) -> void:
 		car.steer = 0.0
 		car.handbrake = 1.0
 	_grace_t = maxf(_grace_t - delta, 0.0)
-	_penalty_flash = maxf(_penalty_flash - delta, 0.0)
 	update_race(delta)
 	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
@@ -464,7 +462,10 @@ func _update_bots(delta: float) -> void:
 		var dead: bool = b.is_wrecked or drv.flipped_time > 3.0 or b.global_position.y < -50.0
 		if gone or dead:
 			if drv.rage > 0.05:
-				score_chase_close(b, "wreck" if dead else "lost")
+				# Spadek w otchłań (błąd toru, nie zasługa gracza) - "lost",
+				# bez premii za wybuch (przegląd punktacji).
+				var fell_out: bool = b.global_position.y < -50.0
+				score_chase_close(b, "wreck" if dead and not fell_out else "lost")
 			if dead:
 				var boom := Explosion.new()
 				boom.paint = b._paint_mat.albedo_color
@@ -593,7 +594,7 @@ func update_race(delta: float) -> void:
 				fuel_line = "\nstacja %.1f km" % maxf((float(_next_station["start"]) - _last_safe_dist) / 1000.0, 0.0)
 			cr += fuel_line
 			var pts := "\n%d pkt" % score.points
-			if score.combo > 1 and race_time - score._combo_t <= ScoreKeeper.COMBO_WINDOW:
+			if score.combo_active(race_time):
 				pts += " x%d" % score.combo
 			_race_label.text = "odcinek %d\n%.2f km\n%s%s%s" % [
 					track.section_at(_last_safe_dist), _max_dist / 1000.0, _fmt_time(race_time), pts, cr]
@@ -1698,6 +1699,10 @@ func _show_popup(text: String, bad: bool) -> void:
 	l.text = text
 	l.modulate = Color(1.0, 0.35, 0.3) if bad else Color(1.0, 0.85, 0.2)
 	l.position = _race_label.position + Vector3(0.0, 0.05, 0.0)
+	# Jak kolumna przy mapce: pochylenie -8° i wyrównanie do lewej (inaczej
+	# napisy wystawały w lewo od kolumny - przegląd punktacji).
+	l.rotation = _race_label.rotation
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.visible = true
 	_popup_t[k] = 1.6
 

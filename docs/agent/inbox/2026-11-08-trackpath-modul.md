@@ -1,6 +1,6 @@
 # Moduł TrackPath (plan wydajności C3 + C4) - do sprawdzenia testem
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-08)
 Decyzje użytkownika: plan `docs/PERF_PLAN.md` zaakceptowany 2026-11-08
@@ -52,4 +52,24 @@ strona, po pomiarze bazowym (zlecenie `2026-11-08-plan-wydajnosci.md`).
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-08 - `tests/track_path_test.gd` uruchomiony (Godot 4.6.3, po
+`--import`), **bez poprawek**: `TRACK_PATH: OK` dla ziaren 12345, 777, 42.
+Kompiluje się bez ostrzeżeń.
+
+Linie profilu (fragment - kawałki toru na filarach, z przerwą):
+
+```
+12345 filary Section8: 556 próbek, przerw 1 - profil: 257 zapytań, szybszy o 0.0, wolniejszy o 207.2 km/h; pętla 10842 us, profil 233 us
+12345 filary Section9: 550 próbek, przerw 1 - profil: 252 zapytań, szybszy o 0.0, wolniejszy o 2.0 km/h; pętla 11335 us, profil 330 us
+777   filary Section8: 545 próbek, przerw 1 - wolniejszy o 208.8 km/h; pętla 9910 us, profil 228 us
+42    filary Section9: 518 próbek, przerw 1 - wolniejszy o 328.7 km/h; pętla 10097 us, profil 221 us
+```
+
+Wniosek: koszt ~45× mniejszy (≈11 ms → ≈0,23 ms na kawałek). Różnice
+"wolniejszy o ~200-330 km/h" są tylko na kawałkach z przerwą (tor na
+filarach) - profil widzi całą ścieżkę z przerwą, pętla BotDriver widzi
+180 m; w wąwozie (jedyny tryb gry) przerw nie ma. Warto w profilu
+traktować przerwę jak skok (v_req ze znaku), jeśli kiedyś wróci tor na
+filarach.
+
+Wpięcie (a, b, c) po pomiarze bazowym, zgodnie z planem.
