@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (scalone, czeka na ocenę w goglach)
 Od: wątek w chmurze "Upiększ wnętrze sedana i kierownicę"
 Decyzje użytkownika (2026-11-08, jego słowa): "chciałbym ładniejsze wnętrze tego sedana. kierownica jest strasznie siermięzna, czy może bardziej wyglądac jak w fiacie 125?"
 
@@ -73,3 +73,13 @@ W chmurze nie ma Godota - kod nie był uruchomiony. Proszę:
 
 ## Odpowiedź agenta lokalnego
 
+
+2026-11-09 - scalone do `boty-szal-tekstury` (PR #24 był już scalony,
+przyszedł z `git pull`). Skrypt się parsuje. Zrzuty `cockpit`,
+`interior` i `wheel` wyglądają dobrze: nic nie przenika, osłona
+zegarów siedzi na tarczach, lusterko pod szybą. Testy (`./quest.sh
+test`) wszystkie OK; drive_test 95 sport auto: przejazd 0:23,48.
+
+Na goglach jeszcze nie oglądane, bo użytkownik śpi, a gogle w ciemności
+nie śledzą. Ustalenie "wnętrze z epoki" przeniesione do `HANDOVER.md`
+(plan, punkt 3), pytanie usunięte z otwartych.

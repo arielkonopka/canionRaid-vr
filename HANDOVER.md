@@ -1399,7 +1399,9 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Główny zysk wydajności: kompresja VRAM i mipmapy tekstur skał
   (S1 100%: GPU 22,6 → 10,0 ms; 130%: 32 → 15,8 ms).
 - adb przestał padać po buildzie (ustawienie edytora, sekcja 3).
-- Testy (`./quest.sh test`): wszystkie OK.
+- Scalone z chmury: wnętrze sedana z epoki (PR #24), zrzuty obejrzane.
+- Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
+  sport auto - przejazd 0:23,48.
 
 ## 8. Kolejka zadań
 
@@ -1477,18 +1479,13 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    Komfort kokpitu, pozycja `seat`, czytelność menu, kamera związana
    z przechyłami auta (ewentualnie opcja "horyzont stały"), strojenie
    fizyki na wyczucie.
-3. **Kokpit wzorowany na nowoczesnym SUV-ie** (zdjęcie od użytkownika,
-   uwaga: auto z zewnątrz jest teraz sedanem z lat 70. - nowoczesne
-   wnętrze w starym nadwoziu to "restomod"; zapytaj, czy tak ma zostać,
-   czy wnętrze ma być z epoki. Teraz wnętrze jest proste, z epoki:
-   kanapy, cienka kierownica, tymczasowe zegary tekstowe.
-   bez logo producenta): kierownica, cyfrowe zegary za kierownicą,
-   wolnostojący tablet na środku deski, pozioma deska z nawiewami
-   w chromowanych ramkach, konsola środkowa z wybierakiem, boczki drzwi
-   z chromowanymi akcentami, ciemna skóra. Z prymitywów, własny styl.
-   - Na zegarach: prędkość, obroty, moc (chwilowa, kW), licznik
-     kilometrów (odometr).
-   - Na tablecie: radio.
+3. **Wnętrze sedana - z epoki (ustalone, 2026-11-08)**. Użytkownik
+   w wątku w chmurze: "kierownica jest strasznie siermiężna, czy może
+   bardziej wyglądać jak w fiacie 125?" - włoski sedan przełomu lat 60.
+   i 70., nie nowoczesny SUV. Zrobione w chmurze (PR #24, scalony,
+   `_build_interior` w `stunt_car.gd`; rendery i testy lokalnie OK
+   2026-11-09). Zostało: ocena w goglach (czy nic nie zasłania drogi,
+   czy klatka się trzyma). Na zegarach dalej: moc chwilowa, odometr.
 4. **Robot-kierowca w stylu art déco lat 20.** Gracz jest robotem.
    Dwa widoki do wyboru: z fotela kierowcy (widzi swoje metalowe ręce
    na kierownicy) albo z fotela pasażera (robot prowadzi obok).
@@ -1536,9 +1533,7 @@ Propozycje (do uzgodnienia):
 
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
-  Niepotwierdzone. Kokpit ma się wzorować na zdjęciu SUV-a.
+  Niepotwierdzone.
 - Czy ABS i ESP też przełączać w trakcie jazdy, i pod jakimi przyciskami?
-- Wnętrze: nowoczesne jak na zdjęciu SUV-a (restomod) czy z epoki,
-  pasujące do sedana z lat 70.?
 - Trasa generowana: skończona liczba odcinków czy bez końca? Trudność
   zależna od mocy wybranego auta czy stała?
