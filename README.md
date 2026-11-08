@@ -1,26 +1,39 @@
 # Stunt Track VR
 
-Kaskaderskie wyścigi VR w Godocie 4 pod Meta Quest: tory zawieszone wysoko
-na słupach, rampy, przerwy do przeskoczenia i wiraże z przechyłką.
-Własna gra w klasycznym gatunku stunt racerów z lat 80./90.,
-projektowana od początku pod gogle.
+Kaskaderska jazda VR w Godocie 4 pod Meta Quest 3: niekończący się wąwóz
+z łupkowymi ścianami, generowany odcinkami, z trudnością rosnącą
+z dystansem. Skocznie, garby, tunele (także dwunitkowe), rozwidlenia,
+mokra i oblodzona jezdnia, deszcz, okna na morze. Na drodze jeżdżą
+puste, zdalnie sterowane auta, które po stłuczce wpadają w szał drogowy.
+Własna gra w gatunku stunt racerów, projektowana od początku pod gogle.
 
-Stan: etap 1 (tor) i etap 2 (samochód z realistyczną fizyką) gotowe,
-do tego ekran tytułowy z wyborem skrzyni i zawieszenia. Da się jeździć,
-skakać przez przerwy, a po wypadku dźwig stawia auto z powrotem na torze.
+Zasady w skrócie:
+
+- jedziesz bez końca, odcinek po odcinku; życia to auta - tracisz je
+  przy dachowaniu, rozbiciu, wypadnięciu z trasy albo pustym baku;
+- co 5 odcinków zjazd na stację paliw (przejeżdża się powoli pasem
+  dystrybutorów), co 10 - zjazd do warsztatu z mocniejszym silnikiem;
+- uderzenie w bota zabiera 20 s z czasu, ale bot się mści (taktyk szału
+  jest kilka, konfigurowane w menu); uspokaja go tylko jazda zgodna
+  z przepisami;
+- fizyka auta jest realistyczna (opony Pacejki, silnik z krzywą momentu,
+  skrzynia, dyferencjały, ABS/TCS/ESP), pomoce są jawne i wyłączalne.
+
+Pełny stan projektu i decyzje: `HANDOVER.md`.
 
 ---
 
 ## Szybki start
 
-1. Otwórz folder w Godocie 4.4 lub nowszym (w systemie jest 4.6.3).
-2. F5 uruchamia ekran tytułowy. Ustaw napęd (benzyna / diesel /
-   elektryk), moc (90-350 kW), skrzynię, zawieszenie, lakier oraz ABS,
-   kontrolę trakcji i ESP, potem START. Wybór zapisuje się
+1. Otwórz folder w Godocie 4.4 lub nowszym (rozwijane na 4.6.3).
+2. F5 uruchamia ekran tytułowy. W podmenu: trasa (życia), samochód
+   (napęd benzyna/diesel/elektryk, moc 90-700 kW - 1000 kW tylko dla
+   elektryka z silnikiem w każdym kole, skrzynia, tył/4x4), nadwozie
+   i opony (masa, spojler, opony, zawieszenie), systemy wspomagania,
+   sterowanie, wygląd i widok, szał drogowy botów. Wybór zapisuje się
    w `user://settings.cfg`.
 3. Bez gogli gra startuje na płasko, z kamerą za autem.
-4. Zaznacz węzeł **Track** i w inspektorze przestaw **Rebuild** - tor
-   przebuduje się od razu w edytorze.
+4. Na Questa: `./quest.sh` (testy, build, wgranie, start).
 
 ### Ekran tytułowy
 
@@ -73,9 +86,17 @@ przy zamykaniu.
 
 ---
 
-## Jak opisany jest tor
+## Jak powstaje trasa
 
-Tor to lista odcinków w `scripts/stunt_track.gd`. Każdy odcinek to słownik:
+Trasę bez końca składa `scripts/track_generator.gd` z modułów (prosta,
+łuk z przechyłką, szykana, garb, podjazd, skocznia, tunel, rozwidlenie,
+zjazd na stację / do warsztatu). Każdy odcinek trasy (sekcja) to lista
+segmentów, z których `scripts/stunt_track.gd` liczy próbki i buduje
+geometrię; `scripts/endless_track.gd` dobudowuje sekcje przed autem
+i usuwa za nim. Skocznie są liczone z balistyki pod prędkość, jaką auto
+danego progu mocy osiąga na rozbiegu (pomiar `tests/runup_test.gd`).
+
+Segment to słownik:
 
 | klucz | znaczenie |
 |---|---|
@@ -83,52 +104,27 @@ Tor to lista odcinków w `scripts/stunt_track.gd`. Każdy odcinek to słownik:
 | `curve` | skręt w stopniach na metr, dodatni w prawo |
 | `pitch` | nachylenie w stopniach, dodatnie pod górę |
 | `bank` | przechyłka w stopniach, dodatnia = prawa krawędź niżej (na zakręt w prawo) |
-| `width` | szerokość jezdni w metrach |
-| `gap` | `true` — dziura w torze, czyli miejsce do przeskoczenia |
-| `surface` | nawierzchnia: `"dry"` (domyślna), `"wet"` (~0,7 przyczepności), `"ice"` (~0,12) |
-
-Przykład:
-
-```gdscript
-{"len": 25.0, "pitch": 14.0},      # rampa w górę
-{"len": 18.0, "gap": true},        # przerwa — tu się skacze
-{"len": 30.0, "pitch": -8.0},      # lądowanie na zjeździe
-```
+| `width` | szerokość jezdni w metrach (na starcie 14,8 m - trzy pasy na dwa auta) |
+| `gap` | `true` — dziura w jezdni (tylko na trasie pokazowej) |
+| `surface` | `"dry"`, `"wet"` (~0,7 przyczepności), `"ice"` (~0,12); `""` = według strefy |
+| `limit` | ograniczenie prędkości od tego miejsca [km/h] |
+| `meta` | znaki, tunele, wyspy, zjazdy - patrz generator |
 
 `pitch`, `bank` i `width` są płynnie interpolowane od wartości
-poprzedniego odcinka, więc nie trzeba pisać osobnych odcinków
-przejściowych — wejście w przechyłkę robi się samo.
+poprzedniego segmentu. Kierunek liczony jest z kątów yaw i pitch, nie
+z ramy Freneta (na prostej rama Freneta jest nieokreślona) - dlatego
+na razie nie ma pętli ani jazdy do góry nogami.
 
-Domyślną trasę możesz podmienić bez ruszania kodu: wypełnij pole
-`Segments` w inspektorze węzła **Track**. Pusta lista = `DEFAULT_TRACK`
-ze skryptu.
+### Tekstury
 
-### Dwie decyzje projektowe warte uwagi
-
-**Kierunek liczony jest z kątów yaw i pitch, nie z ramy Freneta.**
-Na prostym odcinku krzywizna wynosi zero, więc normalna krzywej jest
-nieokreślona i tor zaczyna się obracać wokół własnej osi. Dwa kąty
-nie mają tego problemu.
-
-**Tor nie zamyka się w pętlę.** Domknięcie obwodu wymaga dobrania
-końcowych odcinków tak, by wrócić dokładnie do punktu startu. To osobny
-problem i sensowniej go rozwiązać, gdy już wiadomo, jak tor ma jeździć.
-
----
-
-## Co dalej
-
-- **Etap 2** — samochód: **zrobione**, `scripts/stunt_car.gd`.
-  Realistyczny model: opony Pacejki z relaksacją, silnik z krzywą momentu,
-  6 biegów, LSD, ABS, stabilizatory. Celowo bez `VehicleBody3D`.
-- **Etap 3** — samochód na torze. Przydadzą się `nearest_sample()`
-  i `lateral_offset()` na dole `stunt_track.gd`. Szukają liniowo,
-  czyli wolno; przy dłuższych torach trzeba będzie siatki przestrzennej
-  albo wyszukiwania od ostatniej znanej próbki.
-- **Etap 4** — lot i lądowanie. Gdy wszystkie koła tracą kontakt,
-  zostaje czysta balistyka. Model uszkodzeń to licznik sumujący energię
-  twardych lądowań.
-- **Etap 5** — przeciwnik i struktura wyścigu.
+Skały (ściany wąwozu, góry nad tunelami, mech) używają tekstur z
+[freepbr.com](https://freepbr.com/) w katalogu `textures/`. Licencja nie
+pozwala ich rozpowszechniać, więc **nie ma ich w repozytorium** - bez
+nich gra używa proceduralnego łupku (`shaders/shale.gdshader`). Żeby
+zbudować wersję z teksturami, pobierz z freepbr.com: Cavern Walls,
+Ocean Rock (wersje "-bl") i Mossy Rock Model do `textures/`; wycinek
+mchu (`textures/derived/moss_*.png`) robi `python3 tools/make_moss.py`
+z atlasu Mossy Rock Model.
 
 ---
 

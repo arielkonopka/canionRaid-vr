@@ -65,6 +65,19 @@ func show_warning(parent: Node3D, pos: Vector3, kind: String, value := 0) -> voi
 	_warn = Node3D.new()
 	_warn.position = pos
 	parent.add_child(_warn)
+	if kind == "repair" or kind == "fuel":
+		# Zjazd do warsztatu / na stację blisko: niebieski znak ze strzałką.
+		_bar(_warn, Vector2(0.024, 0.034), Vector2.ZERO, 0.0, Color(0.05, 0.25, 0.65), 4)
+		_bar(_warn, Vector2(0.018, 0.018), Vector2(0.0, 0.005), 0.0, Color(0.97, 0.97, 0.95), 5)
+		var ink := Color(0.04, 0.04, 0.04)
+		if kind == "repair":
+			_bar(_warn, Vector2(0.002, 0.012), Vector2(0.0, 0.005), 0.8, ink, 6)
+		else:
+			_bar(_warn, Vector2(0.006, 0.011), Vector2(-0.001, 0.004), 0.0, ink, 6)
+		_bar(_warn, Vector2(0.0022, 0.009), Vector2(0.001, -0.0105), -0.785, Color(0.97, 0.97, 0.95), 6)
+		_bar(_warn, Vector2(0.006, 0.0022), Vector2(0.0045, -0.0068), 0.0, Color(0.97, 0.97, 0.95), 6)
+		_bar(_warn, Vector2(0.0022, 0.006), Vector2(0.0068, -0.0085), 0.0, Color(0.97, 0.97, 0.95), 6)
+		return
 	var r := 0.018
 	_tri(_warn, r, Color(0.8, 0.08, 0.06), 0.0)
 	_tri(_warn, r * 0.74, Color(0.98, 0.8, 0.1), 0.0006)
@@ -149,7 +162,7 @@ func _tri(parent: Node3D, r: float, col: Color, dz: float) -> void:
 	parent.add_child(mi)
 
 
-func _bar(parent: Node3D, size: Vector2, at: Vector2, rot: float, col: Color) -> void:
+func _bar(parent: Node3D, size: Vector2, at: Vector2, rot: float, col: Color, prio := 4) -> void:
 	var mi := MeshInstance3D.new()
 	var b := BoxMesh.new()
 	b.size = Vector3(size.x, size.y, 0.0005)
@@ -157,10 +170,10 @@ func _bar(parent: Node3D, size: Vector2, at: Vector2, rot: float, col: Color) ->
 	m.albedo_color = col
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.no_depth_test = true
-	m.render_priority = 4
+	m.render_priority = prio            # warstwy bez testu głębi: kolejność z priorytetu
 	b.material = m
 	mi.mesh = b
-	mi.position = Vector3(at.x, at.y, 0.0012)
+	mi.position = Vector3(at.x, at.y, 0.0012 + 0.0001 * (prio - 4))
 	mi.rotation = Vector3(0, 0, rot)
 	parent.add_child(mi)
 

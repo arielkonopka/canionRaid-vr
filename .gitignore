@@ -10,3 +10,7 @@ build/
 .vscode/
 .idea/
 *~
+
+# Tekstury z zewnętrznego źródła - nie w publicznym repo, dopóki
+# użytkownik nie potwierdzi licencji (patrz HANDOVER, sekcja 2).
+textures/

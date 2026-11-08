@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: napęd 4x4, silniki w kołach, 1000 kW, opony, masa, spojler, szał drogowy w menu, szersze pasy, tunele wiercone i dwunitkowe, repo git)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: 7 strategii szału, posiłki, do 20+ botów z jazdą "po szynie", oznaczenie zjazdów, tekstury freepbr lokalnie, README)
 
 ---
 
@@ -89,6 +89,25 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     minimalny czas szału (aż do "nigdy nie mija" - użytkownik sam
     ustawiał w kodzie 500/1024 s), czas uspokajania, strategia:
     zajeżdżanie drogi z hamowaniem / stukanie w tył / na zmianę.
+  - **Strategie szału wszystkie, domyślnie mieszane** (block, ram, pit,
+    zigzag, ambush, pincer) + posiłki (szał zaraża boty w 400 m).
+  - **Liczba aut**: 4 na start, +1 co 2 odcinki do 20, potem +1 co 100
+    odcinków (`XrMain.bot_limit`).
+  - **Zjazd do warsztatu był nie do znalezienia** - dodane znaki 300 m
+    i 100 m przed zjazdem, znak ze strzałką na zjeździe i miniatura przy
+    mapce 400 m przed.
+  - **Tekstury z freepbr.com** (katalog `textures/`, dodany przez
+    użytkownika): zielone części - mossy rock, ściany wąwozu - cavern
+    walls, góry (nad tunelami) - ocean rock. **Nie wrzucać ich na GitHuba**
+    (`.gitignore`), lokalne buildy je mają; bez nich proceduralny łupek.
+    Licencja freepbr (wg użytkownika, 2026-11-08): darmowe pliki tylko do
+    użytku niekomercyjnego; komercyjnie trzeba kupić Mega Pack; surowych
+    plików nie wolno redystrybuować. Gdyby gra miała być sprzedawana -
+    Mega Pack albo zamiana na tekstury CC0 (pobieranie tylko za zgodą
+    użytkownika).
+    **Decyzja użytkownika: gra całkowicie darmowa, bez żadnych zysków** -
+    darmowa licencja freepbr wystarcza; tekstury dalej poza repo.
+  - **README ma opisywać obecną grę** (był jeszcze o torze na słupach).
   - **Pasy na dwa auta obok siebie** - jezdnia 14,8 m na starcie.
   - **Tunele wiercone, przekrój koła**; przy rozwidleniu **dwie osobno
     wiercone nitki**, które za górą znów się łączą.
@@ -486,15 +505,50 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 - **Szerokość jezdni**: `difficulty().width` = 14,8 - 0,5/km, min. 10 m
   (3 pasy po ~4,6 m); start `EndlessTrack` 14,8. Linie i koleiny
   w `road.gdshader` liczą się z szerokości.
+- **Boty: liczba i "szyna"** (`xr_main.bot_limit`, `BotDriver._update_rail`):
+  limit z numeru odcinka, nowe auta co 2-6 s, 220-900 m przed graczem,
+  prawy albo środkowy pas. Bot bez szału dalej niż `LOD_FAR` 380 m od
+  gracza jest zamrożony i przesuwany po torze z prędkością przepisową
+  (30 Hz, `_rail_acc`), bliżej niż `LOD_NEAR` 320 m wraca fizyka. Pomiar
+  na PC (headless, takt 240 Hz = 4,17 ms): 20 botów (16 na szynie) 4,15 ms
+  na krok; bez ograniczenia szyny do 30 Hz było 4,8 ms (nie nadążał) -
+  szukanie na trasie (`samples_from`, `transform_at_distance`) jest
+  drogie. Na Queście nie mierzone.
 - **Szał drogowy** (`bot_driver.gd`, grupa menu "rage"): parametry
   z `GameSettings` w `_ready` (`rage_overspeed` 0 = bez limitu,
   `rage_time` -1 = nigdy nie mija, `rage_calm`, `rage_strategy`).
-  `_rage_plan`: "ram" - za graczem dojazd +18/+35 km/h na jego tor,
+  `_rage_plan`, taktyki `TACTICS`: "pit" - pas obok, przód przy tylnym
+  kole gracza i skręt w jego bok; "zigzag" - przed graczem sinus przez
+  całą szerokość; "ambush" - wyprzedza z zapasem (+45), staje na
+  poboczu 28-60 m przed graczem i wyjeżdża mu przed maskę; "pincer" -
+  dwa boty w szale (`main.rage_partner`) po obu bokach ściskają (bez
+  partnera = pit); "mixed" losuje co 8-14 s. Posiłki:
+  `main.call_reinforcements` → `BotDriver.enrage()` (klakson, silnik).
+  "ram" - za graczem dojazd +18/+35 km/h na jego tor,
   przed nim zwalnia i schodzi z linii; "block" - wyprzedza sąsiednim
   pasem (+30), wjeżdża przed gracza i co 3-5 s hamuje 1,2 s
   (`_brake_pulse`); "mixed" - zmiana co 8-14 s. Limit szału =
   ograniczenie + przekroczenie, łuki zawsze (`_curve_speed`). Bot w szale
   dostaje max(350 kW, moc gracza).
+- **Oznaczenie zjazdów** (`_build_service`, `_exit_arrow`,
+  `TrackHud.show_warning("repair"/"fuel")`): znaki 300 i 100 m przed
+  początkiem poszerzenia (start usługi - 40 m), znak ze strzałką na nim;
+  `_update_warning` pokazuje niebieską miniaturę ze strzałką, gdy zjazd
+  bliżej niż 400 m (pierwszeństwo przed ostrzeżeniami).
+- **Skały z tekstur** (`shaders/rock.gdshader`, `_rock_material`,
+  `ROCK_TEXTURES`): mapowanie trójpłaszczyznowe w świecie (wagi |n|^6,
+  rzut o wadze < 0,02 pominięty), normalne "whiteout", wersje "-bl"
+  (normalne OpenGL). Ściany i wyspy - cavern walls (kafel 6 m), góry nad
+  tunelami - ocean rock (10 m), mech - wycinek atlasu Mossy Rock Model
+  (`tools/make_moss.py`, kafel 2,5 m, `moss_tint` podbija zieleń - sama
+  tekstura jest oliwkowo-brązowa i ginęła na brązowej skale). Maska mchu
+  jak wcześniej (strona przeciwna do słońca + szum). Bez plików tekstur
+  (świeży klon) `_rock_material` daje proceduralny `shale.gdshader`.
+  Warianty -ue/-unity i katalog modelu mchu mają `.gdignore` (nie są
+  importowane; .obj odwołuje się do brakującego .mtl - błąd importu);
+  nieużywane mapy (height/ao/metallic/roughness/preview) wykluczone
+  z eksportu w `export_presets.cfg`. Góry na horyzoncie (`Scenery`)
+  zostały z kolorami wierzchołków - są kilometry dalej.
 - **Okna na morze** (`StuntTrack.sea_factor`, `SEA_*`, `_canyon_profile`,
   `_build_sea`, `shaders/ocean.gdshader`): w każdym przedziale 5 km jedno
   okno 100 m (+ przejścia po 40 m) w miejscu i po stronie z hasha numeru
@@ -1035,6 +1089,11 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   domyślnie). `engine_test` mierzy układy i 0-200; `RUNUP_CAP`
   dopomiarowany dla 500/700 kW.
 - Repozytorium git na GitHubie (`canionRaid-vr`), pierwszy push.
+- Potem: 7 strategii szału (domyślnie mieszane) i posiłki, do 20+ botów
+  z jazdą "po szynie" daleko od gracza, oznaczenie zjazdów do warsztatu
+  i na stację, tekstury freepbr (lokalnie, bez repo), README przepisane
+  pod wąwóz. Naprawione: boty przy rozstawianiu traciły prędkość
+  (`place()`), błąd tablicy typowanej przy otarciu o ścianę.
 - Dalej w sesji 3: 1000 kW tylko dla silników w kołach, masa i spojler
   (nowa grupa menu "Nadwozie i opony"), podmenu "Szał drogowy botów"
   (przekraczanie, czas, uspokojenie, 3 strategie), pasy na dwa auta,
@@ -1065,8 +1124,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    nie budowę geometrii) i sprawdzenie `EndlessTrack.update_progress`.
 0b. Do przetestowania w goglach z użytkownikiem (instaluje razem z nim):
    nowe opcje auta, strategie szału, tunele, szersza jezdnia.
-   Propozycje kolejnych strategii szału czekają na wybór użytkownika
-   (sekcja 9).
+   Też: wydajność z wieloma botami na Queście, widoczność mchu, nowe
+   znaki zjazdów.
 
 1. **Dalsze wrażenia z gogli**: czy przezroczystość, czułość drążka,
    meta i kamera lotu działają; płynność; komfort przy skokach.
@@ -1161,11 +1220,6 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
-- Kolejne strategie szału drogowego (zaproponowane 2026-11-08, bez
-  odpowiedzi): spychanie z boku (manewr PIT), wezwanie posiłków (inne
-  boty dołączają do pościgu), zasadzka przed skocznią/tunelem, jazda
-  zygzakiem przed graczem (nie da się wyprzedzić), "eskorta" -
-  dwa boty po bokach ściskają gracza.
 - Zasięg paliwa: 150 km czy ~10-15 km?
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
