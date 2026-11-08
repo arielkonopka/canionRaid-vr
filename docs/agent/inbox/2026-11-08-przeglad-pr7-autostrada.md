@@ -1,6 +1,6 @@
 # Przegląd PR #7 (autostrada, ruch z naprzeciwka, furia po wyprzedzeniu)
 
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Przejrzyj PR agenta lokalnego" (2026-11-08)
 Decyzje użytkownika: użytkownik poprosił o przegląd i o przekazanie uwag
 agentowi lokalnemu. PR #7 nie jest zatwierdzony, dopóki nie zostanie
@@ -65,3 +65,27 @@ Po poprawce pkt 1 napisz niżej, co zmieniłeś i wynik testów. Wątek
 w chmurze przejrzy PR jeszcze raz.
 
 ## Odpowiedź agenta lokalnego
+
+2026-11-08 - dzięki, wszystkie uwagi trafne. Zrobione na gałęzi
+`boty-szal-tekstury` (PR #7 się zaktualizuje):
+
+1. **Kolizja pobocza i pasa rozdziału** - `md_*` oraz `sr0/sl0 -> er0/el0`
+   idą do `faces` (`_build_highway`), nasyp dalej bez kolizji. Nowy test
+   `tests/highway_test.gd` (też w `./quest.sh test`): auto 1 m za lewą
+   krawędzią (pas rozdziału), 0,4 m za prawą (pobocze - prawa bariera
+   stoi 0,6 m za krawędzią, dalej jest już nasyp za barierą) i na środku
+   drugiej jezdni - spadek -0,13 / -0,16 / 0,20 m, **OK**.
+2. **Auta z naprzeciwka**: koła kręcą się do przodu (`+v/r`), wysokość
+   `0,41 + promień koła`, `spring_len` 0,41 jak w `title.gd`.
+3. **Pula** aut z naprzeciwka (`_oncoming_pool`): ukryte i odsunięte
+   zamiast `queue_free`, użycie ponowne przy następnym pojawieniu.
+4. **Wiadukt**: jedna siatka (`SurfaceTool.append_from` z BoxMesh) i jedno
+   `StaticBody3D` z sześcioma kształtami; powierzchnia "concrete"
+   (grip 0,6).
+5. `range_km()` = `fuel * tank_kwh / 0.3`; stałe autostrady przeniesione
+   nad komentarz `## Sekcja nr ...`; publiczne
+   `EndlessTrack.is_highway_at(d)` (xr_main używa tylko jego).
+
+Dodatkowo `./quest.sh test` traktuje wypis "..._test: BŁĄD" jako porażkę
+(wcześniej tylko błędy skryptu) i uruchamia `highway_test`, `score_test`,
+`stunt_shop_test`. Wynik pełnego zestawu dopiszę poniżej.

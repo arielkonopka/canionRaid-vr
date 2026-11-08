@@ -12,7 +12,11 @@ extends Node3D
 ## Bez wskaźnika laserowego: przy kilku wierszach drążek jest szybszy.
 
 const RACE_SCENE := "res://scenes/main.tscn"
-const MENU_DISTANCE := 2.6
+## Menu 1 m przed oczami (użytkownik: przy 2,6 m bywało daleko i słabo
+## czytelne). Układ napisów zaprojektowany na 2,6 m - skalujemy cały węzeł,
+## żeby w polu widzenia zajmował tyle samo.
+const MENU_DISTANCE := 1.0
+const MENU_LAYOUT_DISTANCE := 2.6
 const MAX_ROWS := 8                  # najwięcej wierszy na ekranie (z "Wróć"/START)
 const COLOR_NORMAL := Color(0.92, 0.94, 0.97)
 const COLOR_SELECTED := Color(1.0, 0.75, 0.2)
@@ -171,6 +175,7 @@ func _build_menu() -> void:
 	_menu = Node3D.new()
 	_menu.name = "Menu"
 	_menu.position = Vector3(0.0, 0.0, -MENU_DISTANCE)
+	_menu.scale = Vector3.ONE * (MENU_DISTANCE / MENU_LAYOUT_DISTANCE)
 	origin.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
@@ -348,7 +353,26 @@ func _on_xr_button(button: String) -> void:
 			_cancel()
 
 
+## Menu ustawiane przed oczami, gdy gogle już śledzą głowę (pierwsze
+## klatki bywają bez pozycji) - potem nieruchome. Wcześniej stało w stałym
+## punkcie od startu i przy przesuniętej głowie bywało "bardzo daleko".
+var _menu_placed_t := 0.0
+
+func _place_menu() -> void:
+	var head := camera.global_transform
+	var f := -head.basis.z
+	f.y = 0.0
+	if f.length_squared() < 0.01:
+		f = -origin.global_basis.z
+	f = f.normalized()
+	_menu.global_transform = Transform3D(Basis.looking_at(f, Vector3.UP).scaled(
+			Vector3.ONE * (MENU_DISTANCE / MENU_LAYOUT_DISTANCE)), head.origin + f * MENU_DISTANCE)
+
+
 func _process(_delta: float) -> void:
+	if _menu_placed_t < 0.6:
+		_menu_placed_t += _delta
+		_place_menu()
 	if _driver:
 		_follow_car(_delta)
 	# Drążek: gałka w goglach albo lewa gałka pada. Jeden ruch = jeden krok,

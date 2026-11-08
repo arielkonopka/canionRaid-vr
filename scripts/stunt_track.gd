@@ -1979,14 +1979,16 @@ func _build_highway() -> void:
 			_quad_facing(concrete, faces, q["jb_l0"], p["jb_l0"], p["jb_l1"], q["jb_l1"], -rh)
 			_quad_facing(concrete, faces, q["jb_r0"], p["jb_r0"], p["jb_r1"], q["jb_r1"], rh)
 			_quad_facing(concrete, faces, q["jb_l1"], p["jb_l1"], p["jb_r1"], q["jb_r1"], Vector3.UP)
-			_quad_facing(grass, none, q["md_r"], p["md_r"], p["md_l"], q["md_l"], Vector3.UP)
+			# Pas rozdziału i pobocza z kolizją (przegląd PR #7: bez niej auto
+			# zepchnięte ~0,5 m za krawędź spadało pod nasyp); nasyp bez.
+			_quad_facing(grass, faces, q["md_r"], p["md_r"], p["md_l"], q["md_l"], Vector3.UP)
 			_quad_facing(metal, faces, q["gr0"], p["gr0"], p["gr1"], q["gr1"], -rh)
 			_quad_facing(metal, none, q["gr0"], p["gr0"], p["gr1"], q["gr1"], rh)
 			_quad_facing(metal, faces, q["gl0"], p["gl0"], p["gl1"], q["gl1"], rh)
 			_quad_facing(metal, none, q["gl0"], p["gl0"], p["gl1"], q["gl1"], -rh)
-			_quad_facing(grass, none, q["sr0"], p["sr0"], p["er0"], q["er0"], Vector3.UP)
+			_quad_facing(grass, faces, q["sr0"], p["sr0"], p["er0"], q["er0"], Vector3.UP)
 			_quad_facing(grass, none, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
-			_quad_facing(grass, none, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)
+			_quad_facing(grass, faces, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)
 			_quad_facing(grass, none, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
 			none.clear()
 		prev = p
@@ -2038,26 +2040,32 @@ func _build_overpass(dist: float) -> void:
 		[Vector2(x_r - 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
 		[Vector2(x_l + 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
 	]
+	# Jedna siatka (SurfaceTool) i jedno ciało z kształtami - przegląd PR #7
+	# (było 6 MeshInstance3D + 6 StaticBody3D na wiadukt).
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var body := StaticBody3D.new()
+	body.name = "OverpassBody"
+	body.set_meta("surface", "concrete")
+	body.set_meta("grip", 0.6)
 	for pt in parts:
 		var size: Vector3 = pt[1]
 		var at: Vector2 = pt[0]
-		var mi := MeshInstance3D.new()
+		var xf := Transform3D(b, base + rh * at.x + Vector3.UP * at.y)
 		var bm := BoxMesh.new()
 		bm.size = size
-		bm.material = _concrete_material()
-		mi.mesh = bm
-		mi.transform = Transform3D(b, base + rh * at.x + Vector3.UP * at.y)
-		root.add_child(mi)
+		st.append_from(bm, 0, xf)
 		var bs := BoxShape3D.new()
 		bs.size = size
-		var body := StaticBody3D.new()
-		body.set_meta("surface", "rock")
-		body.set_meta("grip", 0.55)
 		var cs := CollisionShape3D.new()
 		cs.shape = bs
+		cs.transform = xf
 		body.add_child(cs)
-		body.transform = mi.transform
-		root.add_child(body)
+	st.set_material(_concrete_material())
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	root.add_child(mi)
+	root.add_child(body)
 
 
 func _metal_material() -> Material:

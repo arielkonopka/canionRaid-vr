@@ -125,8 +125,6 @@ static func jump_schedule(index: int) -> Dictionary:
 	return {"runup": runup, "v_bottom_kmh": lerpf(lo, hi, t)}
 
 
-## Sekcja nr `index` (od 1) zaczynająca się w stanie `start` (jak
-## StuntTrack.start_state). Zwraca listę odcinków.
 ## Autostrada zamiast wąwozu (użytkownik): co 5 odcinków (3., 8., 13., ...)
 ## cały odcinek - nie wypada na stację (5., 10., ...) ani warsztat (11., ...).
 const HIGHWAY_EVERY := 5
@@ -142,6 +140,8 @@ static func is_highway(index: int) -> bool:
 	return index >= HIGHWAY_PHASE and index % HIGHWAY_EVERY == HIGHWAY_PHASE
 
 
+## Sekcja nr `index` (od 1) zaczynająca się w stanie `start` (jak
+## StuntTrack.start_state). Zwraca listę odcinków.
 static func generate_section(index: int, start: Dictionary, rng: RandomNumberGenerator,
 		canyon := false) -> Array:
 	if canyon and is_highway(index):

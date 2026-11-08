@@ -151,6 +151,13 @@ func lateral_offset(world_pos: Vector3) -> Dictionary:
 	return (r[0] as StuntTrack).lateral_offset(world_pos, r[1])
 
 
+## Czy na dystansie `dist` jest odcinek autostrady (w wczytanych kawałkach).
+func is_highway_at(dist: float) -> bool:
+	var c := _chunk_for(dist)
+	var r := c.dist_range()
+	return dist >= r.x and dist <= r.y and c.highway
+
+
 func transform_at_distance(dist: float) -> Transform3D:
 	return _chunk_for(dist).transform_at_distance(dist)
 

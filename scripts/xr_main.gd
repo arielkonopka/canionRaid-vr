@@ -1343,6 +1343,9 @@ func _restart_section() -> void:
 	for o in _oncoming:
 		(o["car"] as Node).queue_free()
 	_oncoming.clear()
+	for c in _oncoming_pool:
+		c.queue_free()
+	_oncoming_pool.clear()
 	_reset_bot_pattern(track.section_at(d))
 
 
@@ -1528,6 +1531,8 @@ static func _make_rain_noise() -> AudioStreamWAV:
 const ONCOMING_MAX := 4
 var _oncoming: Array[Dictionary] = []      # {"car", "dist", "v", "lane"}
 var _oncoming_timer := 0.0
+var _oncoming_pool: Array[StuntCar] = []
+const BASE_WHEEL_R := 0.33                  # auta z naprzeciwka to sedany
 
 
 func _update_oncoming(delta: float) -> void:
@@ -1542,20 +1547,21 @@ func _update_oncoming(delta: float) -> void:
 		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
 		var d2: float = o["dist"]
 		if d2 < _last_safe_dist - 150.0 or not _is_highway_at(d2) or not is_instance_valid(c):
+			# Do puli (ukryte), zamiast queue_free - bez alokacji w trakcie jazdy.
 			if is_instance_valid(c):
-				c.queue_free()
+				c.visible = false
+				c.global_position.y -= 500.0
+				_oncoming_pool.append(c)
 			_oncoming.erase(o)
 			continue
 		c.global_transform = _oncoming_xf(d2, float(o["lane"]))
 		for w in c.wheels:
-			w.omega = -float(o["v"]) / c.wheel_radius
+			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
+			w.omega = float(o["v"]) / c.wheel_radius
 
 
 func _is_highway_at(d: float) -> bool:
-	if not track.has_method("_chunk_for"):
-		return false
-	var r: Vector2 = track._chunk_for(d).dist_range()
-	return d >= r.x and d <= r.y and track._chunk_for(d).highway
+	return track.has_method("is_highway_at") and track.is_highway_at(d)
 
 
 ## Położenie auta z naprzeciwka: druga jezdnia (w lewo o szerokość jezdni
@@ -1567,16 +1573,25 @@ func _oncoming_xf(d: float, lane: float) -> Transform3D:
 	var lane_w := (w - 1.0) / 3.0
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	var b := xf.basis.rotated(xf.basis.y, PI)
-	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * 0.62)
+	# Kołami na jezdni: środek koła 0,41 m pod mocowaniem + promień koła
+	# (przegląd PR #7: przy 0,62 koła wchodziły ~0,16 m w asfalt).
+	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * (0.41 + BASE_WHEEL_R))
 
 
 func _spawn_oncoming(d: float) -> void:
-	var c := StuntCar.new()
-	c.name = "Oncoming%d" % Time.get_ticks_msec()
-	c.is_bot = true
-	add_child(c)
-	c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-	c.freeze = true
+	var c: StuntCar
+	if not _oncoming_pool.is_empty():
+		c = _oncoming_pool.pop_back()
+		c.visible = true
+	else:
+		c = StuntCar.new()
+		c.name = "Oncoming%d" % Time.get_ticks_msec()
+		c.is_bot = true
+		add_child(c)
+		c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		c.freeze = true
+		for w in c.wheels:
+			w.spring_len = 0.41
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		var keys: Array = gs.PAINTS.keys()

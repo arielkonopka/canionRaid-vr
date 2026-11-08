@@ -52,6 +52,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   pomocy (np. `steer_assist` w menu, łagodniejsze ustawienia domyślne).
   Potem: (3) "nie bardzo działa zakończenie poziomu" - dodana meta,
   zegar, wyniki, rekord; (4) w trybie lotu brak yaw/pitch - dodane.
+- **Nasłuch skrzynki** (użytkownik: "wydziel wątek, który będzie
+  nasłuchiwał tych wiadomości"): `tools/watch_inbox.sh [s]` - co 120 s
+  `git fetch --all`, kończy się, gdy pojawi się nowy commit zmieniający
+  `docs/agent/` na którejkolwiek gałęzi zdalnej. Agent uruchamia go
+  w tle (`run_in_background`), po powiadomieniu czyta wiadomość, robi
+  `git pull` i uruchamia nasłuch ponownie.
 - **Komunikacja z wątkami projektowymi w chmurze** (ustalone
   2026-11-08, użytkownik zatwierdził propozycję): `docs/agent/` -
   `inbox/` (zlecenia i specyfikacje z chmury, blok statusu: nowe /
@@ -145,6 +151,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     zamrożone kołami na jezdni, kamera stoi za nim, menu nieruchome
     w świecie (dziecko stojącego XROrigin). Jazda w menu w kodzie za
     `TITLE_DRIVE` (false).
+    **Menu 1 m przed oczami** (użytkownik: przy 2,6 m bywało daleko
+    i słabo czytelne): `MENU_DISTANCE` 1, cały węzeł skalowany 1/2,6
+    (układ napisów liczony na 2,6 m); ustawiane przed głową przez
+    pierwsze 0,6 s (`_place_menu`, gdy gogle już śledzą), potem stoi.
   - **Sedan "najfajniejszy"** - domyślny model; concept do wyboru.
     Dynamika jazdy concept cara oceniona jako w porządku.
   - **Auto gracza ma mieć dach** - widoczny z kokpitu.
@@ -582,7 +592,11 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   `_update_oncoming`): do 4 aut na drugiej jezdni, kinematyczne
   (`FREEZE_MODE_KINEMATIC`), 110-140 km/h, tylko na odcinkach autostrady.
   `endless_test ... canyon`: przejeżdża autostradę (3. odcinek) bez
-  upadku. Znane: przy wyjeździe z autostrady początek wąwozu widać jako
+  upadku. Po przeglądzie PR #7 (chmura): pobocza i pas rozdziału mają
+  kolizję (bez niej auto zepchnięte ~0,5 m za krawędź spadało pod nasyp;
+  test `tests/highway_test.gd`), auta z naprzeciwka z puli
+  (`_oncoming_pool`), koła do przodu, wysokość 0,41 + promień; wiadukt
+  jedną siatką i jednym ciałem; `EndlessTrack.is_highway_at`. Znane: przy wyjeździe z autostrady początek wąwozu widać jako
   płaskie "półki" płaskowyżu.
 - **Furia po wyprzedzeniu** (`BotDriver._check_overtake`, opcja
   `rage_overtake` 0/10/25/50%, domyślnie 25): gracz przechodzi z tyłu

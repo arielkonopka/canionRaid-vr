@@ -1776,8 +1776,9 @@ func _burn_fuel(power_w: float, delta: float) -> void:
 
 
 ## Zasięg na pozostałym paliwie przy spokojnej jeździe [km].
+## ~0,3 kWh/km przy spokojnej jeździe (~30 kW przy ~100 km/h).
 func range_km() -> float:
-	return fuel * 12.0
+	return fuel * tank_kwh / 0.3
 
 
 func refuel(amount: float) -> void:
