@@ -8,6 +8,7 @@ extends SceneTree
 
 const RC := preload("res://scripts/radio_catalog.gd")
 const CR := preload("res://scripts/car_radio.gd")
+const RS := preload("res://scripts/radio_stations.gd")
 
 var fails := 0
 
@@ -18,6 +19,7 @@ func _initialize() -> void:
 	_test_stations()
 	_test_shuffle()
 	_test_credits()
+	_test_real_list()
 	_test_player()
 	print("radio_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails > 0 else 0)
@@ -100,6 +102,16 @@ func _test_credits() -> void:
 	var np := RC.now_playing_text("Nocna", _track("b/1.ogg"))
 	_check(np.begins_with("Nocna\n") and np.contains("A b/1.ogg - T b/1.ogg"), "napis na tablet")
 	_check(RC.path_of(_track("a/1.ogg")) == "res://audio/radio/a/1.ogg", "ścieżka pliku")
+
+
+func _test_real_list() -> void:
+	var c = RC.new(RS.STATIONS, 7)
+	_check(c.errors.is_empty(), "prawdziwa lista stacji bez błędów: %s" % [c.errors])
+	_check(c.station_count() == 3, "3 stacje w radio_stations.gd")
+	var md: String = c.credits_markdown()
+	_check(md.contains("(https://www.facebook.com/BogartVGM/)"), "dodatkowa atrybucja w CREDITS")
+	var f := FileAccess.open("res://CREDITS.md", FileAccess.READ)
+	_check(f != null and f.get_as_text().contains(md), "CREDITS.md zgodny z radio_stations.gd")
 
 
 func _test_player() -> void:
