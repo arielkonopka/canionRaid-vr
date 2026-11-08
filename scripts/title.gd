@@ -105,6 +105,8 @@ const CHASE_BACK := 7.0
 const CHASE_UP := 2.4
 var _chase := Transform3D()
 var _chase_ready := false
+var _chase_yaw := 0.0
+var _chase_yaw_ready := false
 
 func _follow_car(delta := 0.0) -> void:
 	var cx := car.get_global_transform_interpolated()
@@ -117,10 +119,12 @@ func _follow_car(delta := 0.0) -> void:
 	var k := 1.0 if not _chase_ready else 1.0 - exp(-4.0 * delta)
 	_chase_ready = true
 	var pos := _chase.origin.lerp(target, k)
-	var look := cx.origin + fwd * 6.0 + Vector3.UP * 0.6
-	var flat := look - pos
-	flat.y = 0.0
-	_chase = Transform3D(Basis.looking_at(flat.normalized(), Vector3.UP), pos)
+	# Kierunek patrzenia wygładzany osobno i wolniej (auto drga na
+	# nierównościach - obrót kamery za nim szarpał tłem).
+	var want_yaw := atan2(-fwd.x, -fwd.z)
+	_chase_yaw = want_yaw if not _chase_yaw_ready else lerp_angle(_chase_yaw, want_yaw, 1.0 - exp(-2.0 * delta))
+	_chase_yaw_ready = true
+	_chase = Transform3D(Basis(Vector3.UP, _chase_yaw), pos)
 	origin.global_transform = _chase
 	car.set_cockpit_transparency(0.0)
 
@@ -145,14 +149,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _build_menu() -> void:
-	# Menu przypięte na sztywno do gracza (dziecko XROrigin = punkt
-	# odniesienia głowy w przestrzeni "local"): zawsze to samo miejsce przed
-	# nim, jedzie razem z kamerą. Podążanie za wzrokiem przy jadącej
-	# kamerze szarpało (użytkownik: "menu strasznie skacze").
+	# Menu przypięte do kamery (wzroku) - nieruchome w polu widzenia
+	# (użytkownik: "powinno być względem kamery"). Podążanie za wzrokiem
+	# i przypięcie do XROrigin skakały: XROrigin goni drgające auto.
 	_menu = Node3D.new()
 	_menu.name = "Menu"
 	_menu.position = Vector3(0.0, 0.0, -MENU_DISTANCE)
-	origin.add_child(_menu)
+	camera.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
 	# (ok. ±25° w pionie na 2,6 m to ±1,2 m).

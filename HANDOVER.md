@@ -129,9 +129,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     darmowa licencja freepbr wystarcza; tekstury dalej poza repo.
   - **Ekran tytułowy z jazdy** (użytkownik: "widok z jakiegoś bota"):
     auto jedzie samo wąwozem (BotDriver), **kamera goni je z tyłu**
-    (z fotela na starcie bywał widok spod jezdni), **menu przypięte na
-    sztywno do gracza** (podążanie za wzrokiem przy jadącej kamerze
-    "strasznie skakało").
+    (z fotela na starcie bywał widok spod jezdni), **menu przypięte do
+    kamery** (dziecko XRCamera3D, nieruchome w polu widzenia; użytkownik:
+    "powinno być względem kamery"). Podążanie za wzrokiem i przypięcie do
+    XROrigin skakały - XROrigin goni drgające auto; obrót kamery za autem
+    wygładzany osobno (`_chase_yaw`).
   - **Sedan "najfajniejszy"** - domyślny model; concept do wyboru.
     Dynamika jazdy concept cara oceniona jako w porządku.
   - **Auto gracza ma mieć dach** - widoczny z kokpitu.
