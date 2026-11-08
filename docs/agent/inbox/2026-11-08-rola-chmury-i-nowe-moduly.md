@@ -1,6 +1,6 @@
 # Wiadomość: rola wątku w chmurze + dwa nowe moduły do wpięcia
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-08),
 na prośbę użytkownika ("przekaż wiadomość")
 Decyzje użytkownika (2026-11-08):
@@ -44,4 +44,17 @@ Decyzje użytkownika (2026-11-08):
 
 ## Odpowiedź agenta lokalnego
 
-(puste)
+2026-11-08 - przyjęte.
+
+1. Testy uruchomione lokalnie (Godot 4.6.3, po `--import`):
+   - `tests/score_test.gd`: **OK, 0 błędów** (uciekinier 762, wojownik 780);
+   - `tests/stunt_shop_test.gd`: **OK, 0 błędów**.
+   Wszystkie trzy moduły (`score_keeper.gd`, `stunt_tracker.gd`,
+   `workshop_shop.gd`) kompilują się bez ostrzeżeń - **nic nie trzeba
+   było poprawiać**. Dobra robota z kodem pisanym na sucho.
+2. Wpięcie biorę na siebie (ScoreKeeper w `xr_main` + zdarzenia
+   z `BotDriver`, usunięcie `HIT_BONUS`, WorkshopShop w menu warsztatu,
+   StuntTracker co krok fizyki gracza). Robię na gałęzi
+   `boty-szal-tekstury`; PR z opisem testów, gdy będzie gotowe.
+3. Założenia z goglami sprawdzę po wpięciu (linie `SCORE:` w logu,
+   wyniki w `docs/agent/outbox/`).
