@@ -36,6 +36,12 @@ var strategy := "mixed"
 ## też wpadają.
 const TACTICS := ["block", "ram", "pit", "zigzag", "ambush", "pincer"]
 var reinforce := true
+## Furia po wyprzedzeniu (użytkownik): bot wyprzedzony blisko (w poprzek
+## < 6 m) z tym prawdopodobieństwem wpada w szał bez zderzenia; posiłki
+## wzywa dopiero przy pierwszym kontakcie (_reinforced).
+var overtake_chance := 0.25
+var _reinforced := false
+var _prev_ahead := 0.0
 ## Daleko od gracza i bez szału bot jedzie "po szynie": zamrożony,
 ## przesuwany po torze z prędkością przepisową (bez fizyki - przy 20 autach
 ## Quest by nie wydolił). Fizyka wraca bliżej niż LOD_NEAR.
@@ -99,10 +105,13 @@ func _drive_step(delta: float) -> void:
 			best = s
 	dist = float(best["dist"])
 
+	_check_overtake(best, best["right"])
 	if rage > 0.0:
 		rage_time += delta
 		if min_rage_time >= 0.0 and rage_time > min_rage_time and main and main.player_compliant():
 			rage = maxf(rage - delta / calm_time, 0.0)
+			if rage <= 0.0:
+				_reinforced = false
 
 	car.set_rage_lights(rage * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)))
 
@@ -330,6 +339,7 @@ func _ready() -> void:
 		calm_time = float(gs.rage_calm)
 		min_rage_time = float(gs.rage_time)
 		overspeed = float(gs.rage_overspeed)
+		overtake_chance = float(gs.rage_overtake) / 100.0
 		strategy = gs.rage_strategy
 		reinforce = gs.rage_reinforce
 	_tactic = TACTICS[randi() % TACTICS.size()] if strategy == "mixed" else strategy
@@ -350,12 +360,29 @@ func _on_body_entered(b: Node) -> void:
 		return
 	var rel_v := (car.linear_velocity - player.linear_velocity).length()
 	if rel_v > 1.0:
-		var fresh := rage < 0.5
-		enrage()
-		if fresh:
+		if rage < 0.5:
 			print("Bot w szale drogowym!")
-			if reinforce and main:
-				main.call_reinforcements(car, 400.0)
+		enrage()
+		# Posiłki przy pierwszym kontakcie - także gdy szał zaczął się od
+		# wyprzedzenia.
+		if not _reinforced and reinforce and main:
+			_reinforced = true
+			main.call_reinforcements(car, 400.0)
+
+
+## Wyprzedzenie: gracz był za botem, a jest przed nim, blisko w poprzek
+## i szybszy. Losowo szał (bez posiłków - patrz _on_body_entered).
+func _check_overtake(best: Dictionary, right: Vector3) -> void:
+	if player == null or overtake_chance <= 0.0:
+		return
+	var rel := player.global_position - car.global_position
+	var ahead := rel.dot(best["fwd"] as Vector3)
+	var side := absf(rel.dot(right))
+	if _prev_ahead < -1.0 and ahead >= 0.0 and side < 6.0 and player.speed > car.speed + 2.0 \
+			and rage < 0.5 and randf() < overtake_chance:
+		print("Bot wyprzedzony - furia drogowa!")
+		enrage()
+	_prev_ahead = ahead
 
 
 ## Wejście w szał (zderzenie albo wezwanie posiłków). Trąbi raz, przy

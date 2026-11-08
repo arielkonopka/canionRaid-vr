@@ -431,6 +431,7 @@ func _physics_process(delta: float) -> void:
 	t0 = Time.get_ticks_usec()
 	if _endless:
 		_update_bots(delta)
+		_update_oncoming(delta)
 	Perf.add("boty_mgr", t0)
 
 
@@ -1339,6 +1340,9 @@ func _restart_section() -> void:
 	for b in _bots:
 		b.queue_free()
 	_bots.clear()
+	for o in _oncoming:
+		(o["car"] as Node).queue_free()
+	_oncoming.clear()
 	_reset_bot_pattern(track.section_at(d))
 
 
@@ -1510,3 +1514,73 @@ static func _make_rain_noise() -> AudioStreamWAV:
 	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	wav.loop_end = n
 	return wav
+
+
+
+# --------------------------------------------------------------------------
+# Ruch z naprzeciwka na autostradzie
+# --------------------------------------------------------------------------
+
+## Auta na drugiej jezdni autostrady jadą w przeciwną stronę (użytkownik).
+## Bez sterowania i fizyki jazdy: ciała kinematyczne przesuwane po swoim
+## pasie (zderzenie po przeskoczeniu bariery działa). Najwyżej
+## ONCOMING_MAX naraz, 110-140 km/h, tylko na odcinkach autostrady.
+const ONCOMING_MAX := 4
+var _oncoming: Array[Dictionary] = []      # {"car", "dist", "v", "lane"}
+var _oncoming_timer := 0.0
+
+
+func _update_oncoming(delta: float) -> void:
+	_oncoming_timer -= delta
+	if _oncoming_timer <= 0.0 and race_state == Race.RACING:
+		_oncoming_timer = _bot_rng.randf_range(1.5, 4.0)
+		var d := _last_safe_dist + _bot_rng.randf_range(500.0, 900.0)
+		if _oncoming.size() < ONCOMING_MAX and _is_highway_at(d):
+			_spawn_oncoming(d)
+	for o in _oncoming.duplicate():
+		var c: StuntCar = o["car"]
+		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
+		var d2: float = o["dist"]
+		if d2 < _last_safe_dist - 150.0 or not _is_highway_at(d2) or not is_instance_valid(c):
+			if is_instance_valid(c):
+				c.queue_free()
+			_oncoming.erase(o)
+			continue
+		c.global_transform = _oncoming_xf(d2, float(o["lane"]))
+		for w in c.wheels:
+			w.omega = -float(o["v"]) / c.wheel_radius
+
+
+func _is_highway_at(d: float) -> bool:
+	if not track.has_method("_chunk_for"):
+		return false
+	var r: Vector2 = track._chunk_for(d).dist_range()
+	return d >= r.x and d <= r.y and track._chunk_for(d).highway
+
+
+## Położenie auta z naprzeciwka: druga jezdnia (w lewo o szerokość jezdni
+## + pas rozdziału), pas `lane` licząc od pasa rozdziału, przodem do gracza.
+func _oncoming_xf(d: float, lane: float) -> Transform3D:
+	var xf: Transform3D = track.transform_at_distance(d)
+	var smp: Array = track.samples_from(d, 2.0)
+	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
+	var lane_w := (w - 1.0) / 3.0
+	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
+	var b := xf.basis.rotated(xf.basis.y, PI)
+	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * 0.62)
+
+
+func _spawn_oncoming(d: float) -> void:
+	var c := StuntCar.new()
+	c.name = "Oncoming%d" % Time.get_ticks_msec()
+	c.is_bot = true
+	add_child(c)
+	c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	c.freeze = true
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs:
+		var keys: Array = gs.PAINTS.keys()
+		c.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
+	var lane := float(_bot_rng.randi_range(-1, 1))     # trzy pasy drugiej jezdni
+	c.global_transform = _oncoming_xf(d, lane)
+	_oncoming.append({"car": c, "dist": d, "v": _bot_rng.randf_range(110.0, 140.0) / 3.6, "lane": lane})

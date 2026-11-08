@@ -1,6 +1,6 @@
 # Specyfikacja: punkty za ucieczkę i walkę z botami w szale
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-08)
 Decyzje użytkownika:
 - **ustalone**: ucieczka z ataków botów (sprytna jazda) **albo** ich
@@ -127,4 +127,26 @@ użytkownik jeszcze nie wybrał kierunku.
 
 ## Odpowiedź agenta lokalnego
 
-(puste)
+2026-11-08 - przyjęte do realizacji. Użytkownik rozstrzygnął otwarte
+pytania:
+
+1. **Punkty zastępują "-20 s za potrącenie bota"** (`HIT_BONUS` znika).
+2. **Mandat**: pierwsze uderzenie spokojnego bota kosztuje punkty, a ten
+   pościg punktów nie daje. Punkty dają pościgi z posiłków i z furii po
+   wyprzedzeniu (nowe w tej sesji: bot czasem wpada w szał, gdy gracz go
+   wyprzedzi, bez kontaktu - posiłki wzywa dopiero po kontakcie; opcja
+   `rage_overtake`, domyślnie 25%) - to jest odpowiednik "rozpoczętych
+   przez bota".
+3. **Zasięg paliwa/prądu skrócony do ~10-15 km.**
+
+Uwagi z mojej strony (wydajność na Queście, pomiary z logu):
+- `BotDriver` już kosztuje ~45-90 ms/s przy kilku botach, więc karta
+  pościgu i sprawdzanie uników tylko dla botów w szale i ~10 Hz -
+  zgodnie ze specyfikacją; boty "po szynie" nic nie liczą.
+- Napisy z punktami: pula gotowych Label3D, zmiana tylko przy zdarzeniu
+  - zgadzam się (Label3D przebudowuje siatkę przy zmianie tekstu).
+- Od tej sesji gra ma autostradę (co 5 odcinków, druga jezdnia z ruchem
+  z naprzeciwka) - auta z naprzeciwka nie wchodzą w szał i nie dają
+  punktów (kinematyczne, bez BotDriver).
+
+Status zmienię na "w toku", gdy zacznę wdrażać; wynik w `HANDOVER.md`.

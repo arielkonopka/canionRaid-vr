@@ -49,7 +49,11 @@ func _add_section() -> void:
 	var chunk := StuntTrack.new()
 	chunk.name = "Section%d" % _sections
 	chunk.segments.assign(TrackGenerator.generate_section(_sections, start, rng, canyon))
-	chunk.canyon = canyon
+	# Autostrada (co kilka odcinków) zamiast wąwozu - bez ścian, z drugą
+	# jezdnią; sąsiednie kawałki wąwozu otwierają się przy styku.
+	chunk.section_index = _sections
+	chunk.highway = canyon and TrackGenerator.is_highway(_sections)
+	chunk.canyon = canyon and not chunk.highway
 	chunk.scenery = not canyon
 	chunk.start_state = start
 	# Trasa bez końca: bez szachownicy startu/mety (użytkownik: "znika
