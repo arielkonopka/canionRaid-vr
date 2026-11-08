@@ -12,7 +12,9 @@ class_name GazeFollow
 const DEADZONE := deg_to_rad(25.0)
 const SETTLE := deg_to_rad(3.0)
 const TURN_RATE := 4.0                # 1/s - szybkość powrotu na wprost
-const HEIGHT_RATE := 3.0
+## Nadążanie w pionie [1/s]. W jadącym aucie (ekran tytułowy) szybko -
+## inaczej na podjeździe menu zostawało w tyle i zjeżdżało na zegary.
+var height_rate := 3.0
 
 var camera: Node3D
 var distance := 2.0
@@ -52,7 +54,7 @@ func _process(delta: float) -> void:
 		_yaw = lerp_angle(_yaw, head_yaw, minf(TURN_RATE * delta, 1.0))
 		if absf(angle_difference(_yaw, head_yaw)) < SETTLE:
 			_follow = false
-	_y = lerpf(_y, head.y + height, minf(HEIGHT_RATE * delta, 1.0))
+	_y = lerpf(_y, head.y + height, minf(height_rate * delta, 1.0))
 	var b := Basis(Vector3.UP, _yaw)
 	var p := head + b * Vector3(0.0, 0.0, -distance)
 	p.y = _y

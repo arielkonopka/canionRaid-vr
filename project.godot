@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Stunt Track VR - szkielet projektu pod Meta Quest.
+; Canion Raid VR - szkielet projektu pod Meta Quest.
 ;
 ; Jeśli Godot zaproponuje konwersję przy pierwszym otwarciu, zgódź się:
 ; plik jest pisany pod Godota 4.4+, nowsze wersje tylko dopiszą swoje pola.
@@ -8,8 +8,8 @@ config_version=5
 
 [application]
 
-config/name="Stunt Track VR"
-config/description="Kaskaderskie wyścigi VR na torach zawieszonych w powietrzu."
+config/name="Canion Raid VR"
+config/description="Kaskaderska jazda VR niekończącym się wąwozem."
 run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
@@ -27,8 +27,10 @@ window/vsync/vsync_mode=0
 [physics]
 
 ; Sztywne zawieszenia i lądowania z dużej wysokości rozsypują się przy 60 Hz.
-; 240 Hz to punkt wyjścia; da się zejść niżej, jak fizyka pojazdu już stoi.
-common/physics_ticks_per_second=240
+; 120 Hz (było 240): na Queście fizyka aut zjadała cały budżet klatki;
+; testy jazdy, ABS/ESP, odradzania i wgnieceń dają przy 120 Hz to samo
+; (opony mają 6 podkroków zamiast 4, podłoże badane promieniem).
+common/physics_ticks_per_second=120
 common/physics_interpolation=true
 
 [rendering]
@@ -39,6 +41,9 @@ renderer/rendering_method="mobile"
 anti_aliasing/quality/msaa_3d=2
 ; Quest (Android) wymaga tekstur ETC2/ASTC.
 textures/vram_compression/import_etc2_astc=true
+; Filtrowanie anizotropowe 4x: jezdnia i ściany pod kątem ostrzejsze
+; (16x razem ze 160% rozdzielczości dawało na Queście ~8 kl./s).
+textures/default_filters/anisotropic_filtering_level=2
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
 
 [xr]
@@ -50,4 +55,8 @@ openxr/startup_alert=false
 ; Przestrzeń "local": punkt odniesienia przy głowie, nie na podłodze -
 ; właściwa dla gry na siedząco w kokpicie (center_on_hmd ustawia go od nowa).
 openxr/reference_space=0
+; Foweacja (brzegi obrazu rzadziej), dynamiczna - poziom z menu, patrz
+; GameSettings.apply_xr_quality.
+openxr/foveation_level=2
+openxr/foveation_dynamic=true
 shaders/enabled=true

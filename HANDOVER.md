@@ -1,14 +1,19 @@
-# HANDOVER - Stunt Track VR
+# HANDOVER - Canion Raid VR
 
 Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: 7 strategii szału, posiłki, do 20+ botów z jazdą "po szynie", oznaczenie zjazdów, tekstury freepbr lokalnie, README)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: wydajność na Queście - 120 Hz, promienie pod kołami, cienie, LOD shadera; ekran tytułowy z jazdą; dach; nazwa Canion Raid VR; przygotowanie modelu concept car)
 
 ---
 
 ## 1. Czym jest projekt
+
+**Nazwa gry: Canion Raid VR** (od 2026-11-08, prośba użytkownika; wcześniej
+"Stunt Track VR" - tak nadal nazywają się katalog, repo lokalne, klasy
+`StuntCar`/`StuntTrack` i identyfikator paczki `com.stunttrackvr.game`,
+celowo bez zmian: inny identyfikator = druga aplikacja na goglach).
 
 Kaskaderskie wyścigi VR na **Meta Quest 3** w Godocie 4. Tory zawieszone
 wysoko na słupach, rampy, przerwy do przeskoczenia, wiraże z przechyłką,
@@ -107,6 +112,19 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     użytkownika).
     **Decyzja użytkownika: gra całkowicie darmowa, bez żadnych zysków** -
     darmowa licencja freepbr wystarcza; tekstury dalej poza repo.
+  - **Ekran tytułowy z jazdy** (użytkownik: "widok z jakiegoś bota"):
+    gracz siedzi w aucie, które samo jedzie wąwozem (BotDriver), menu nad
+    deską.
+  - **Auto gracza ma mieć dach** - widoczny z kokpitu.
+  - **Concept car** (Khronos "Car Concept", CC BY 4.0) jako model auta -
+    w toku, patrz sekcja 8.
+  - **Maksimum ostrości, jakie da sprzęt** (użytkownik): rozdzielczość
+    domyślnie 160% (opcja 100-180%), foweacja w menu (domyślnie słaba),
+    bez dynamicznej rozdzielczości Meta, anizotropia 16x - **na Queście
+    ~8 kl./s i gogle "prawie się zagotowały"**. Wrócone: 130%, foweacja
+    średnia, anizotropia 4x, dynamiczna rozdzielczość Meta włączona.
+    Użytkownikowi 160% podobało się wizualnie - cel: odzyskać je
+    optymalizacjami. Prawdziwego "4K jak monitor" się nie da (~25 px/°).
   - **README ma opisywać obecną grę** (był jeszcze o torze na słupach).
   - **Pasy na dwa auta obok siebie** - jezdnia 14,8 m na starcie.
   - **Tunele wiercone, przekrój koła**; przy rozwidleniu **dwie osobno
@@ -379,7 +397,7 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 | Wtyczka OpenXR Vendors | `addons/godotopenxrvendors` 5.1.0, skopiowana z `~/dev/asteroids-vr` (kopia źródłowa też w `~/opt/_dl/vx/asset`) |
 | adb | `/usr/bin/adb` i `~/opt/android-sdk/platform-tools/adb` |
 | OpenXR na PC | tylko loader, **brak runtime'u**. Na PC gra zawsze działa na płasko. |
-| Dane gry na PC | `~/.local/share/godot/app_userdata/Stunt Track VR/settings.cfg` |
+| Dane gry na PC | `~/.local/share/godot/app_userdata/Canion Raid VR/settings.cfg` |
 | Ustawienia edytora | `~/.config/godot/editor_settings-4.6.tres` (ścieżki `export/android/*`) |
 
 Projekt-wzór: **`~/dev/asteroids-vr`** - inny projekt użytkownika na
@@ -530,6 +548,40 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   (`_brake_pulse`); "mixed" - zmiana co 8-14 s. Limit szału =
   ograniczenie + przekroczenie, łuki zawsze (`_curve_speed`). Bot w szale
   dostaje max(350 kW, moc gracza).
+- **Rozdzielczość i foweacja** (`GameSettings.apply_xr_quality`, opcja
+  `xr_resolution`): `OpenXRInterface.render_target_size_multiplier`
+  ustawiany z kodu (Godot nie ma na to ustawienia projektu) - działa także
+  po starcie sesji: log z Questa "XR: rozdzielczość 130%, obraz na oko
+  (2184, 2288)" (zalecane 1680×1760), przy 160% (2688, 2816). Foweacja
+  z opcji `xr_foveation` (0-3, dynamiczna), w projekcie poziom 1.
+  `openxr/extensions/meta/dynamic_resolution=false` - inaczej gogle pod
+  obciążeniem obniżają obraz po cichu. Anizotropia 16x w projekcie.
+  `SETTINGS_VERSION` 4 przestawia zapisane 130% na 160%. Zmiana w menu
+  stosuje się od razu. Gra wpisuje do logu co 5 s "PERF: kl./s, proces,
+  fizyka, boty" (`xr_main._log_perf`) - po tym dobierać domyślną
+  rozdzielczość (Quest 3 domyślnie 72 Hz).
+- **Wydajność na Queście** (pomiary z logu "PERF", 130%, przed
+  optymalizacjami): 40-55 kl./s, GPU 15-25 ms (budżet 13,9 ms przy 72 Hz),
+  fizyka ~95 ms na klatkę, gdy pojawiał się bot z fizyką. Profil na PC
+  (instrumentacja, usunięta): auto 0,43 ms na krok fizyki, z tego 60%
+  badanie podłoża (cast_motion + get_rest_info × 4 koła), opony 0,1 ms.
+  Zmiany: **podłoże badane promieniem** (`ray_probe`, `_probe_wheel_ray`,
+  dla wszystkich aut; testy jazdy identyczne - stiff wypada na tym samym
+  skoku co ze sferą), auto 0,215 ms, bot ~0,12 ms; **fizyka 120 Hz**
+  (było 240), `TIRE_SUBSTEPS` gracza 6 (boty 2) - wszystkie testy dają to
+  samo co przy 240 Hz (meta 23,48 vs 23,52 s, ABS/ESP, odradzanie,
+  wgniecenia). GPU: cienie słońca 2 strefy do 80 m (było 4 do 120 m),
+  `rock.gdshader` bez map normalnych dalej niż 40 m (`normal_dist`).
+  Pomiarów na Queście po tych zmianach jeszcze nie ma.
+- **Ekran tytułowy** (`title.gd`): `_place_car` + `BotDriver` (bez gracza
+  i sceny - `main` null, szał wyłączony), kamera w fotelu
+  (`_follow_car`), trasa dobudowywana co 0,5 s, auto wywrócone/utknięte
+  wraca na prawy pas 25 m dalej, ziemia jedzie za autem. Menu
+  (`GazeFollow`) 0,25 m nad oczami z szybkim nadążaniem w pionie
+  (`height_rate` 30) - inaczej na podjazdach zjeżdżało na zegary.
+- **Dach** (`stunt_car.gd`): osobny materiał "roof" (grupa wgnieceń
+  "roof") z połową przezroczystości kokpitu, słupki dalej 1,5×; od środka
+  jasna podsufitka (`Headliner`).
 - **Oznaczenie zjazdów** (`_build_service`, `_exit_arrow`,
   `TrackHud.show_warning("repair"/"fuel")`): znaki 300 i 100 m przed
   początkiem poszerzenia (start usługi - 40 m), znak ze strzałką na nim;
@@ -1122,6 +1174,23 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    stacja paliw (`service`), ziarno losowe - `endless_test` z kilkoma
    ziarnami do 12+ odcinków (`generator_test` sprawdza tylko generator,
    nie budowę geometrii) i sprawdzenie `EndlessTrack.update_progress`.
+0a. **Concept car w toku** (prośba użytkownika; zgoda na npm i
+   `gltf-transform` w `~/opt/gltf-transform`, oryginał w
+   `~/opt/_dl/car-concept/CarConcept.glb`). Gotowe: `tools/prepare_concept_car.sh`
+   (+ `.mjs`) robi `models/concept_car/car_player.glb` (70 tys. trójkątów,
+   tekstury ≤1024, bez wycieraczek modelu) i `car_bot.glb` (21 tys., bez
+   wnętrza); logotypy Khronos podmienione (tablica, bok opony, jego mapa
+   normalnych - indeksy obrazów 3, 10, 11). Plik oryginału wbrew README
+   tamtego repo NIE ma Draco. Pomiary (układ modelu, przód = +Z, trzeba
+   obrócić o 180°): rozstaw osi 2,80 m, kół 1,95 m, promień koła ~0,52 m,
+   długość 4,36 m, wys. 1,31 m, **kierownica na środku (x = 0)**; nasz
+   sedan: 2,57 / 1,64 / 0,33. Plan: opcja "Model auta" (sedan / concept)
+   w "Nadwozie i opony"; dla concept własne mocowania kół, promień,
+   przełożenie ×(r_new/r_old), kolizja z bryły, fotel na środku, zegary
+   w jego desce, koła modelu przypięte do `w.node`, kierownica modelu
+   obracana, lakier = materiały "Paint 1/2 *", przezroczystość kabiny na
+   jego materiałach, bez wgnieceń (na razie). Boty zostają sedanami
+   (wydajność). Uznanie autorstwa (CC BY) w README - zrobione.
 0b. Do przetestowania w goglach z użytkownikiem (instaluje razem z nim):
    nowe opcje auta, strategie szału, tunele, szersza jezdnia.
    Też: wydajność z wieloma botami na Queście, widoczność mchu, nowe

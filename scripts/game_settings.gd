@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 3
+const SETTINGS_VERSION := 5
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -60,6 +60,13 @@ var stick_expo: float = 1.6
 var stick_sensitivity: int = 100
 ## Przezroczystość kabiny i maski w widoku z kokpitu, w procentach.
 var cockpit_alpha: int = 60
+## Rozdzielczość obrazu w goglach [% zalecanej przez gogle]. Quest 3 ma
+## ekrany ostrzejsze niż zalecany obraz (użytkownik: "gogle mogą wyciągnąć
+## wyższą rozdzielczość"); koszt rośnie z kwadratem.
+var xr_resolution: int = 130
+## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
+## mocniej tylko, gdy gogle nie nadążają).
+var xr_foveation: int = 2
 ## Rodzaj trasy. W grze tylko "canyon" (wąwóz bez końca) - jedyny tryb,
 ## ustalone z użytkownikiem; nie ma go w menu. "endless" (estakady) i "demo"
 ## (pokazowa z metą) zostały w kodzie dla testów (endless_test, drive_test).
@@ -304,6 +311,30 @@ var OPTIONS: Array[Dictionary] = [
 		],
 	},
 	{
+		"key": "xr_resolution", "group": "look", "label": "Rozdzielczość w goglach",
+		"values": [100, 120, 130, 140, 160, 180],
+		"names": ["100%", "120%", "130%", "140%", "160%", "180%"],
+		"hints": [
+			"Tyle, ile zalecają gogle - najlżej.",
+			"Trochę ostrzej.",
+			"Domyślnie: środek obrazu mniej więcej piksel w piksel z ekranem.",
+			"Ostro; przy wielu autach gogle mogą nie nadążać.",
+			"Najwięcej, co ekran pokaże - na Queście za ciężko (ok. 8 kl./s).",
+			"Ponad możliwości ekranu - tylko wygładzanie krawędzi, bardzo ciężko.",
+		],
+	},
+	{
+		"key": "xr_foveation", "group": "look", "label": "Foweacja",
+		"values": [0, 1, 2, 3],
+		"names": ["Wył.", "Słaba", "Średnia", "Mocna"],
+		"hints": [
+			"Cały obraz pełną rozdzielczością - najostrzej, najciężej.",
+			"Brzegi obrazu trochę rzadziej, mocniej tylko gdy gogle nie nadążają.",
+			"Domyślnie: brzegi wyraźnie rzadziej - więcej zapasu wydajności.",
+			"Najlżej; brzegi obrazu widocznie rozmyte.",
+		],
+	},
+	{
 		"key": "cockpit_alpha", "group": "look", "label": "Przezroczystość kokpitu",
 		"values": [0, 20, 40, 60, 80],
 		"names": ["0% (pełna)", "20%", "40%", "60%", "80%"],
@@ -392,6 +423,11 @@ func load_settings() -> void:
 		if opt["values"].has(v):
 			set(key, v)
 	var version: int = cfg.get_value("meta", "version", 1)
+	if version < 5:
+		# 160% bez dynamicznej rozdzielczości dawało na Queście ~8 kl./s
+		# (2026-11-08) - z powrotem 130% i średnia foweacja.
+		xr_resolution = mini(xr_resolution, 130)
+		xr_foveation = maxi(xr_foveation, 2)
 	if version < 3:
 		# Nowy układ (użytkownik): kierownica prawym, biegi lewym drążkiem.
 		steer_stick = "right"
@@ -438,9 +474,24 @@ func apply_to_car(car: StuntCar) -> void:
 
 ## Włącza renderowanie do gogli, jeśli OpenXR wystartował. Zwraca true w VR.
 ## Wołane przez każdą scenę - po zmianie sceny viewport trzeba ustawić od nowa.
+## Rozdzielczość obrazu i foweacja (brzegi obrazu liczone rzadziej;
+## dynamiczna - mocniej tylko gdy gogle nie nadążają). Do logu faktyczny
+## rozmiar obrazu - po nim widać, czy mnożnik zadziałał w trakcie sesji.
+func apply_xr_quality() -> void:
+	var xr := XRServer.find_interface("OpenXR") as OpenXRInterface
+	if xr == null or not xr.is_initialized():
+		return
+	xr.render_target_size_multiplier = xr_resolution / 100.0
+	xr.foveation_level = xr_foveation
+	xr.foveation_dynamic = xr_foveation > 0
+	print("XR: rozdzielczość %d%%, obraz na oko %s, foweacja %d" % [
+			xr_resolution, xr.get_render_target_size(), xr.foveation_level])
+
+
 func enable_xr(viewport: Viewport) -> bool:
 	var xr := XRServer.find_interface("OpenXR")
 	if xr and xr.is_initialized():
+		apply_xr_quality()
 		# W XR to kompozytor gogli decyduje o synchronizacji, nie okno pulpitu.
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		viewport.use_xr = true

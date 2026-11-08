@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stunt Track VR - Copyright (C) 2026 Ariel Konopka, GPL-3.0-or-later.
+# Canion Raid VR - Copyright (C) 2026 Ariel Konopka, GPL-3.0-or-later.
 #
 # Budowanie i wgrywanie gry na Meta Questa 3. Jedno polecenie na wszystko.
 #

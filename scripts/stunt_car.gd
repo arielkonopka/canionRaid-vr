@@ -64,7 +64,7 @@ signal wrecked
 
 const RPM_PER_RAD_S := 60.0 / TAU
 ## Podkroki opon na krok fizyki. Boty mają 2 (taniej na Queście).
-var TIRE_SUBSTEPS := 4
+var TIRE_SUBSTEPS := 6
 
 ## Zestawy nastaw zawieszenia. Zmieniają się razem: sztywniejsza sprężyna
 ## wymaga mocniejszego tłumika, inaczej auto podskakuje jak piłka.
@@ -334,7 +334,10 @@ var _cast: PhysicsShapeQueryParameters3D
 var _wheelbase := 2.57
 var _track_width := 1.64
 var _tcs_factor := 1.0                          # mnożnik momentu silnika od TCS
-var _hub_tcs: Array[float] = [1.0, 1.0, 1.0, 1.0]  # TCS na koło (silniki w kołach)
+var _hub_tcs: Array[float] = [1.0, 1.0, 1.0, 1.0]
+## Badanie podłoża promieniem zamiast sfery (tańsze; boty).
+var ray_probe := true
+var _ray: PhysicsRayQueryParameters3D  # TCS na koło (silniki w kołach)
 var _esp_factor := 1.0                          # mnożnik momentu silnika od ESP
 var _esp_brake: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var _abs_hit := false
@@ -353,6 +356,7 @@ var _paint_mat: StandardMaterial3D
 var _cockpit_mats: Array[StandardMaterial3D] = []
 var _cockpit_alpha := -1.0
 var _vinyl_mat: StandardMaterial3D
+var _roof_mats: Array = []
 
 ## Opad nad autem: 0 = sucho, 1 = mżawka, 2 = deszcz (ustawia scena jazdy,
 ## płynnie). Wycieraczki włączają się same: przy mżawce przerywany tryb,
@@ -535,9 +539,14 @@ func set_cockpit_transparency(t: float) -> void:
 		return
 	_cockpit_alpha = t
 	for m in _cockpit_mats:
-		# Dach i słupki (winyl) prześwitują mocniej niż reszta - to one dają
-		# ciemną "ramkę" wokół widoku (użytkownik: mniej winietowania).
-		var tm := t if m != _vinyl_mat else minf(t * 1.5, 0.9)
+		# Słupki (winyl) prześwitują mocniej niż reszta - to one dają ciemną
+		# "ramkę" wokół widoku (użytkownik: mniej winietowania). Dach odwrotnie:
+		# wyraźnie widoczny (użytkownik chce dach), połowa przezroczystości.
+		var tm := t
+		if m == _vinyl_mat:
+			tm = minf(t * 1.5, 0.9)
+		elif m in _roof_mats:
+			tm = t * 0.5
 		if tm <= 0.001:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 			m.albedo_color.a = 1.0
@@ -794,6 +803,9 @@ func _physics_process(delta: float) -> void:
 func _probe_wheel(space: PhysicsDirectSpaceState3D, xf: Transform3D, w: Wheel) -> void:
 	var up := xf.basis.y
 	var mount_w := xf * w.mount
+	if ray_probe:
+		_probe_wheel_ray(space, xf, w, up, mount_w)
+		return
 	_cast.transform = Transform3D(xf.basis, mount_w)
 	_cast.motion = -up * rest_length
 	var res := space.cast_motion(_cast)
@@ -838,6 +850,43 @@ func _probe_wheel(space: PhysicsDirectSpaceState3D, xf: Transform3D, w: Wheel) -
 		if un > 0.2:
 			var s := ((mount_w - w.contact_point).dot(w.normal) - wheel_radius) / un
 			w.spring_len = clampf(s, 0.0, rest_length)
+	w.compression = rest_length - w.spring_len
+
+
+## Tańsze badanie podłoża (boty): jeden promień od mocowania w dół zamiast
+## rzutu sfery i zapytania o kontakt (dwa drogie zapytania na koło - przy
+## 240 Hz to było ~60% kosztu fizyki auta). Ugięcie liczone tak samo,
+## z płaszczyzny styku. Różnica tylko na ostrych krawędziach (krawężnik
+## łapie dopiero pod środkiem koła).
+func _probe_wheel_ray(space: PhysicsDirectSpaceState3D, xf: Transform3D, w: Wheel,
+		up: Vector3, mount_w: Vector3) -> void:
+	w.prev_compression = w.compression
+	if _ray == null:
+		_ray = PhysicsRayQueryParameters3D.new()
+		_ray.exclude = [get_rid()]
+	_ray.from = mount_w
+	_ray.to = mount_w - up * (rest_length + wheel_radius)
+	var hit := space.intersect_ray(_ray)
+	if hit.is_empty():
+		w.contact = false
+		w.surface = ""
+		w.spring_len = rest_length
+		w.compression = 0.0
+		return
+	w.contact = true
+	w.normal = hit["normal"]
+	w.contact_point = hit["position"]
+	var obj: Object = hit["collider"]
+	w.grip = obj.get_meta("grip", 1.0) if obj else 1.0
+	w.surface = obj.get_meta("surface", "dry") if obj else "dry"
+	w.grip *= TIRE_COMPOUNDS[tires].get(w.surface, 1.0)
+	var un := up.dot(w.normal)
+	var s := rest_length
+	if un > 0.2:
+		s = ((mount_w - w.contact_point).dot(w.normal) - wheel_radius) / un
+	else:
+		s = (mount_w - w.contact_point).length() - wheel_radius
+	w.spring_len = clampf(s, 0.0, rest_length)
 	w.compression = rest_length - w.spring_len
 
 
@@ -1356,8 +1405,13 @@ func _build_body() -> void:
 	var dark := _mat(Color(0.06, 0.06, 0.07), 0.9)
 	var trim := _mat(Color(0.35, 0.22, 0.13), 0.8)          # brązowy winyl wnętrza
 	var carpet := _mat(Color(0.20, 0.13, 0.08), 1.0)
-	_cockpit_mats = [paint, vinyl, chrome, dark, trim, carpet]
+	# Dach osobno od słupków (użytkownik: "auto gracza powinno mieć dach") -
+	# z zewnątrz czarny winyl, od środka jasna podsufitka.
+	var roof := _mat(Color(0.05, 0.05, 0.05), 0.75)
+	var headliner := _mat(Color(0.62, 0.57, 0.48), 1.0)
+	_cockpit_mats = [paint, vinyl, chrome, dark, trim, carpet, roof, headliner]
 	_vinyl_mat = vinyl
+	_roof_mats = [roof, headliner]
 	var glass := _mat(Color(0.30, 0.40, 0.45), 0.08)
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass.albedo_color.a = 0.22
@@ -1370,7 +1424,7 @@ func _build_body() -> void:
 	# --- karoseria: wszystkie części zewnętrzne trafiają do siatek
 	# wgniatalnych (patrz "Wgniecenia" niżej), po jednej na materiał ---
 	var plate := _mat(Color(0.92, 0.92, 0.88), 0.6)
-	_dent_begin({"paint": paint, "vinyl": vinyl, "chrome": chrome,
+	_dent_begin({"paint": paint, "vinyl": vinyl, "roof": roof, "chrome": chrome,
 			"dark": dark, "glass": glass, "tail": _make_tail_mat(), "head": _make_head_mat(),
 			"plate": plate})
 	# przód (komora silnika) z wycięciem na nadkole
@@ -1387,7 +1441,7 @@ func _build_body() -> void:
 	_dbox("paint", Vector3(1.78, 0.43, 0.64), Vector3(0.0, -0.235, 1.97))
 
 	# kabina: szyby, słupki, winylowy dach
-	_dbox("vinyl", Vector3(1.40, 0.05, 1.14), Vector3(0.0, 0.665, 0.55))
+	_dbox("roof", Vector3(1.40, 0.05, 1.14), Vector3(0.0, 0.665, 0.55))
 	_dslab("glass", Vector3(0.0, 0.12, -0.55), Vector3(0.0, 0.64, -0.02), 1.40, 0.015)
 	_dslab("glass", Vector3(0.0, 0.64, 1.12), Vector3(0.0, 0.12, 1.55), 1.40, 0.015)
 	for sx in [-0.70, 0.70]:
@@ -1448,6 +1502,8 @@ func _build_body() -> void:
 
 	# --- wnętrze ---
 	_box_mesh("Floor", Vector3(1.66, 0.04, 2.10), Vector3(0.0, -0.43, 0.50), carpet)
+	# Podsufitka pod winylowym dachem - jasna, jak w sedanach z epoki.
+	_box_mesh("Headliner", Vector3(1.36, 0.02, 1.10), Vector3(0.0, 0.632, 0.55), headliner)
 	_box_mesh("Firewall", Vector3(1.66, 0.42, 0.04), Vector3(0.0, -0.22, -0.55), carpet)
 	_box_mesh("Dash", Vector3(1.62, 0.22, 0.38), Vector3(0.0, 0.05, -0.42), trim)
 	# Kanapy - przednia i tylna, jak w sedanach z epoki.

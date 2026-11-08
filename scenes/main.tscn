@@ -58,7 +58,8 @@ transform = Transform3D(0.8192, -0.4394, 0.3687, 0.0000, 0.6428, 0.7660, -0.5736
 light_color = Color(1, 0.95, 0.86, 1)
 light_energy = 1.35
 shadow_enabled = true
-directional_shadow_max_distance = 120.0
+directional_shadow_max_distance = 80.0
+directional_shadow_mode = 1
 
 [node name="Ground" type="StaticBody3D" parent="."]
 metadata/surface = "grass"

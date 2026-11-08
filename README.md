@@ -1,4 +1,4 @@
-# Stunt Track VR
+# Canion Raid VR
 
 Kaskaderska jazda VR w Godocie 4 pod Meta Quest 3: niekończący się wąwóz
 z łupkowymi ścianami, generowany odcinkami, z trudnością rosnącą
@@ -162,12 +162,19 @@ wersjach włącz go ręcznie: Project Settings → Physics → 3D → Physics En
 
 ## Licencja
 
-Stunt Track VR, Copyright (C) 2026 Ariel Konopka.
+Canion Raid VR, Copyright (C) 2026 Ariel Konopka.
 
 GPL-3.0-or-later - pełny tekst w pliku `LICENSE`. Program jest wolnym
 oprogramowaniem: możesz go rozpowszechniać i modyfikować na warunkach
 GNU General Public License w wersji 3 albo (do wyboru) późniejszej.
 Rozpowszechniany jest BEZ JAKIEJKOLWIEK GWARANCJI.
+
+Model "Car Concept" (`models/concept_car/`) - Darmstadt Graphics Group
+GmbH i Eric Chadwick (konwersja glTF, Khronos glTF Sample Assets),
+oryginał "Free Concept Car 004" - Unity Fan; licencja
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Zmiany:
+uproszczona siatka i mniejsze tekstury pod Questa, usunięte logotypy
+Khronos, wersja dla botów bez wnętrza (`tools/prepare_concept_car.sh`).
 
 Wtyczka `addons/godotopenxrvendors` ma własną licencję (MIT, plik
 `addons/godotopenxrvendors/LICENSE`).

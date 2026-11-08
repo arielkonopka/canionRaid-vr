@@ -21,6 +21,7 @@ uniform float moss_scale = 0.4;
 // lekkie podbicie zieleni, żeby "zielone części" zostały zielone.
 uniform vec3 moss_tint = vec3(0.9, 1.25, 0.7);
 uniform float rock_roughness = 0.9;
+uniform float normal_dist = 40.0;         // [m] dalej bez map normalnych (Quest)
 
 // Zbocza "północne" porasta mech. "Północ" to kierunek przeciwny do słońca
 // w poziomie (słońce w scenach stoi na południowym wschodzie) - strona
@@ -47,34 +48,42 @@ vec3 tri_weights(vec3 n) {
 }
 
 // Kolor i normalna (świat) z trzech rzutów.
-void triplanar(sampler2D alb, sampler2D nrm, vec3 p, vec3 n, vec3 w,
+// with_normal = false: tylko kolor (daleko od oka - rzeźby i tak nie widać,
+// a to połowa odczytów tekstur).
+void triplanar(sampler2D alb, sampler2D nrm, vec3 p, vec3 n, vec3 w, bool with_normal,
 		out vec3 col, out vec3 nw) {
 	col = vec3(0.0);
 	vec3 acc = vec3(0.0);
 	if (w.x > 0.02) {
 		vec2 uv = p.zy;
 		col += texture(alb, uv).rgb * w.x;
-		vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
-		t = vec3(t.xy + n.zy, abs(t.z) * n.x);
-		acc += t.zyx * w.x;
+		if (with_normal) {
+			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			t = vec3(t.xy + n.zy, abs(t.z) * n.x);
+			acc += t.zyx * w.x;
+		}
 	}
 	if (w.y > 0.02) {
 		vec2 uv = p.xz;
 		col += texture(alb, uv).rgb * w.y;
-		vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
-		t = vec3(t.xy + n.xz, abs(t.z) * n.y);
-		acc += t.xzy * w.y;
+		if (with_normal) {
+			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			t = vec3(t.xy + n.xz, abs(t.z) * n.y);
+			acc += t.xzy * w.y;
+		}
 	}
 	if (w.z > 0.02) {
 		vec2 uv = p.xy;
 		col += texture(alb, uv).rgb * w.z;
-		vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
-		t = vec3(t.xy + n.xy, abs(t.z) * n.z);
-		acc += t.xyz * w.z;
+		if (with_normal) {
+			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			t = vec3(t.xy + n.xy, abs(t.z) * n.z);
+			acc += t.xyz * w.z;
+		}
 	}
 	float ws = (w.x > 0.02 ? w.x : 0.0) + (w.y > 0.02 ? w.y : 0.0) + (w.z > 0.02 ? w.z : 0.0);
 	col /= max(ws, 0.001);
-	nw = normalize(acc + n * 0.001);
+	nw = with_normal ? normalize(acc + n * 0.001) : n;
 }
 
 void vertex() {
@@ -85,9 +94,11 @@ void vertex() {
 void fragment() {
 	vec3 n = normalize(wnorm);
 	vec3 w = tri_weights(n);
+	// Mapy normalnych tylko blisko (VERTEX w układzie kamery).
+	bool near = length(VERTEX) < normal_dist;
 	vec3 col;
 	vec3 nw;
-	triplanar(rock_albedo, rock_normal, wpos * rock_scale, n, w, col, nw);
+	triplanar(rock_albedo, rock_normal, wpos * rock_scale, n, w, near, col, nw);
 
 	// Mech: strona w cieniu, plamy szumu, gęściej nisko (wilgoć spływa).
 	vec2 hn = n.xz / max(length(n.xz), 0.001);
@@ -102,7 +113,7 @@ void fragment() {
 	if (moss_a > 0.01) {
 		vec3 mc;
 		vec3 mn;
-		triplanar(moss_albedo, moss_normal, wpos * moss_scale, n, w, mc, mn);
+		triplanar(moss_albedo, moss_normal, wpos * moss_scale, n, w, near, mc, mn);
 		col = mix(col, mc * moss_tint, moss_a);
 		nw = normalize(mix(nw, mn, moss_a));
 	}
