@@ -58,6 +58,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   `docs/agent/` na którejkolwiek gałęzi zdalnej. Agent uruchamia go
   w tle (`run_in_background`), po powiadomieniu czyta wiadomość, robi
   `git pull` i uruchamia nasłuch ponownie.
+- **Wizja projektu**: `docs/VISION.md` (spisana przez wątek w chmurze ze
+  słów użytkownika 2026-11-08): drogowy "river raid" w VR, furiaci
+  z manekinami crash-testowymi za kierownicą, uszkodzenia wpływają na
+  jazdę gracza i botów, punkty za ucieczkę (zwłaszcza przed zasadzkami),
+  za uszkodzenia zadane i ekstra za eksplozję furiata.
 - **Komunikacja z wątkami projektowymi w chmurze** (ustalone
   2026-11-08, użytkownik zatwierdził propozycję): `docs/agent/` -
   `inbox/` (zlecenia i specyfikacje z chmury, blok statusu: nowe /

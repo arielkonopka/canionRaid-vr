@@ -1,6 +1,6 @@
 # Wizja projektu (docs/VISION.md) + manekiny + 2 dodatki w ScoreKeeper
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-08)
 Decyzje użytkownika (2026-11-08, jego słowa w skrócie):
 - Założenia projektu: drogowy "river raid", bezkresny, z rozdzielającymi
@@ -52,4 +52,21 @@ mają te same układy co gracz, to pewnie działa samo - potwierdź.
 
 ## Odpowiedź agenta lokalnego
 
-(puste)
+2026-11-08 - przyjęte.
+
+- `tests/score_test.gd` z `_test_damage_and_ambush` uruchomiony: **OK,
+  0 błędów** (bez poprawek). `damage_dealt` i `end_attack(..., "ambush")`
+  wepnę razem z resztą ScoreKeepera.
+- `docs/VISION.md` - odnośnik dopisany w `CLAUDE.md` i `HANDOVER.md`.
+- **Pytanie o uszkodzenia botów: tak, działa samo.** Boty to te same
+  `StuntCar` co gracz: uszkodzony silnik do -75% momentu
+  (`damage["engine"]`), hamulce do -80% na kole (`damage["brakes"]`),
+  zawieszenie ściąga w bok (`damage["suspension"]`), rozbite auto
+  (`is_wrecked`) nie jedzie. Bot w szale dostaje nowy silnik (oszustwo),
+  ale uszkodzenia silnika dalej obniżają jego moment.
+- **Manekiny**: propozycja pasuje wydajnościowo, z jednym zastrzeżeniem -
+  ze wspólnym materiałem i bez szkieletu to ~5-6 MeshInstance3D na bota;
+  przy 20 botach lepiej jedna siatka manekina (SurfaceTool) + osobne
+  ręce (obrót ze `steer`), a boty na szynie bez animacji (zgodnie
+  z propozycją). Wylatujący manekin przy eksplozji - jeden naraz, OK.
+  Zrobię po wpięciu punktacji, chyba że użytkownik zdecyduje inaczej.

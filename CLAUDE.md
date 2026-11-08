@@ -2,6 +2,9 @@
 
 ## Zacznij od HANDOVER.md
 
+(Wizja projektu - stałe założenia od użytkownika - jest w `docs/VISION.md`;
+przeczytaj ją też.)
+
 Przed jakąkolwiek pracą przeczytaj cały `HANDOVER.md`. Jest tam stan
 projektu, środowisko, pułapki, decyzje projektowe i następne kroki.
 Nie zakładaj, że pamiętasz wcześniejsze sesje.
