@@ -42,6 +42,7 @@ var _group := ""
 var _entries: Array[Dictionary] = []
 var _selected := 0
 var _driver: BotDriver
+const TITLE_DRIVE := false
 var _progress_t := 0.0
 
 
@@ -68,13 +69,29 @@ func _ready() -> void:
 	# a w przestrzeni "local" oczy wypadały na poziomie jezdni (widok spod
 	# spodu). Auto ma ustawienia gracza (lakier, napęd) na żywo.
 	GameSettings.apply_to_car(car)
+	# Statyczna scena (użytkownik): jadące auto z kamerą w pościgu dawało
+	# skaczące menu - auto stoi na drodze, kamera stoi za nim, menu wisi
+	# nieruchomo w świecie. Jazda w menu zostaje w kodzie (TITLE_DRIVE).
 	_place_car(30.0)
-	_driver = BotDriver.new()
-	_driver.name = "Driver"
-	_driver.car = car
-	_driver.track = track
-	_driver.dist = 30.0
-	car.add_child(_driver)
+	if TITLE_DRIVE:
+		_driver = BotDriver.new()
+		_driver.name = "Driver"
+		_driver.car = car
+		_driver.track = track
+		_driver.dist = 30.0
+		car.add_child(_driver)
+	else:
+		# Kołami na jezdni: środek koła ~0,41 m pod mocowaniem (ugięcie
+		# pod ciężarem) + promień koła (sedan i concept mają różne koła).
+		var xf := track.transform_at_distance(30.0)
+		var lane := (float(track.samples_from(30.0, 1.0)[0]["width"]) - 1.0) / 3.0
+		car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane
+				+ xf.basis.y * (0.41 + car.wheel_radius)))
+		car.linear_velocity = Vector3.ZERO
+		for w in car.wheels:
+			w.omega = 0.0
+			w.spring_len = 0.41
+		car.freeze = true
 	_follow_car()
 
 	_build_menu()
@@ -149,13 +166,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _build_menu() -> void:
-	# Menu przypięte do kamery (wzroku) - nieruchome w polu widzenia
-	# (użytkownik: "powinno być względem kamery"). Podążanie za wzrokiem
-	# i przypięcie do XROrigin skakały: XROrigin goni drgające auto.
+	# Menu nieruchome w świecie przed graczem (dziecko stojącego XROrigin).
+	# Przypięte do kamery i do jadącej platformy skakało (użytkownik).
 	_menu = Node3D.new()
 	_menu.name = "Menu"
 	_menu.position = Vector3(0.0, 0.0, -MENU_DISTANCE)
-	camera.add_child(_menu)
+	origin.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
 	# (ok. ±25° w pionie na 2,6 m to ±1,2 m).

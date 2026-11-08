@@ -61,6 +61,14 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   zmiana statusu + commit. Wątki w chmurze nie zmieniają kodu ani
   HANDOVER.md (tylko `docs/agent/`, osobna gałąź + PR). Specyfikacje to
   propozycje - decyzje należą do użytkownika.
+- **Plan gry z chmury** (`docs/agent/inbox/2026-11-08-plan-gry-podzial-pracy.md`,
+  przyjęty): tryb ciągły "Furia" (unikanie albo walka z botami w szale,
+  punkty na naprawy w warsztacie, styl gier zręcznościowych z lat 80.)
+  i później tryb kaskaderski (pętle, beczki). Użytkownik: **farmienie
+  punktów nie przeszkadza** (`diminish_k = 0`), mandat zostaje. Chmura
+  pisze odizolowane pliki z czystą logiką (`scripts/score_keeper.gd` +
+  `tests/score_test.gd` - lokalnie OK), agent lokalny wpina je w gorące
+  pliki i sprawdza na Queście. Chmura może przeglądać i scalać PR-y.
 - **Punktacja szału (specyfikacja z chmury,
   `docs/agent/inbox/2026-11-08-punktacja-szalu.md`, przyjęta, do
   wdrożenia)** - decyzje użytkownika: punkty **zastępują** "-20 s za
@@ -131,9 +139,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     auto jedzie samo wąwozem (BotDriver), **kamera goni je z tyłu**
     (z fotela na starcie bywał widok spod jezdni), **menu przypięte do
     kamery** (dziecko XRCamera3D, nieruchome w polu widzenia; użytkownik:
-    "powinno być względem kamery"). Podążanie za wzrokiem i przypięcie do
-    XROrigin skakały - XROrigin goni drgające auto; obrót kamery za autem
-    wygładzany osobno (`_chase_yaw`).
+    "powinno być względem kamery"). Przypięte do kamery też skakało
+    (prawdopodobnie niska płynność w goglach) - **ekran tytułowy jest
+    statyczny** (użytkownik: "stopklatka, scena statyczna"): auto stoi
+    zamrożone kołami na jezdni, kamera stoi za nim, menu nieruchome
+    w świecie (dziecko stojącego XROrigin). Jazda w menu w kodzie za
+    `TITLE_DRIVE` (false).
   - **Sedan "najfajniejszy"** - domyślny model; concept do wyboru.
     Dynamika jazdy concept cara oceniona jako w porządku.
   - **Auto gracza ma mieć dach** - widoczny z kokpitu.

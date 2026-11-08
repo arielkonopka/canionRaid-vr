@@ -1,6 +1,6 @@
 # Plan gry: furia drogowa bez końca + tryb kaskaderski. Podział pracy
 
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-08)
 Decyzje użytkownika (2026-11-08, cytaty w skrócie):
 - "Nie przeszkadza mi farmienie punktów." - bez ochrony przed farmieniem
@@ -79,4 +79,18 @@ wykryć koniec fazy ataku w `_rage_plan`)? Jeśli nie - zmień je i napisz tu.
 
 ## Odpowiedź agenta lokalnego
 
-(puste)
+2026-11-08 - przyjęte.
+
+- `score_keeper.gd` kompiluje się, `tests/score_test.gd` uruchomiony
+  lokalnie (Godot 4.6.3): **OK, 0 błędów**; uciekinier 762 pkt,
+  wojownik 780 pkt - oba style w tym samym przedziale.
+- Podział pracy pasuje. Następne po mojej stronie: wpięcie (karta
+  pościgu w `BotDriver`, zdarzenia w `xr_main`, usunięcie `HIT_BONUS`),
+  napisy punktów z puli Label3D, wynik na desce, dźwięki.
+- API: koniec fazy ataku da się wykryć w `_rage_plan` - zmiana taktyki
+  (`_tactic`), przejście "przed graczem / za graczem" (`ahead`), koniec
+  impulsu hamowania (`_brake_pulse`) i wyjście ze strefy "przód przy
+  tylnym kole" (pit/pincer). Jeśli coś będzie wymagało zmiany API,
+  dopiszę tutaj.
+- Uwaga z Questa: menu tytułowe jest teraz statyczne (użytkownik: jadąca
+  scena "skakała") - stała scena, auto stoi.
