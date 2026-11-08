@@ -424,10 +424,14 @@ func _physics_process(delta: float) -> void:
 	_grace_t = maxf(_grace_t - delta, 0.0)
 	_penalty_flash = maxf(_penalty_flash - delta, 0.0)
 	update_race(delta)
+	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
 		_watch_track(delta)
+	Perf.add("trasa", t0)
+	t0 = Time.get_ticks_usec()
 	if _endless:
 		_update_bots(delta)
+	Perf.add("boty_mgr", t0)
 
 
 ## Gracz jedzie zgodnie z przepisami: prędkość nie większa niż ograniczenie
@@ -885,7 +889,7 @@ func _build_race_hud() -> void:
 	_race_label.pixel_size = 0.00045
 	_race_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_race_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_race_label.position = Vector3(-0.38 + TrackHud.SIZE.x * 0.5 + 0.008, 0.375 + TrackHud.SIZE.y * 0.5 - 0.004, -0.40)
+	_race_label.position = Vector3(-0.38 + TrackHud.SIZE.x * 0.5 + 0.008, 0.375 + TrackHud.SIZE.y * 0.5 - 0.004, -0.40) + car.cockpit_offset
 	_race_label.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
 	_race_label.outline_size = 6
 	_race_label.modulate = Color(0.85, 0.95, 1.0)
@@ -913,7 +917,7 @@ func _build_race_hud() -> void:
 	# Mapka trasy na 1,5 km nad kierownicą, lekko poniżej linii wzroku.
 	_track_hud = TrackHud.new()
 	_track_hud.name = "TrackHud"
-	_track_hud.position = Vector3(-0.38, 0.375, -0.40)
+	_track_hud.position = Vector3(-0.38, 0.375, -0.40) + car.cockpit_offset
 	_track_hud.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
 	car.add_child(_track_hud)
 
@@ -932,7 +936,9 @@ func _build_race_hud() -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
 	_update_rain(delta)
+	Perf.add("deszcz", t0)
 	_log_perf(delta)
 	if race_state == Race.WORKSHOP and _xr_ready:
 		# Wybór w warsztacie drążkiem (jak w menu: jeden krok na wychylenie).
@@ -954,11 +960,13 @@ func _process(delta: float) -> void:
 		_follow_car(delta)
 	else:
 		_fly(delta)
+	var th := Time.get_ticks_usec()
 	if _track_hud:
 		_track_hud.refresh(delta, car.get_global_transform_interpolated(),
 				func(): return track.samples_from(_last_safe_dist - 10.0, TrackHud.RANGE + 20.0),
 				_last_safe_dist)
 		_update_warning(delta)
+	Perf.add("hud", th)
 	# Ziemia (siatka 1200 m) jedzie za autem - trasa bez końca wychodzi daleko
 	# poza nią. Kolizja ziemi to nieskończona płaszczyzna, więc jej nie ruszamy.
 	var gm := $Ground/GroundMesh as Node3D
@@ -1375,7 +1383,7 @@ func _on_car_landed(impact_speed: float) -> void:
 ## wjeżdża), emiter nad i przed autem, przesunięty o drogę z ~0,5 s jazdy.
 func _build_rain() -> void:
 	_rain = GPUParticles3D.new()
-	_rain.amount = 2400
+	_rain.amount = 1000       # było 2400 - na Queście za dużo nakładających się smug
 	_rain.lifetime = 1.0
 	_rain.local_coords = false
 	_rain.amount_ratio = 0.0
@@ -1397,7 +1405,7 @@ func _build_rain() -> void:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	m.billboard_keep_scale = true
 	var q := QuadMesh.new()
-	q.size = Vector2(0.02, 0.55)
+	q.size = Vector2(0.03, 0.7)
 	q.material = m
 	_rain.draw_pass_1 = q
 	add_child(_rain)
@@ -1476,6 +1484,7 @@ func _log_perf(delta: float) -> void:
 			RenderingServer.viewport_get_measured_render_time_gpu(vp),
 			RenderingServer.viewport_get_measured_render_time_cpu(vp),
 			_bots.size(), _bots.size() - rail, _last_section])
+	print("PERF+ ms/s: ", Perf.dump(5.0))
 
 
 ## Szum deszczu: 2 s szumu przefiltrowanego dolnoprzepustowo, w pętli.

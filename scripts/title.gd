@@ -67,6 +67,7 @@ func _ready() -> void:
 	# (sterownik bota) - prośba użytkownika; wcześniej stał przy aucie,
 	# a w przestrzeni "local" oczy wypadały na poziomie jezdni (widok spod
 	# spodu). Auto ma ustawienia gracza (lakier, napęd) na żywo.
+	GameSettings.apply_to_car(car)
 	_place_car(30.0)
 	_driver = BotDriver.new()
 	_driver.name = "Driver"
@@ -96,10 +97,32 @@ func _place_car(d: float) -> void:
 		_driver.dist = d
 
 
-## Kamera (w goglach: punkt odniesienia głowy) w fotelu kierowcy, jak w grze.
-func _follow_car() -> void:
-	origin.global_transform = car.get_global_transform_interpolated() * car.seat.transform
-	car.set_cockpit_transparency(GameSettings.cockpit_alpha / 100.0)
+## Kamera goni auto z tyłu i z góry (użytkownik: "zostawmy podążającą
+## kamerę za pojazdem bota"; z fotela na starcie bywał widok spod jezdni).
+## Płynnie i tylko w poziomie - bez przechyłów i pochyleń auta, wygodniej
+## w goglach. W przestrzeni "local" XROrigin to głowa.
+const CHASE_BACK := 7.0
+const CHASE_UP := 2.4
+var _chase := Transform3D()
+var _chase_ready := false
+
+func _follow_car(delta := 0.0) -> void:
+	var cx := car.get_global_transform_interpolated()
+	var fwd := -cx.basis.z
+	fwd.y = 0.0
+	if fwd.length_squared() < 0.01:
+		fwd = -_chase.basis.z
+	fwd = fwd.normalized()
+	var target := cx.origin - fwd * CHASE_BACK + Vector3.UP * CHASE_UP
+	var k := 1.0 if not _chase_ready else 1.0 - exp(-4.0 * delta)
+	_chase_ready = true
+	var pos := _chase.origin.lerp(target, k)
+	var look := cx.origin + fwd * 6.0 + Vector3.UP * 0.6
+	var flat := look - pos
+	flat.y = 0.0
+	_chase = Transform3D(Basis.looking_at(flat.normalized(), Vector3.UP), pos)
+	origin.global_transform = _chase
+	car.set_cockpit_transparency(0.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -122,15 +145,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _build_menu() -> void:
-	# Menu podąża za wzrokiem (GazeFollow), środek wierszy na wysokości oczu.
-	var gf := GazeFollow.new()
-	gf.name = "Menu"
-	gf.camera = camera
-	gf.distance = MENU_DISTANCE
-	# Nad deską rozdzielczą (menu na tle zegarów było nieczytelne).
-	gf.height = 0.25
-	gf.height_rate = 30.0
-	_menu = gf
+	# Menu przypięte na sztywno do gracza (dziecko XROrigin = punkt
+	# odniesienia głowy w przestrzeni "local"): zawsze to samo miejsce przed
+	# nim, jedzie razem z kamerą. Podążanie za wzrokiem przy jadącej
+	# kamerze szarpało (użytkownik: "menu strasznie skacze").
+	_menu = Node3D.new()
+	_menu.name = "Menu"
+	_menu.position = Vector3(0.0, 0.0, -MENU_DISTANCE)
 	origin.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
@@ -310,7 +331,7 @@ func _on_xr_button(button: String) -> void:
 
 func _process(_delta: float) -> void:
 	if _driver:
-		_follow_car()
+		_follow_car(_delta)
 	# Drążek: gałka w goglach albo lewa gałka pada. Jeden ruch = jeden krok,
 	# kolejny dopiero po powrocie gałki do środka.
 	var stick := Vector2.ZERO
@@ -345,6 +366,9 @@ func _change(dir: int) -> void:
 			GameSettings.set(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
 			if opt["key"] == "xr_resolution" or opt["key"] == "xr_foveation":
 				GameSettings.apply_xr_quality()
+			if opt["group"] in ["car", "body"]:
+				# Auto w tle (to, którym jedzie menu) od razu z nowymi ustawieniami.
+				GameSettings.apply_to_car(car)
 			_refresh()
 		"group":
 			if dir > 0:

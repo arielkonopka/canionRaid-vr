@@ -26,7 +26,8 @@ var tcs_frames := 0
 var abs_frames := 0
 
 func _initialize() -> void:
-	# Argumenty: prędkość [km/h], zawieszenie (soft/sport/stiff), skrzynia (auto/manual).
+	# Argumenty: prędkość [km/h], zawieszenie (soft/sport/stiff), skrzynia (auto/manual),
+	# model auta (sedan/concept, domyślnie sedan).
 	# Ustawiamy je w GameSettings, tak jak robi to ekran tytułowy - scena
 	# główna przy starcie sama przenosi je na auto. Nie zapisujemy ich na dysk.
 	var args := OS.get_cmdline_user_args()
@@ -37,6 +38,7 @@ func _initialize() -> void:
 	if args.size() > 0: target_kmh = float(args[0])
 	gs.suspension = args[1] if args.size() > 1 else "sport"
 	gs.transmission = args[2] if args.size() > 2 else "auto"
+	gs.body_model = args[3] if args.size() > 3 else "sedan"   # sedan / concept
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	car = main.get_node("Car")

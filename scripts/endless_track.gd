@@ -57,6 +57,9 @@ func _add_section() -> void:
 	chunk.build_lines = false
 	chunk.road_material = road_material
 	chunk.pillar_material = pillar_material
+	# Odcinki dobudowywane w trakcie jazdy - budowa rozłożona na klatki
+	# (StuntTrack.slice_build); początkowe od razu w całości.
+	chunk.slice_build = _sections > 1 + AHEAD
 	add_child(chunk)                        # _ready kawałka buduje geometrię
 	_chunks.append(chunk)
 	_checkpoints.append(float(start["dist"]))
@@ -66,6 +69,12 @@ func _add_section() -> void:
 ## i sprząta za nim. Budowa kawałka to kilkanaście ms - robimy to, kiedy
 ## auto dopiero wjeżdża w poprzedni, więc gracz tego nie zauważa.
 func update_progress(dist: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_update_progress(dist)
+	Perf.add("budowa_trasy", t0)
+
+
+func _update_progress(dist: float) -> void:
 	_current = _chunk_index(dist)
 	while _chunks.size() - 1 - _current < AHEAD:
 		_add_section()
@@ -109,8 +118,14 @@ func checkpoint_before(dist: float) -> float:
 # --------------------------------------------------------------------------
 
 func nearest_sample(world_pos: Vector3) -> Dictionary:
-	# Bieżący kawałek i sąsiedzi - auto nie przeskakuje dalej niż o jeden.
+	return _nearest(world_pos)[1]
+
+
+## [kawałek, próbka] najbliższe pozycji: bieżący kawałek i sąsiedzi - auto
+## nie przeskakuje dalej niż o jeden.
+func _nearest(world_pos: Vector3) -> Array:
 	var best := {}
+	var best_c: StuntTrack = null
 	var best_d := INF
 	for i in range(maxi(_current - 1, 0), mini(_current + 2, _chunks.size())):
 		var s := _chunks[i].nearest_sample(world_pos)
@@ -120,14 +135,16 @@ func nearest_sample(world_pos: Vector3) -> Dictionary:
 		if d < best_d:
 			best_d = d
 			best = s
-	return best
+			best_c = _chunks[i]
+	return [best_c, best]
 
 
 func lateral_offset(world_pos: Vector3) -> Dictionary:
-	var s := nearest_sample(world_pos)
-	if s.is_empty():
+	var r := _nearest(world_pos)
+	if r[1].is_empty():
 		return {"offset": 0.0, "on_track": false}
-	return _chunk_for(float(s["dist"])).lateral_offset(world_pos)
+	# Ta sama próbka - bez drugiego szukania w kawałku.
+	return (r[0] as StuntTrack).lateral_offset(world_pos, r[1])
 
 
 func transform_at_distance(dist: float) -> Transform3D:
@@ -185,8 +202,8 @@ func total_length() -> float:
 func samples_from(dist: float, length: float) -> Array:
 	var out := []
 	for c in _chunks:
-		for s in c._samples:
-			var d: float = s["dist"]
-			if d >= dist and d <= dist + length:
-				out.append(s)
+		var r := c.dist_range()
+		if r.y < dist or r.x > dist + length:
+			continue
+		out.append_array(c.samples_from(dist, length))
 	return out
