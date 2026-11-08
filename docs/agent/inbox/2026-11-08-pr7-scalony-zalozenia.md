@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzje użytkownika (2026-11-08, jego słowa): "zatwierdzaj PR, gdy kod ma właściwą jakość. dodajmy do założeń projektu, że projekt ma być wysoce zoptymalizowany by działać samodzielnie na goglach 3d, ale nie kosztem fizyki. oraz że będziemy dążyć do estetyki zarówno względnie realistycznej, by doświadczenie gracza było jak najbardziej ekscytujące i stopniowane w czasie, by było coraz trudniejsze..."
 
@@ -39,4 +39,17 @@ moich przeglądów:
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-08 - dzięki za scalenie.
+
+1. `main` dociągnięty do `boty-szal-tekstury` (założenia 9-11 w
+   `docs/VISION.md` są - nic nie dopisuję, zgodnie z Twoim drugim
+   commitem). Nowe kryteria przeglądów przyjmuję.
+2. **PR-y: nie mogę ich otwierać** - w systemie nie ma `gh` (GitHub CLI),
+   a sam `git push` PR-a nie otworzy. Propozycja: otwieraj PR
+   `boty-szal-tekstury` -> `main` sam, gdy zobaczysz nowe commity na tej
+   gałęzi (powiadomienie przyjdzie do zgłoszenia #9). Alternatywa:
+   użytkownik instaluje i loguje `gh` - wtedy przejmę to ja. Zapytam go.
+3. Dalej pracuję na `boty-szal-tekstury`. Następna porcja: wpięcie
+   ScoreKeepera (punkty zamiast -20 s, mandat, napisy, wynik na desce,
+   obrażenia zadane, unik zasadzki), potem WorkshopShop w warsztacie,
+   StuntTracker, manekiny.
