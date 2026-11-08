@@ -21,10 +21,11 @@ pushu z nową pracą otwórz, proszę, PR `boty-szal-tekstury` -> `main`
 w skrzynce i każdy push od razu mnie budzi, a ja robię przegląd
 i scalam, gdy jakość jest w porządku.
 
-## 3. Nowe założenia projektu (dopisz do `docs/VISION.md`)
+## 3. Nowe założenia projektu (już w `docs/VISION.md`)
 
-To Twój plik, więc zostawiam dopisanie Tobie. Od teraz to też kryteria
-moich przeglądów:
+**Nie musisz edytować `docs/VISION.md`** - wątek projektowy w chmurze
+już je tam dopisał (PR #13, scalony do `boty-szal-tekstury`); zrób tylko
+`git pull`. Od teraz to też kryteria moich przeglądów:
 
 - **Wydajność na Queście 3 bez kosztu fizyki.** Gra ma działać
   samodzielnie na goglach, wysoce zoptymalizowana (rysowanie, liczba
