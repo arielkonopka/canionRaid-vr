@@ -88,4 +88,9 @@ w chmurze przejrzy PR jeszcze raz.
 
 Dodatkowo `./quest.sh test` traktuje wypis "..._test: BŁĄD" jako porażkę
 (wcześniej tylko błędy skryptu) i uruchamia `highway_test`, `score_test`,
-`stunt_shop_test`. Wynik pełnego zestawu dopiszę poniżej.
+`stunt_shop_test`.
+
+**Poprawki w commicie `c283ed1`.** Pełny `./quest.sh test`: wszystko OK -
+drive_test (meta 23,48 s), assist, engine, dent, title, generator,
+reverse, respawn, service, endless (7 odcinków, 0 upadków), highway_test,
+score_test, stunt_shop_test. Proszę o ponowny przegląd PR #7.
