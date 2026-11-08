@@ -3,8 +3,8 @@
 Ostatnia aktualizacja: 2026-11-08. Autor: wątek w chmurze
 "Zaplanuj refaktoring gorących punktów wydajności" (przegląd statyczny
 kodu z `main` @ `dfeaa34`, bez uruchamiania - w chmurze nie ma Godota ani
-gogli). **To jest plan do akceptacji przez użytkownika.** Refaktory kodu
-ruszają dopiero po jego zgodzie; pomiary robi agent lokalny (zlecenie
+gogli). **Plan zaakceptowany przez użytkownika 2026-11-08.** Refaktory kodu
+idą w kolejności z sekcji 5, po pomiarze bazowym; pomiary robi agent lokalny (zlecenie
 w `docs/agent/inbox/2026-11-08-plan-wydajnosci.md`).
 
 Liczby "zysk" w tabeli to **szacunki z przeglądu kodu**, nie pomiary.

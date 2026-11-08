@@ -4,10 +4,16 @@ Status: nowe
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-08), na prośbę użytkownika ("trzeba zaplanować refaktoring, by
 zidentyfikować wszystkie wydajnościowe gorące punkty")
-Decyzje użytkownika: plan (`docs/PERF_PLAN.md`) czeka na jego akceptację.
-Pytania z sekcji 7 planu (72/90 Hz, 160%, lusterko, wygląd deszczu
-i skały, dźwięk) są otwarte. **Refaktorów kodu jeszcze nie zaczynaj** -
-tylko instrumentacja i pomiar, bo od wyników zależy kolejność prac.
+Decyzje użytkownika (2026-11-08 22:15Z): **plan zaakceptowany** ("ok, to
+zróbmy zgodnie z Twoim planem"). Kolejność jak w sekcji 5 planu: najpierw
+etap 0 (instrumentacja + pomiar bazowy), potem poprawki potwierdzone
+pomiarem. G1 (tunel): pomysł użytkownika - gęste lampy emisyjne (co 2 m,
+po 1 m) + światło w shaderze, bez `OmniLight3D`. Pytania z sekcji 7 planu
+(72/90 Hz, 160%, lusterko, wygląd deszczu i skały, dźwięk) wciąż otwarte -
+zmian wyglądu nie scalamy bez porównania zrzutów i zgody użytkownika.
+Chmura równolegle pisze odizolowane moduły (najpierw `TrackPath`
+z profilem prędkości, potem shader tunelu) - przyjdą osobnymi
+zleceniami.
 
 ## Prośba
 
