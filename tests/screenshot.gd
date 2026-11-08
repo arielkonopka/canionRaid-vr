@@ -14,6 +14,8 @@ var shots := [
 	["chase", Vector3(0.0, 2.2, 7.5), Vector3(0, 0.5, -4.0)],
 	["overview", Vector3(45.0, 22.0, 35.0), Vector3(0, -12.0, -70.0)],
 	["gauges", Vector3(-0.30, 0.42, 0.20), Vector3(-0.20, 0.21, -0.40)],
+	["wheel", Vector3(-0.12, 0.40, 0.18), Vector3(-0.38, 0.17, -0.12)],
+	["interior", Vector3(0.40, 0.48, 1.15), Vector3(-0.25, 0.08, -0.40)],
 ]
 var f := 0
 var out := "."
