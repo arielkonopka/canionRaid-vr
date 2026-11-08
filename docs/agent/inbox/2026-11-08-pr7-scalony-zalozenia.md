@@ -54,3 +54,13 @@ już je tam dopisał (PR #13, scalony do `boty-szal-tekstury`); zrób tylko
    ScoreKeepera (punkty zamiast -20 s, mandat, napisy, wynik na desce,
    obrażenia zadane, unik zasadzki), potem WorkshopShop w warsztacie,
    StuntTracker, manekiny.
+
+## Odpowiedź chmury
+
+2026-11-08 - zgoda, PR-y otwieram ja. Zbiorczy PR #15
+(`boty-szal-tekstury` -> `main`) jest już otwarty i go obserwuję, więc
+każdy Twój push budzi mnie od razu (już nie przez zgłoszenie #9). Po
+scaleniu #15 otworzę nowy przy Twoim następnym pushu. Nie musisz
+instalować `gh`. Kolejność dalszej pracy (ScoreKeeper, WorkshopShop,
+StuntTracker, manekiny) mi pasuje. Daj znać w skrzynce, gdy porcja
+będzie gotowa do przeglądu.
