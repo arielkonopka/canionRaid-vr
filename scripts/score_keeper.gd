@@ -15,6 +15,7 @@ class_name ScoreKeeper
 ## Integracja (po stronie gry):
 ##   - bot wpada w szał           → open_chase(id, origin, now)
 ##   - kontakt bot-gracz          → note_contact(id, now)
+##   - uszkodzenia bota po kontakcie → damage_dealt(id, d_structure, now, kmh)
 ##   - koniec fazy ataku          → end_attack(id, hit, min_gap, kmh, now)
 ##   - bot zgubiony 700 m za      → close_chase(id, "lost", now, kmh)
 ##   - szał wygasł                → close_chase(id, "calmed", now, kmh)
@@ -37,10 +38,12 @@ const BASE := {
 	"lost": 120,          # bot w szale zgubiony (znika za graczem)
 	"calmed": 80,         # szał wygasł, bot ani razu nie trafił gracza
 	"dodge": 40,          # atak bez kontaktu, minął o < NEAR_MISS
+	"ambush_dodge": 120,  # unik zasadzki (wyjazd przed maskę) - premia (wizja)
 	"outmaneuver": 150,   # bot rozbił się o coś innego tuż po uniku
 	"jump_escape": 200,   # gracz przeskoczył, bot zepsuł skok
 	# walka
-	"wreck": 300,         # bot rozbity, ostatni kontakt gracza < BLAME_TIME
+	"wreck": 300,         # eksplozja bota, ostatni kontakt gracza < BLAME_TIME (premia)
+	"damage": 400,        # obrażenia zadane: za 100% "structure" bota
 	"pit": 150,           # gracz obrócił bota (> 90°)
 	"formation": 250,     # rozbita formacja (kleszcze, ściana)
 	# kara
@@ -48,13 +51,14 @@ const BASE := {
 }
 ## Napisy na wyskakujących etykietach (krótkie - VR, czytane kątem oka).
 const LABELS := {
-	"lost": "ZGUBIONY", "calmed": "USPOKOJONY", "dodge": "UNIK",
+	"lost": "ZGUBIONY", "calmed": "USPOKOJONY", "dodge": "UNIK", "ambush_dodge": "ZASADZKA!", "damage": "TRAFIENIE",
 	"outmaneuver": "WMANEWROWANY", "jump_escape": "SKOK!",
 	"wreck": "ROZBITY", "pit": "OBRÓCONY", "formation": "PRZEBITY",
 	"fine": "MANDAT",
 }
 const NEAR_MISS := 1.5        # [m] - unik, gdy minął bliżej niż tyle
 const BLAME_TIME := 3.0       # [s] - wybuch liczony graczowi po kontakcie
+const DAMAGE_STEP := 0.1      # wypłata za obrażenia co 10% "structure"
 const COMBO_WINDOW := 12.0    # [s] - kolejne zdarzenie przedłuża serię
 const COMBO_STEP := 0.25      # mnożnik serii: 1 + krok·(n-1)
 const COMBO_MAX := 3.0
@@ -108,7 +112,8 @@ func note_contact(id: int, now: float) -> void:
 
 ## Koniec fazy ataku (pit/ram/ambush/block). `hit` - był kontakt w tej
 ## fazie; `min_gap` - najmniejsza odległość w poprzek [m] przy |ahead| < 4.
-func end_attack(id: int, hit: bool, min_gap: float, kmh: float, now: float) -> Array:
+func end_attack(id: int, hit: bool, min_gap: float, kmh: float, now: float,
+		tactic: String = "") -> Array:
 	var c: Dictionary = chases.get(id, {})
 	if c.is_empty():
 		return []
@@ -118,7 +123,29 @@ func end_attack(id: int, hit: bool, min_gap: float, kmh: float, now: float) -> A
 		return []
 	c["dodges"] = int(c["dodges"]) + 1
 	c["last_dodge_t"] = now
-	return award("dodge", id, now, kmh)
+	return award("ambush_dodge" if tactic == "ambush" else "dodge", id, now, kmh)
+
+
+## Obrażenia zadane botowi przez gracza: przyrost `StuntCar.damage["structure"]`
+## bota (0..1) w kontakcie z graczem. Małe przyrosty się sumują i wypłacają
+## od DAMAGE_STEP, żeby nie zasypywać gracza napisami. Wybuch daje osobno
+## premię "wreck".
+func damage_dealt(id: int, d_structure: float, now: float, kmh: float) -> Array:
+	var c: Dictionary = chases.get(id, {})
+	if c.is_empty() or d_structure <= 0.0:
+		return []
+	c["dmg_acc"] = float(c.get("dmg_acc", 0.0)) + d_structure
+	if float(c["dmg_acc"]) < DAMAGE_STEP:
+		return []
+	var amount: float = c["dmg_acc"]
+	c["dmg_acc"] = 0.0
+	if not bool(c["paid"]):
+		return []
+	var mult := danger(c, now, kmh) * _diminish()
+	var n := _bump_combo(now)
+	var combo_mult := minf(1.0 + COMBO_STEP * float(n - 1), COMBO_MAX)
+	var pts := int(round(float(base["damage"]) * amount * mult * combo_mult))
+	return [_pay("damage", pts, n)]
 
 
 ## Koniec pościgu: "lost", "calmed" albo "wreck". Usuwa kartę.
