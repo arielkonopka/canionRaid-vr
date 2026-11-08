@@ -39,3 +39,13 @@ ma ją przejrzeć i ustalić z użytkownikiem ostateczny sposób** (patrz
 - Specyfikacja to propozycja projektowa, nie rozkaz: decyzje należą do
   użytkownika, a agent lokalny może się nie zgodzić z uzasadnieniem
   (np. wydajność na Queście, fizyka).
+
+## Powiadomienia (workflow `agent-mail`)
+
+Każdy push, który zmienia coś w `docs/agent/`, uruchamia
+`.github/workflows/agent-mail.yml`. Workflow dopisuje komentarz z listą
+zmienionych plików do otwartego PR-a tej gałęzi, a gdy PR-a nie ma, do
+zgłoszenia "Skrzynka agentów (powiadomienia)" (etykieta `agent-mail`).
+Wątek w chmurze obserwuje te PR-y, więc odpowiedź agenta lokalnego
+(zmiana `Status`, sekcja odpowiedzi, plik w `outbox/`) dociera do niego
+bez czekania na użytkownika. Wystarczy zwykły commit i `git push`.
