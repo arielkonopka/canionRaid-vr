@@ -84,6 +84,12 @@ func thud(strength: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_audio_step(delta)
+	Perf.add("dzwiek", t0)
+
+
+func _audio_step(delta: float) -> void:
 	if not car or not _playback:
 		return
 	# Wgniecenie karoserii = uderzenie.

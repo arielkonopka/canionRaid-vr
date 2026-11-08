@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: wydajność na Queście - 120 Hz, promienie pod kołami, cienie, LOD shadera; ekran tytułowy z jazdą; dach; nazwa Canion Raid VR; przygotowanie modelu concept car)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: concept car jako opcja, sedan domyślny, optymalizacje CPU/GPU na Queście, menu przypięte do gracza, kamera menu za botem)
 
 ---
 
@@ -113,8 +113,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     **Decyzja użytkownika: gra całkowicie darmowa, bez żadnych zysków** -
     darmowa licencja freepbr wystarcza; tekstury dalej poza repo.
   - **Ekran tytułowy z jazdy** (użytkownik: "widok z jakiegoś bota"):
-    gracz siedzi w aucie, które samo jedzie wąwozem (BotDriver), menu nad
-    deską.
+    auto jedzie samo wąwozem (BotDriver), **kamera goni je z tyłu**
+    (z fotela na starcie bywał widok spod jezdni), **menu przypięte na
+    sztywno do gracza** (podążanie za wzrokiem przy jadącej kamerze
+    "strasznie skakało").
+  - **Sedan "najfajniejszy"** - domyślny model; concept do wyboru.
+    Dynamika jazdy concept cara oceniona jako w porządku.
   - **Auto gracza ma mieć dach** - widoczny z kokpitu.
   - **Concept car** (Khronos "Car Concept", CC BY 4.0) jako model auta -
     w toku, patrz sekcja 8.
@@ -560,6 +564,25 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   stosuje się od razu. Gra wpisuje do logu co 5 s "PERF: kl./s, proces,
   fizyka, boty" (`xr_main._log_perf`) - po tym dobierać domyślną
   rozdzielczość (Quest 3 domyślnie 72 Hz).
+- **Liczniki wydajności** (`scripts/perf.gd`, `Perf.add/dump`, linia
+  "PERF+ ms/s" w logu co 5 s obok "PERF:"): auto_fiz/bot_fiz, auto_wyg/
+  bot_wyg, dzwiek, bot_ster, boty_mgr, trasa, budowa_trasy, hud, deszcz.
+  Wyniki na Queście (130%): **sterowanie botów na szynie 250 ms/s** →
+  przyczyna: `samples_from`/`transform_at_distance`/`_sample_near`
+  przeglądały liniowo wszystkie próbki (EndlessTrack: ~2000 przy każdym
+  wywołaniu) → teraz wyszukiwanie binarne po `_dists`
+  (PackedFloat64Array), bot_ster ~47 ms/s. `nearest_sample` szuka od
+  ostatniego trafienia (`_near_hint`, okno ±40), `EndlessTrack.lateral_offset`
+  nie szuka drugi raz. **Budowa odcinka ~0,5 s zamrożenia** (110 ms/s) →
+  `StuntTrack.slice_build`: próbki + jezdnia z kolizją od razu
+  (`_build_road_collision`), ściany/znaki/tunele po `await _slice()`
+  (klatka po klatce; kawałek usunięty w trakcie przerywa budowę);
+  początkowe odcinki w całości; ściany co 3 próbki i kolizja tylko do
+  `CANYON_COLLIDE_K` (7 z 13 punktów profilu, ~18 m) → 15 ms/s.
+  GPU: deszcz 1000 smug (było 2400), światła w tunelu co 80 m, MSAA 2x.
+  Ostatni pomiar: 10. odcinek 56 kl./s, GPU 13,6 ms; **9. odcinek GPU
+  35-65 ms** przez dłuższą chwilę - podejrzane tunel (dwunitkowy?) albo
+  ulewa - do zbadania (dopisać do PERF: tunel/deszcz). Gogle się grzeją.
 - **Wydajność na Queście** (pomiary z logu "PERF", 130%, przed
   optymalizacjami): 40-55 kl./s, GPU 15-25 ms (budżet 13,9 ms przy 72 Hz),
   fizyka ~95 ms na klatkę, gdy pojawiał się bot z fizyką. Profil na PC
@@ -601,6 +624,32 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   nieużywane mapy (height/ao/metallic/roughness/preview) wykluczone
   z eksportu w `export_presets.cfg`. Góry na horyzoncie (`Scenery`)
   zostały z kolorami wierzchołków - są kilometry dalej.
+- **Model auta** (`StuntCar.set_body_model`, opcja "Model auta" w
+  "Nadwozie i opony", domyślnie concept; `SETTINGS_VERSION` 6 przestawia):
+  "sedan" - własny, z wgnieceniami; "concept" - Khronos Car Concept
+  (`models/concept_car/car_player.glb`, robi go
+  `tools/prepare_concept_car.sh` z oryginału w `~/opt/_dl/car-concept/`;
+  narzędzie `gltf-transform` w `~/opt/gltf-transform`, npm). Concept:
+  model obrócony o 180° (przód w +Z), `CONCEPT` - mocowania kół z modelu
+  (rozstaw osi 2,80, kół 1,96), promień 0,49 (przełożenie ×r/0,33
+  w `apply_engine` - te same prędkości na biegach), kolizja z bryły,
+  środek masy obniżony o różnicę promieni i ustawiony względem środka osi
+  jak w sedanie (`_model_com`) - bez tego zsuwał się z łuków. Koła modelu
+  przepięte pod `w.node` (początek węzła koła w modelu = środek koła).
+  Kierownica modelu obracana w `SteerPivot` wokół osi piasta→koło.
+  Fotel na środku (`seat` (0, 0,15, -0,40); układ jak McLaren F1),
+  zegary na desce za kierownicą (`CONCEPT.gauges`). Materiały
+  (`_fix_concept_material`): szkło z KHR_materials_transmission
+  (Godot go nie ma - białe szyby) na zwykłą przezroczystość, AO wyłączone
+  (atlas 2048 po uproszczeniu dawał plamy na lakierze), felga "Rim2"
+  przyciemniona (lustrzana biel), lakier mniej metaliczny; lakier z menu
+  na materiały "Paint *". Ukryte przy concept: karoseria i kabina sedana,
+  koła sedana, spojlery (aerodynamika spojlera dalej działa), wycieraczki.
+  Prowadzenie: na wąskiej trasie pokazowej (9 m) `drive_test ... concept`
+  sport wypada na łuku ze zjazdem ~300 m (szerszy rozstaw - sedan tam
+  zjeżdża na -2,2 m i wraca, concept wypada kołami za krawędź); soft
+  przejeżdża; trasa bez końca 7 odcinków z jednym upadkiem na końcu.
+  `drive_test` ma 4. argument (sedan/concept), domyślnie sedan.
 - **Okna na morze** (`StuntTrack.sea_factor`, `SEA_*`, `_canyon_profile`,
   `_build_sea`, `shaders/ocean.gdshader`): w każdym przedziale 5 km jedno
   okno 100 m (+ przejścia po 40 m) w miejscu i po stronie z hasha numeru
@@ -1174,23 +1223,12 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    stacja paliw (`service`), ziarno losowe - `endless_test` z kilkoma
    ziarnami do 12+ odcinków (`generator_test` sprawdza tylko generator,
    nie budowę geometrii) i sprawdzenie `EndlessTrack.update_progress`.
-0a. **Concept car w toku** (prośba użytkownika; zgoda na npm i
-   `gltf-transform` w `~/opt/gltf-transform`, oryginał w
-   `~/opt/_dl/car-concept/CarConcept.glb`). Gotowe: `tools/prepare_concept_car.sh`
-   (+ `.mjs`) robi `models/concept_car/car_player.glb` (70 tys. trójkątów,
-   tekstury ≤1024, bez wycieraczek modelu) i `car_bot.glb` (21 tys., bez
-   wnętrza); logotypy Khronos podmienione (tablica, bok opony, jego mapa
-   normalnych - indeksy obrazów 3, 10, 11). Plik oryginału wbrew README
-   tamtego repo NIE ma Draco. Pomiary (układ modelu, przód = +Z, trzeba
-   obrócić o 180°): rozstaw osi 2,80 m, kół 1,95 m, promień koła ~0,52 m,
-   długość 4,36 m, wys. 1,31 m, **kierownica na środku (x = 0)**; nasz
-   sedan: 2,57 / 1,64 / 0,33. Plan: opcja "Model auta" (sedan / concept)
-   w "Nadwozie i opony"; dla concept własne mocowania kół, promień,
-   przełożenie ×(r_new/r_old), kolizja z bryły, fotel na środku, zegary
-   w jego desce, koła modelu przypięte do `w.node`, kierownica modelu
-   obracana, lakier = materiały "Paint 1/2 *", przezroczystość kabiny na
-   jego materiałach, bez wgnieceń (na razie). Boty zostają sedanami
-   (wydajność). Uznanie autorstwa (CC BY) w README - zrobione.
+0a. **Concept car - wstawiony, do oceny w goglach.** Zostało: wgniecenia
+   na concept carze (na razie brak), wycieraczki i krople na jego szybie
+   (ukryte), dach od środka/przezroczystość pod jego materiały (teraz
+   jedna wartość dla wszystkich), prowadzenie (patrz niżej), położenie
+   mapki trasy i lusterka w jego kokpicie (przesunięte o `cockpit_offset`,
+   nieskalibrowane), boty dalej sedany (`car_bot.glb` gotowy, nieużyty).
 0b. Do przetestowania w goglach z użytkownikiem (instaluje razem z nim):
    nowe opcje auta, strategie szału, tunele, szersza jezdnia.
    Też: wydajność z wieloma botami na Queście, widoczność mchu, nowe

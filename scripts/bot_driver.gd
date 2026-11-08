@@ -73,6 +73,12 @@ var _window_timer := 0.0
 
 
 func _physics_process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_drive_step(delta)
+	Perf.add("bot_ster", t0)
+
+
+func _drive_step(delta: float) -> void:
 	if car == null or track == null:
 		return
 	if _update_rail(delta):

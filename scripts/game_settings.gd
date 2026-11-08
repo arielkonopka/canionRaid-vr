@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 5
+const SETTINGS_VERSION := 7
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -29,6 +29,9 @@ var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
 ## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
 var drive_layout: String = "rwd"
+## Model auta gracza: "concept" (Khronos Car Concept, CC BY 4.0) albo
+## "sedan" (własny z lat 70., z wgnieceniami). Boty zawsze sedany.
+var body_model: String = "sedan"
 ## Masa nadwozia [kg] (bez napędu: diesel +50, elektryk +200).
 var body_mass: int = 1150
 ## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
@@ -149,6 +152,15 @@ var OPTIONS: Array[Dictionary] = [
 			"Hipersamochód w sedanie z lat 70. Bez 4x4 tylko kontrola trakcji ratuje.",
 			"Nierealne. Dłuższe przełożenia, ponad 350 km/h, 4x4 prawie konieczne.",
 			"Tylko elektryk z silnikiem w każdym kole: 4 × 250 kW. Inny napęd dostanie 700 kW.",
+		],
+	},
+	{
+		"key": "body_model", "group": "body", "label": "Model auta",
+		"values": ["sedan", "concept"],
+		"names": ["Sedan z lat 70.", "Concept"],
+		"hints": [
+			"Własny sedan z epoki: winylowy dach, chrom, wgniecenia, spojlery.",
+			"Futurystyczny concept car, fotel kierowcy na środku. Bez wgnieceń.",
 		],
 	},
 	{
@@ -423,6 +435,9 @@ func load_settings() -> void:
 		if opt["values"].has(v):
 			set(key, v)
 	var version: int = cfg.get_value("meta", "version", 1)
+	if version < 7:
+		# Użytkownik po jeździe: "sedan najfajniejszy" - domyślny znowu sedan.
+		body_model = "sedan"
 	if version < 5:
 		# 160% bez dynamicznej rozdzielczości dawało na Queście ~8 kl./s
 		# (2026-11-08) - z powrotem 130% i średnia foweacja.
@@ -457,6 +472,7 @@ static func effective_power(type_name: String, hub: bool, kw: int) -> int:
 
 
 func apply_to_car(car: StuntCar) -> void:
+	car.set_body_model(body_model)
 	car.drive_layout = drive_layout
 	car.tires = tires
 	car.hub_motors = motor_layout == "hub"

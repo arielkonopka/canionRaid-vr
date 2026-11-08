@@ -353,7 +353,7 @@ var _steering_wheel: Node3D
 var _tail_mat: StandardMaterial3D
 var _paint_mat: StandardMaterial3D
 ## Materiały kabiny i karoserii, które prześwitują w widoku z kokpitu.
-var _cockpit_mats: Array[StandardMaterial3D] = []
+var _cockpit_mats: Array[BaseMaterial3D] = []
 var _cockpit_alpha := -1.0
 var _vinyl_mat: StandardMaterial3D
 var _roof_mats: Array = []
@@ -474,6 +474,11 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 		reverse_ratio = gear_ratios[0]
 	elif not electric and power_kw > 350.0:
 		final_drive *= sqrt(350.0 / power_kw)
+	# Większe koła (concept car) = dłuższe przełożenie efektywne; korekta
+	# tak, żeby te same obroty dawały tę samą prędkość co w sedanie.
+	var rk := wheel_radius / BASE_WHEEL_RADIUS
+	if not is_equal_approx(rk, 1.0):
+		final_drive *= rk
 
 	var curve := PackedVector2Array()
 	if electric:
@@ -510,7 +515,7 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	# Masa i środek masy zależą od napędu (bateria, cięższy silnik).
 	_extra_mass = e["extra_mass"]
 	_apply_mass()
-	com_offset = _base_com + Vector3(0.0, e["com_y"], 0.0)
+	com_offset = _base_com + Vector3(0.0, e["com_y"], 0.0) + _model_com
 	center_of_mass = com_offset
 	engine_rpm = idle_rpm
 	gear = 1
@@ -557,9 +562,12 @@ func set_cockpit_transparency(t: float) -> void:
 
 ## Kolor lakieru. Jeden materiał na całą karoserię, więc zmiana jest natychmiastowa.
 func set_paint(c: Color) -> void:
+	_paint_color = c
 	if _paint_mat:
 		# Kanał alfa należy do przezroczystości kokpitu - nie nadpisujemy go.
 		_paint_mat.albedo_color = Color(c, _paint_mat.albedo_color.a)
+	for m in _concept_paint_mats:
+		m.albedo_color = Color(c, m.albedo_color.a)
 
 
 ## Ustawia sprężyny, tłumiki i stabilizatory z zestawu SUSPENSION_PRESETS.
@@ -606,6 +614,12 @@ func set_spoiler(kind: String) -> void:
 # --------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_physics_step(delta)
+	Perf.add("bot_fiz" if is_bot else "auto_fiz", t0)
+
+
+func _physics_step(delta: float) -> void:
 	# Zamrożone auto (wybuch, ekran tytułowy) nie liczy fizyki - siły
 	# przykładane do zamrożonej bryły mogły się kumulować i po odmrożeniu
 	# rozkręcać auto (wirowanie po odrodzeniu).
@@ -1292,6 +1306,12 @@ func _update_engine_rpm(delta: float) -> void:
 # --------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_visual_step(delta)
+	Perf.add("bot_wyg" if is_bot else "auto_wyg", t0)
+
+
+func _visual_step(delta: float) -> void:
 	_update_wipers(delta)
 	# Przebudowa wgniecionych siatek - najwyżej raz na klatkę obrazu.
 	for k in _dent_groups:
@@ -1308,6 +1328,9 @@ func _process(delta: float) -> void:
 		# Przełożenie kierownicy ~14:1, jak w aucie bez wspomagania z epoki.
 		var wheel_angle := (wheels[0].steer_angle + wheels[1].steer_angle) * 0.5 * 14.0
 		_steering_wheel.rotation = Vector3(0.0, -wheel_angle, 0.0)
+	if _concept_steer:
+		var wa := (wheels[0].steer_angle + wheels[1].steer_angle) * 0.5 * 14.0
+		_concept_steer.basis = Basis(_concept_steer_axis, wa)
 	if _tail_mat:
 		# Światła pozycyjne słabo, stop mocno.
 		var stop := maxf(brake if not (gear < 0 and automatic) else throttle, handbrake)
@@ -2090,3 +2113,215 @@ func _spoiler_box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material, pi
 	mi.position = pos
 	mi.rotation = Vector3(pitch, 0.0, 0.0)
 	parent.add_child(mi)
+
+
+# --------------------------------------------------------------------------
+# Model auta: sedan (własny, z wgnieceniami) albo concept car
+# --------------------------------------------------------------------------
+
+## "Car Concept" (Khronos glTF Sample Assets, CC BY 4.0 - Darmstadt Graphics
+## Group GmbH, Eric Chadwick; oryginał Unity Fan), przygotowany przez
+## tools/prepare_concept_car.sh. Model ma przód w +Z (obrót o 180°), większe
+## koła i fotel kierowcy na środku - fizyka dostaje jego wymiary: mocowania
+## kół, promień (przełożenie korygowane w apply_engine), kolizję z bryły.
+## Wymiary zmierzone w modelu: rozstaw osi 2,80 m, kół 1,96 m, koło r 0,49.
+const BASE_WHEEL_RADIUS := 0.33
+const SEDAN_CLUSTER := Vector3(-0.38, 0.235, -0.37)   # gauges.build w _build_body
+const CONCEPT := {
+	"scene": "res://models/concept_car/car_player.glb",
+	"mounts": [Vector3(-0.98, 0.0, -1.485), Vector3(0.98, 0.0, -1.485),
+			Vector3(-0.98, 0.0, 1.314), Vector3(0.98, 0.0, 1.314)],
+	"radius": 0.49,
+	"model_y": -0.794,      # początek modelu w układzie auta (środek koła na ugięciu)
+	# Fotel kierowcy na środku (układ jak w McLarenie F1: pasażerowie po
+	# bokach z tyłu); oczy nad kierownicą (środek koła kierownicy: y -0.15,
+	# z -0.93), dach od środka na ~0,33.
+	"seat": Vector3(0.0, 0.15, -0.40),
+	# Zestaw zegarów na desce za kierownicą (widoczny przez jej wnętrze).
+	"gauges": Vector3(0.0, -0.03, -1.15),
+	"body_box": [Vector3(1.90, 0.62, 4.30), Vector3(0.0, -0.42, -0.24)],
+	"cabin_box": [Vector3(1.40, 0.50, 2.10), Vector3(0.0, 0.10, -0.10)],
+	"wheels": ["WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR"],
+}
+@export var body_model: String = "sedan"
+var _concept: Node3D
+var _concept_steer: Node3D
+var _concept_steer_axis := Vector3.FORWARD
+var _concept_paint_mats: Array[BaseMaterial3D] = []
+var _concept_cockpit_mats: Array[BaseMaterial3D] = []
+var _paint_color := Color(0.8, 0.6, 0.18)
+var _sedan := {}                       # zapamiętane wymiary sedana
+var cockpit_offset := Vector3.ZERO     # przesunięcie fotela względem sedana
+## Przesunięcie środka masy dla modelu: większe koła podnoszą nadwozie,
+## środek masy zostaje na tej samej wysokości nad drogą co w sedanie i w tym
+## samym miejscu względem osi (bez tego concept car zsuwał się z łuków).
+var _model_com := Vector3.ZERO
+
+
+func set_body_model(kind: String) -> void:
+	if kind == body_model and (kind == "concept") == (_concept != null):
+		return
+	if _sedan.is_empty():
+		var mounts := []
+		for w in wheels:
+			mounts.append(w.mount)
+		_sedan = {"mounts": mounts, "radius": wheel_radius, "seat": seat.position,
+				"body": [(get_node("BodyShape").shape as BoxShape3D).size, (get_node("BodyShape") as Node3D).position],
+				"cabin": [(get_node("CabinShape").shape as BoxShape3D).size, (get_node("CabinShape") as Node3D).position],
+				"gauges": gauges.position if gauges else Vector3.ZERO,
+				"dash": dash_label.position if dash_label else Vector3.ZERO}
+	if _concept:
+		for m in _concept_cockpit_mats:
+			_cockpit_mats.erase(m)
+		_concept_cockpit_mats.clear()
+		_concept.queue_free()
+		_concept = null
+		_concept_steer = null
+		for w in wheels:
+			for c in w.node.get_children():
+				if c.has_meta("concept"):
+					c.queue_free()
+	var concept := kind == "concept" and ResourceLoader.exists(CONCEPT["scene"])
+	body_model = kind if concept or kind == "sedan" else "sedan"
+	var g: Dictionary = CONCEPT if concept else {}
+	# Fizyka: mocowania kół, promień, kolizja.
+	for i in range(4):
+		wheels[i].mount = g["mounts"][i] if concept else _sedan["mounts"][i]
+	wheel_radius = g["radius"] if concept else _sedan["radius"]
+	_sphere.radius = wheel_radius
+	_wheelbase = absf(wheels[0].mount.z - wheels[2].mount.z)
+	_track_width = absf(wheels[1].mount.x - wheels[0].mount.x)
+	if concept:
+		var mid_s: float = (_sedan["mounts"][0].z + _sedan["mounts"][2].z) * 0.5
+		var mid_c: float = (g["mounts"][0].z + g["mounts"][2].z) * 0.5
+		_model_com = Vector3(0.0, -(float(g["radius"]) - float(_sedan["radius"])), mid_c - mid_s)
+	else:
+		_model_com = Vector3.ZERO
+	var bb: Array = g["body_box"] if concept else _sedan["body"]
+	var cb: Array = g["cabin_box"] if concept else _sedan["cabin"]
+	var bs := get_node("BodyShape") as CollisionShape3D
+	var cs := get_node("CabinShape") as CollisionShape3D
+	(bs.shape as BoxShape3D).size = bb[0]
+	bs.position = bb[1]
+	(cs.shape as BoxShape3D).size = cb[0]
+	cs.position = cb[1]
+	# Fotel i to, co stoi przed nim (zegary, napis na desce).
+	seat.position = g["seat"] if concept else _sedan["seat"]
+	cockpit_offset = seat.position - _sedan["seat"]
+	# Zestaw zegarów sedana stoi w (-0,38, 0,235, -0,37) - w concept carze
+	# na desce za kierownicą, napis (bieg, kontrolki) pod nim.
+	var gshift: Vector3 = (g["gauges"] - SEDAN_CLUSTER) if concept else Vector3.ZERO
+	if gauges:
+		gauges.position = _sedan["gauges"] + gshift
+	if dash_label:
+		dash_label.position = _sedan["dash"] + gshift
+	# Wygląd sedana: karoseria, kabina, koła, spojlery, wycieraczki.
+	for c in get_children():
+		if c is MeshInstance3D or c.name in ["SteeringColumn", "Windshield", "SpoilerSmall", "SpoilerLarge"]:
+			(c as Node3D).visible = not concept
+	if not concept:
+		set_spoiler(spoiler)
+	for w in wheels:
+		for c in w.node.get_children():
+			if not c.has_meta("concept"):
+				(c as Node3D).visible = not concept
+	if concept:
+		_build_concept()
+	set_cockpit_transparency(_cockpit_alpha + 0.0001)
+	set_cockpit_transparency(_cockpit_alpha - 0.0001)
+	# Promień koła zmienia przełożenie - silnik od nowa.
+	if engine_type != "":
+		apply_engine(engine_type, engine_power_kw)
+
+
+func _build_concept() -> void:
+	_concept = (load(CONCEPT["scene"]) as PackedScene).instantiate() as Node3D
+	_concept.name = "ConceptBody"
+	_concept.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, CONCEPT["model_y"], 0.0))
+	add_child(_concept)
+	# Koła modelu jadą z naszymi kołami (ugięcie, skręt, obrót). Początek węzła
+	# koła w modelu to środek koła.
+	for i in range(4):
+		var n := _concept.find_child(CONCEPT["wheels"][i], true, false) as Node3D
+		if n == null:
+			continue
+		n.get_parent().remove_child(n)
+		n.set_meta("concept", true)
+		wheels[i].node.add_child(n)
+		n.transform = Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
+	# Kierownica: obrót wokół osi kolumny (od piasty do koła kierownicy).
+	var col := _concept.find_child("InteriorSteeringCylinder", true, false) as Node3D
+	var rim := _concept.find_child("InteriorSteeringWheel01", true, false) as Node3D
+	if col and rim:
+		var pivot := Node3D.new()
+		pivot.name = "SteerPivot"
+		var parent := col.get_parent() as Node3D
+		parent.add_child(pivot)
+		pivot.position = col.position
+		var axis := (rim.global_position - col.global_position)
+		if axis.length() > 0.01:
+			_concept_steer_axis = (parent.global_basis.inverse() * axis).normalized()
+		var keep := col.global_transform
+		parent.remove_child(col)
+		pivot.add_child(col)
+		col.global_transform = keep
+		_concept_steer = pivot
+	# Materiały: lakier (Paint 1/2) i przezroczystość kabiny dla wszystkiego
+	# oprócz szyb i świateł.
+	_concept_paint_mats.clear()
+	var seen := {}
+	var meshes: Array = _concept.find_children("*", "MeshInstance3D", true, false)
+	for w in wheels:
+		for c in w.node.get_children():
+			if c.has_meta("concept"):
+				meshes.append_array(c.find_children("*", "MeshInstance3D", true, false))
+	for mi in meshes:
+		var m3 := mi as MeshInstance3D
+		for si in range(m3.mesh.get_surface_count()):
+			var m := m3.get_active_material(si) as BaseMaterial3D
+			if m == null or seen.has(m):
+				continue
+			seen[m] = true
+			var nm := m.resource_name
+			_fix_concept_material(m, nm)
+			if nm.begins_with("Paint"):
+				_concept_paint_mats.append(m)
+			if m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED \
+					and not ("Glass" in nm or "light" in nm or "Mirror" in nm):
+				_cockpit_mats.append(m)
+				_concept_cockpit_mats.append(m)
+	set_paint(_paint_color)
+	# Wycieraczki i krople na szybie sedana nie pasują do tej szyby.
+	var ws := get_node_or_null("Windshield") as Node3D
+	if ws:
+		ws.visible = false
+
+
+## Poprawki materiałów modelu pod Godota i Questa: szkło używało
+## KHR_materials_transmission (Godot go nie ma - szyby wychodziły białe
+## i z kokpitu nic nie było widać), bok opony stracił kolor przy podmianie
+## tekstury z logo, lakier był lustrzany.
+func _fix_concept_material(m: BaseMaterial3D, nm: String) -> void:
+	# Mapa zacieniania to wspólny atlas 2048 px, po uproszczeniu siatki
+	# trafiała w złe miejsca (ciemne plamy na lakierze); bez niej też taniej.
+	m.ao_enabled = false
+	m.ao_texture = null
+	if "Glass" in nm:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_texture = null
+		m.albedo_color = Color(0.25, 0.32, 0.36, 0.22)
+		m.metallic = 0.0
+		m.roughness = 0.05
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	elif nm.begins_with("Tire"):
+		m.albedo_color = Color(0.05, 0.05, 0.05)
+		m.metallic = 0.0
+		m.roughness = 0.9
+	elif nm == "Rim2":
+		# Czysta biel, metaliczna - odbijała niebo i koła wyglądały na białe.
+		m.albedo_color = Color(0.32, 0.33, 0.35)
+		m.metallic = 0.4
+		m.roughness = 0.45
+	elif nm.begins_with("Paint"):
+		m.metallic = minf(m.metallic, 0.35)
+		m.roughness = maxf(m.roughness, 0.3)

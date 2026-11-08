@@ -106,6 +106,10 @@ const LINE_DEPTH := 1.5
 @export var pillar_material: Material
 
 var _samples: Array[Dictionary] = []
+## Dystanse próbek (rosnąco) - wyszukiwanie binarne zamiast przeglądania
+## wszystkich próbek (na Queście liniowe szukanie botów "po szynie" zjadało
+## ~25% procesora).
+var _dists := PackedFloat64Array()
 
 
 func _ready() -> void:
@@ -121,7 +125,28 @@ func _ready() -> void:
 # Budowa
 # --------------------------------------------------------------------------
 
+## Punkty profilu ściany (z 13) objęte kolizją - patrz _build_canyon.
+const CANYON_COLLIDE_K := 7
+## Budowa rozłożona na klatki (odcinki dobudowywane w trakcie jazdy): na
+## Queście budowa odcinka w jednym kawałku to ~0,5 s zamrożenia obrazu.
+## Próbki i jezdnia z kolizją powstają od razu, reszta (ściany, znaki,
+## tunele, zjazdy) w kolejnych klatkach - odcinek powstaje dwa odcinki przed
+## autem, więc zdąży.
+var slice_build := false
+var _built := false
+
+
+## Przerwa w budowie do następnej klatki. false = kawałek usunięty w trakcie
+## budowy (przerwać).
+func _slice() -> bool:
+	if not slice_build or Engine.is_editor_hint() or not is_inside_tree():
+		return true
+	await get_tree().process_frame
+	return is_inside_tree()
+
+
 func build() -> void:
+	_built = false
 	_clear_children()
 	_sample_path()
 	if _samples.size() < 2:
@@ -136,22 +161,32 @@ func build() -> void:
 	mi.name = "TrackMesh"
 	mi.mesh = mesh
 	_adopt(mi)
+	_build_road_collision(road_faces)
 
 	# Linie startu i mety; nad metą brama z banerem. Kawałki trasy bez końca
 	# mają własne bramy (punkty kontrolne) - wyłączają to przez build_lines.
 	if build_lines:
 		_build_line("StartLine", START_DISTANCE, false)
 		_build_line("FinishLine", finish_distance(), true)
+	if not await _slice():
+		return
 	if canyon:
 		_build_canyon()
+		if not await _slice():
+			return
 	if scenery and not canyon:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name) ^ int(float(_samples[0]["dist"]))
 		for node in Scenery.scatter(_samples, rng):
 			_adopt(node)
 	# Bramy punktów kontrolnych i znaki przed skokami (trasa generowana).
+	var n_meta := 0
 	for smp in _samples:
 		var meta: Dictionary = smp["meta"]
+		if not meta.is_empty():
+			n_meta += 1
+			if n_meta % 6 == 0 and not await _slice():
+				return
 		if meta.has("checkpoint"):
 			# Zielony znak "miejscowości" zamiast bramownicy (prośba użytkownika);
 			# tuż przed nim koniec poprzedniego odcinka - przekreślony (E-18a).
@@ -207,6 +242,12 @@ func build() -> void:
 				_road_sign(float(smp["dist"]) + 1.0, "limit", int(lim))
 		prev_lim = lim
 
+	_built = true
+
+
+## Kolizja jezdni (osobne ciało na każdą nawierzchnię) - od razu z siatką,
+## przed jakąkolwiek przerwą w budowie.
+func _build_road_collision(road_faces: Dictionary) -> void:
 	if not generate_collision:
 		return
 	for surf in road_faces:
@@ -242,6 +283,9 @@ func _sample_path() -> void:
 	if not st.has("pos"):
 		st["pos"] = Vector3(0.0, start_height, 0.0)
 	_samples = sample_segments(track, st, sample_step)
+	_dists.resize(_samples.size())
+	for i in range(_samples.size()):
+		_dists[i] = float(_samples[i]["dist"])
 
 
 ## Liczy próbki dla listy odcinków od stanu początkowego `start`
@@ -674,7 +718,10 @@ func _build_canyon() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
-	var step := 2
+	var no_faces := PackedVector3Array()
+	# Przekrój co 3 próbki (6 m; było co 4 m) - ściany są gładkie, a budowa
+	# ścian to ~60% czasu budowy odcinka (na Queście ~0,5 s szarpnięcia).
+	var step := 3
 	var prev := {}
 	var idxs := range(0, _samples.size(), step)
 	if idxs[-1] != _samples.size() - 1:
@@ -691,7 +738,13 @@ func _build_canyon() -> void:
 				for k in range(a.size() - 1):
 					# Ściana ma patrzeć do środka wąwozu (i w górę na półkach).
 					var inward: Vector3 = (smp["right"] * Vector3(1, 0, 1)).normalized() * -side
-					_quad_facing(st, faces, a[k], b[k], b[k + 1], a[k + 1], inward + Vector3.UP * 0.3)
+					# Kolizja tylko dolnej części ściany (do ~3. półki, ~18 m nad
+					# jezdnią) - wyżej auto nie doleci, a siatka kolizji całych
+					# ścian z płaskowyżem była droga w budowie.
+					var f_out := faces if k < CANYON_COLLIDE_K else no_faces
+					_quad_facing(st, f_out, a[k], b[k], b[k + 1], a[k + 1], inward + Vector3.UP * 0.3)
+					if k >= CANYON_COLLIDE_K:
+						no_faces.clear()
 		prev = prof
 	# Początek trasy: wąwóz zamknięty skalną ścianą za linią startu - inaczej
 	# za startem była otwarta przestrzeń i dało się wyjechać na trawę.
@@ -1150,12 +1203,14 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 				var lo: Vector3 = prev["r"] * 0.18
 				_quad_facing(lamp, dummy, la - lo, lb - lo, lb + lo, la + lo, Vector3.DOWN)
 		if d >= light_next:
-			light_next = d + 40.0
+			# Co 80 m (było 40): renderer mobilny płaci za każde światło na
+			# każdym oświetlanym obiekcie; jarzeniówka i tak świeci.
+			light_next = d + 80.0
 			for t in tubes:
 				var ol := OmniLight3D.new()
 				ol.light_color = Color(0.85, 0.95, 1.0)
-				ol.light_energy = 1.8
-				ol.omni_range = 22.0
+				ol.light_energy = 2.2
+				ol.omni_range = 30.0
 				ol.shadow_enabled = false
 				ol.position = (t[0] as Vector3) + Vector3.UP * (crown - 0.6)
 				_adopt(ol)
@@ -1502,12 +1557,18 @@ func _build_workshop(stop_dist: float) -> void:
 
 ## Próbki od `dist` na długości `length` (HUD trasy, autopilot).
 func samples_from(dist: float, length: float) -> Array:
-	var out := []
-	for s in _samples:
-		var d := float(s["dist"])
-		if d >= dist and d <= dist + length:
-			out.append(s)
-	return out
+	var i0 := _dists.bsearch(dist, true)
+	var i1 := _dists.bsearch(dist + length, false)
+	if i1 <= i0:
+		return []
+	return _samples.slice(i0, i1)
+
+
+## Dystans pierwszej i ostatniej próbki (zakres kawałka trasy).
+func dist_range() -> Vector2:
+	if _dists.is_empty():
+		return Vector2(INF, -INF)
+	return Vector2(_dists[0], _dists[_dists.size() - 1])
 
 
 ## Zjazd: wysepka (z kolizją) oddzielająca pas zjazdu od głównej drogi,
@@ -1682,10 +1743,8 @@ func workshops() -> Array:
 
 
 func _sample_near(dist: float) -> Dictionary:
-	for s in _samples:
-		if float(s["dist"]) >= dist:
-			return s
-	return _samples[-1]
+	var i := _dists.bsearch(dist, true)
+	return _samples[mini(i, _samples.size() - 1)]
 
 
 ## Całkowita długość toru w metrach.
@@ -1742,12 +1801,10 @@ func is_gap_at(dist: float) -> bool:
 func transform_at_distance(dist: float) -> Transform3D:
 	if _samples.is_empty():
 		return global_transform
-	var idx := 0
-	for i in range(_samples.size()):
-		if float(_samples[i]["dist"]) > dist:
-			break
-		if not _samples[i]["gap"]:
-			idx = i
+	# Ostatnia próbka nie dalej niż `dist`, która nie jest przerwą.
+	var idx := clampi(_dists.bsearch(dist, false) - 1, 0, _samples.size() - 1)
+	while idx > 0 and _samples[idx]["gap"]:
+		idx -= 1
 	return global_transform * _sample_transform(_samples[idx])
 
 
@@ -1758,22 +1815,41 @@ func _sample_transform(s: Dictionary) -> Transform3D:
 
 ## Zwraca próbkę najbliższą podanej pozycji. Pozwala tanio sprawdzić,
 ## jak daleko od osi toru jest samochód i czy już z niego spadł.
+## Najpierw okolica ostatnio znalezionej próbki (auto przesuwa się między
+## zapytaniami o kilka metrów); całość tylko, gdy najlepsza wypadła na
+## brzegu okna (auto przeskoczyło dalej, np. odrodzenie).
+var _near_hint := 0
+const NEAR_WINDOW := 40
+
 func nearest_sample(world_pos: Vector3) -> Dictionary:
+	if _samples.is_empty():
+		return {}
 	var local := to_local(world_pos)
-	var best: Dictionary = {}
+	var lo := maxi(_near_hint - NEAR_WINDOW, 0)
+	var hi := mini(_near_hint + NEAR_WINDOW, _samples.size() - 1)
+	var bi := _nearest_in(local, lo, hi)
+	if (bi == lo and lo > 0) or (bi == hi and hi < _samples.size() - 1):
+		bi = _nearest_in(local, 0, _samples.size() - 1)
+	_near_hint = bi
+	return _samples[bi]
+
+
+func _nearest_in(local: Vector3, lo: int, hi: int) -> int:
+	var bi := lo
 	var best_d := INF
-	for s in _samples:
-		var d: float = local.distance_squared_to(s["pos"])
+	for i in range(lo, hi + 1):
+		var d: float = local.distance_squared_to(_samples[i]["pos"])
 		if d < best_d:
 			best_d = d
-			best = s
-	return best
+			bi = i
+	return bi
 
 
 ## Odległość od osi toru w poprzek (dodatnia w prawo) oraz informacja,
 ## czy pozycja mieści się jeszcze w szerokości jezdni.
-func lateral_offset(world_pos: Vector3) -> Dictionary:
-	var s := nearest_sample(world_pos)
+func lateral_offset(world_pos: Vector3, s := {}) -> Dictionary:
+	if s.is_empty():
+		s = nearest_sample(world_pos)
 	if s.is_empty():
 		return {"offset": 0.0, "on_track": false}
 	var delta: Vector3 = to_local(world_pos) - s["pos"]
