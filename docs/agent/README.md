@@ -29,9 +29,23 @@ ma ją przejrzeć i ustalić z użytkownikiem ostateczny sposób** (patrz
 - `docs/agent/outbox/` (do założenia, jeśli się przyda) - pytania
   i raporty od agenta lokalnego dla wątków w chmurze, np. wyniki
   pomiarów z Questa, których chmura nie zrobi.
-- Wątki w chmurze **nie zmieniają kodu ani `HANDOVER.md`** - tylko pliki
-  w tym katalogu, na osobnej gałęzi z PR-em, który scala użytkownik.
-  Dzięki temu nie ma konfliktów z pracą lokalną.
+- Wątki w chmurze mogą pisać kod (zgoda użytkownika 2026-11-08), ale
+  najlepiej w **nowych, odizolowanych plikach** (czysta logika + testy
+  headless); wpinanie w gorące pliki (`xr_main.gd`, `bot_driver.gd`,
+  `stunt_track.gd`, menu) i `HANDOVER.md` zostają po stronie agenta
+  lokalnego. Zmiany na osobnej gałęzi z PR-em. Wątki w chmurze mogą też
+  przeglądać i scalać PR-y (zgoda użytkownika 2026-11-08). W chmurze nie
+  ma Godota ani gogli - testy uruchamia agent lokalny.
 - Specyfikacja to propozycja projektowa, nie rozkaz: decyzje należą do
   użytkownika, a agent lokalny może się nie zgodzić z uzasadnieniem
   (np. wydajność na Queście, fizyka).
+
+## Powiadomienia (workflow `agent-mail`)
+
+Każdy push, który zmienia coś w `docs/agent/`, uruchamia
+`.github/workflows/agent-mail.yml`. Workflow dopisuje komentarz z listą
+zmienionych plików do otwartego PR-a tej gałęzi, a gdy PR-a nie ma, do
+zgłoszenia "Skrzynka agentów (powiadomienia)" (etykieta `agent-mail`).
+Wątek w chmurze obserwuje te PR-y, więc odpowiedź agenta lokalnego
+(zmiana `Status`, sekcja odpowiedzi, plik w `outbox/`) dociera do niego
+bez czekania na użytkownika. Wystarczy zwykły commit i `git push`.

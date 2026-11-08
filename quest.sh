@@ -77,8 +77,9 @@ do_test() {
 		local name=$1 args=$2 pattern=$3 out
 		say "Test: $name $args"
 		out=$(timeout 300 godot --headless --xr-mode off -s "res://tests/$name.gd" -- $args </dev/null 2>&1) || true
-		if grep -qE "SCRIPT ERROR|Parse Error" <<<"$out"; then
-			grep -E "SCRIPT ERROR|Parse Error|at: " <<<"$out" | head -10
+		# Błąd skryptu albo test zgłaszający porażkę ("..._test: BŁĄD").
+		if grep -qE "SCRIPT ERROR|Parse Error|_test: BŁĄD" <<<"$out"; then
+			grep -E "SCRIPT ERROR|Parse Error|at: |BŁĄD" <<<"$out" | head -10
 			printf '\033[1;31m  NIE PRZESZEDŁ\033[0m\n'
 			failed=1
 		else
@@ -96,6 +97,9 @@ do_test() {
 	run_test respawn_test ""             "max obrót"
 	run_test service_test ""             "station|workshop"
 	run_test endless_test "180 petrol 777 150" "upadek|KONIEC|LIMIT"
+	run_test highway_test ""             "spadek|highway_test"
+	run_test score_test ""               "score_test|pkt"
+	run_test stunt_shop_test ""          "stunt_shop_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }

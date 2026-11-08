@@ -125,10 +125,27 @@ static func jump_schedule(index: int) -> Dictionary:
 	return {"runup": runup, "v_bottom_kmh": lerpf(lo, hi, t)}
 
 
+## Autostrada zamiast wąwozu (użytkownik): co 5 odcinków (3., 8., 13., ...)
+## cały odcinek - nie wypada na stację (5., 10., ...) ani warsztat (11., ...).
+const HIGHWAY_EVERY := 5
+const HIGHWAY_PHASE := 3
+const LIMIT_HIGHWAY := 140.0
+const HIGHWAY_HEIGHT := 4.0          # jezdnia nad terenem na autostradzie [m]
+## Odstęp jezdni: środek naszej jezdni -> środek przeciwnej (szerokość jezdni
+## + pas rozdziału z barierą).
+const HIGHWAY_MEDIAN := 3.0
+
+
+static func is_highway(index: int) -> bool:
+	return index >= HIGHWAY_PHASE and index % HIGHWAY_EVERY == HIGHWAY_PHASE
+
+
 ## Sekcja nr `index` (od 1) zaczynająca się w stanie `start` (jak
 ## StuntTrack.start_state). Zwraca listę odcinków.
 static func generate_section(index: int, start: Dictionary, rng: RandomNumberGenerator,
 		canyon := false) -> Array:
+	if canyon and is_highway(index):
+		return _highway_section(index, start, rng)
 	var d := difficulty(start.get("dist", 0.0))
 	# Wąwóz: bez przerw w jezdni (skocznie ze stołem) i nisko - ściany mają
 	# 30 m, a płaskowyż na ich szczycie nie może wisieć nad przepaścią.
@@ -474,3 +491,81 @@ static func _jump_geometry(probe: Dictionary, ramp: Dictionary, gap_len: float,
 	var denom := 2.0 * cos(theta) * cos(theta) * (d_eff * tan(theta) + h_eff)
 	var v_req := sqrt(G * d_eff * d_eff / maxf(denom, 0.01))
 	return {"v_req": v_req, "ramp_h": takeoff.y - probe["pos"].y, "dx": dx, "drop": drop}
+
+
+
+# --------------------------------------------------------------------------
+# Autostrada
+# --------------------------------------------------------------------------
+
+## Odcinek autostrady: wjazd (zejście do HIGHWAY_HEIGHT nad terenem, znak
+## "autostrada"), długie proste, szerokie łuki, łagodne garby, jedna
+## skocznia (stół jak w wąwozie), wiadukty nad drogą; na końcu podjazd
+## i znak "koniec autostrady". Geometrię (druga jezdnia, bariery, nasyp,
+## wiadukty) buduje StuntTrack._build_highway - po meta "highway" na
+## pierwszej próbce. Ruch z naprzeciwka - XrMain (druga jezdnia).
+static func _highway_section(index: int, start: Dictionary, rng: RandomNumberGenerator) -> Array:
+	var d := difficulty(start.get("dist", 0.0))
+	d["canyon"] = true                   # skocznia ze stołem, bez przerw
+	d["hmin"] = 2.0
+	d["hmax"] = 12.0
+	var js := jump_schedule(index)
+	d["runup"] = js["runup"]
+	d["v_bottom"] = js["v_bottom_kmh"] / 3.6
+	var out: Array = []
+	var state := start.duplicate()
+	var w := 14.8
+	_push(out, state, {"len": 40.0, "pitch": 0.0, "bank": 0.0, "width": w, "limit": LIMIT_OPEN,
+			"meta": {"checkpoint": index, "highway": true}})
+	# Zjazd/podjazd do wysokości autostrady, łagodnie (do 4°).
+	_highway_level(out, state, HIGHWAY_HEIGHT)
+	_push(out, state, {"len": 30.0, "pitch": 0.0, "limit": LIMIT_HIGHWAY,
+			"meta": {"road_sign": "highway"}})
+	var jump_at := rng.randi_range(1, 3)
+	for m in range(5):
+		_maybe_slippery_zone(state, d, rng)
+		if m == jump_at:
+			_jump(out, state, d, rng)
+			_highway_level(out, state, HIGHWAY_HEIGHT)
+			_push(out, state, {"len": 20.0, "pitch": 0.0, "limit": LIMIT_HIGHWAY})
+			continue
+		var roll := rng.randf()
+		if roll < 0.45:
+			# Szeroki łuk (r 350-600 m) z małą przechyłką.
+			var dir := -1.0 if rng.randf() < 0.5 else 1.0
+			var yaw: float = state.get("yaw", 0.0)
+			if absf(yaw) > MAX_YAW * 0.5:
+				dir = -signf(yaw)
+			var r := rng.randf_range(350.0, 600.0)
+			var ang := deg_to_rad(rng.randf_range(15.0, 35.0))
+			_push(out, state, {"len": ang * r, "curve": rad_to_deg(1.0 / r) * dir, "bank": 4.0 * dir,
+					"pitch": 0.0, "limit": LIMIT_HIGHWAY, "meta": {"overpass": rng.randf() < 0.4}})
+			_push(out, state, {"len": 40.0, "curve": 0.0, "bank": 0.0})
+		elif roll < 0.65:
+			# Łagodny garb (2-3°), bez ograniczenia prędkości.
+			var p := rng.randf_range(2.0, 3.0)
+			_push(out, state, {"len": 80.0, "pitch": p})
+			_push(out, state, {"len": 120.0, "pitch": -p})
+			_push(out, state, {"len": 60.0, "pitch": 0.0})
+			_highway_level(out, state, HIGHWAY_HEIGHT)
+		else:
+			_push(out, state, {"len": rng.randf_range(150.0, 300.0), "pitch": 0.0, "curve": 0.0,
+					"bank": 0.0, "limit": LIMIT_HIGHWAY, "meta": {"overpass": true}})
+	_push(out, state, {"len": 40.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0, "limit": LIMIT_OPEN,
+			"meta": {"road_sign": "highway_end"}})
+	# Podjazd z powrotem na wysokość wąwozu (jego generator i tak pilnuje).
+	_highway_level(out, state, 8.0)
+	_push(out, state, {"len": 30.0, "pitch": 0.0})
+	return out
+
+
+## Zmiana wysokości jezdni do `target` [m nad terenem]: rampa do 4°.
+static func _highway_level(out: Array, state: Dictionary, target: float) -> void:
+	var dy: float = target - float(state["pos"].y)
+	if absf(dy) < 0.5:
+		return
+	var p := clampf(rad_to_deg(atan(dy / 200.0)), -4.0, 4.0)
+	var l := absf(dy / tan(deg_to_rad(p)))
+	_push(out, state, {"len": 30.0, "pitch": p})
+	_push(out, state, {"len": maxf(l - 30.0, 10.0), "pitch": p})
+	_push(out, state, {"len": 30.0, "pitch": 0.0})

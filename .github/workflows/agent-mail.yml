@@ -1,0 +1,67 @@
+# Dzwonek skrzynki agentów: gdy push zmienia docs/agent/**, workflow
+# zostawia komentarz w otwartym PR-ze tej gałęzi (albo w zgłoszeniu
+# "Skrzynka agentów", gdy PR-a nie ma). Wątek w chmurze obserwuje PR-y
+# i zgłoszenia, więc komentarz go budzi. Nie dotyka kodu gry.
+name: agent-mail
+
+on:
+  push:
+    paths:
+      - 'docs/agent/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            const before = context.payload.before;
+            const after = context.payload.after;
+
+            // Pliki zmienione w docs/agent/ w tym pushu.
+            let files = [];
+            if (before && !/^0+$/.test(before)) {
+              const cmp = await github.rest.repos.compareCommits({ owner, repo, base: before, head: after });
+              files = (cmp.data.files || []).filter(f => f.filename.startsWith('docs/agent/'));
+            }
+            const list = files.length
+              ? files.map(f => `- \`${f.filename}\` (${f.status})`).join('\n')
+              : '- (nowa gałąź albo brak listy plików)';
+            const commits = (context.payload.commits || [])
+              .map(c => `- ${c.id.slice(0, 7)} ${c.message.split('\n')[0]} (${c.author.name})`)
+              .join('\n');
+
+            const body = [
+              '📬 **agent-mail**: zmiana w skrzynce `docs/agent/`',
+              `Gałąź: \`${branch}\`, commit ${after.slice(0, 7)}`,
+              '', 'Pliki:', list, '', 'Commity:', commits || '-',
+            ].join('\n');
+
+            const prs = await github.rest.pulls.list({ owner, repo, state: 'open', head: `${owner}:${branch}` });
+            if (prs.data.length) {
+              for (const pr of prs.data) {
+                await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              }
+              return;
+            }
+
+            // Brak PR-a: komentarz w stałym zgłoszeniu "Skrzynka agentów".
+            const title = 'Skrzynka agentów (powiadomienia)';
+            const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'agent-mail' });
+            let num = issues.data.find(i => i.title === title)?.number;
+            if (!num) {
+              const created = await github.rest.issues.create({
+                owner, repo, title, labels: ['agent-mail'],
+                body: 'Zbiorcze powiadomienia workflow `agent-mail` o zmianach w `docs/agent/` na gałęziach bez otwartego PR-a.',
+              });
+              num = created.data.number;
+            }
+            await github.rest.issues.createComment({ owner, repo, issue_number: num, body });

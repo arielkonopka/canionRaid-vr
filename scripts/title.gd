@@ -12,7 +12,11 @@ extends Node3D
 ## Bez wskaźnika laserowego: przy kilku wierszach drążek jest szybszy.
 
 const RACE_SCENE := "res://scenes/main.tscn"
-const MENU_DISTANCE := 2.6
+## Menu 1 m przed oczami (użytkownik: przy 2,6 m bywało daleko i słabo
+## czytelne). Układ napisów zaprojektowany na 2,6 m - skalujemy cały węzeł,
+## żeby w polu widzenia zajmował tyle samo.
+const MENU_DISTANCE := 1.0
+const MENU_LAYOUT_DISTANCE := 2.6
 const MAX_ROWS := 8                  # najwięcej wierszy na ekranie (z "Wróć"/START)
 const COLOR_NORMAL := Color(0.92, 0.94, 0.97)
 const COLOR_SELECTED := Color(1.0, 0.75, 0.2)
@@ -42,6 +46,7 @@ var _group := ""
 var _entries: Array[Dictionary] = []
 var _selected := 0
 var _driver: BotDriver
+const TITLE_DRIVE := false
 var _progress_t := 0.0
 
 
@@ -68,17 +73,36 @@ func _ready() -> void:
 	# a w przestrzeni "local" oczy wypadały na poziomie jezdni (widok spod
 	# spodu). Auto ma ustawienia gracza (lakier, napęd) na żywo.
 	GameSettings.apply_to_car(car)
+	# Statyczna scena (użytkownik): jadące auto z kamerą w pościgu dawało
+	# skaczące menu - auto stoi na drodze, kamera stoi za nim, menu wisi
+	# nieruchomo w świecie. Jazda w menu zostaje w kodzie (TITLE_DRIVE).
 	_place_car(30.0)
-	_driver = BotDriver.new()
-	_driver.name = "Driver"
-	_driver.car = car
-	_driver.track = track
-	_driver.dist = 30.0
-	car.add_child(_driver)
+	if TITLE_DRIVE:
+		_driver = BotDriver.new()
+		_driver.name = "Driver"
+		_driver.car = car
+		_driver.track = track
+		_driver.dist = 30.0
+		car.add_child(_driver)
+	else:
+		# Kołami na jezdni: środek koła ~0,41 m pod mocowaniem (ugięcie
+		# pod ciężarem) + promień koła (sedan i concept mają różne koła).
+		var xf := track.transform_at_distance(30.0)
+		var lane := (float(track.samples_from(30.0, 1.0)[0]["width"]) - 1.0) / 3.0
+		car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane
+				+ xf.basis.y * (0.41 + car.wheel_radius)))
+		car.linear_velocity = Vector3.ZERO
+		for w in car.wheels:
+			w.omega = 0.0
+			w.spring_len = 0.41
+		car.freeze = true
 	_follow_car()
 
 	_build_menu()
 	enter_group("")
+	var oxr := XRServer.find_interface("OpenXR")
+	if oxr and oxr.has_signal("pose_recentered"):
+		oxr.pose_recentered.connect(func(): _menu_placed_t = 0.0)
 	if _xr:
 		XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, false)
 
@@ -105,6 +129,8 @@ const CHASE_BACK := 7.0
 const CHASE_UP := 2.4
 var _chase := Transform3D()
 var _chase_ready := false
+var _chase_yaw := 0.0
+var _chase_yaw_ready := false
 
 func _follow_car(delta := 0.0) -> void:
 	var cx := car.get_global_transform_interpolated()
@@ -117,10 +143,12 @@ func _follow_car(delta := 0.0) -> void:
 	var k := 1.0 if not _chase_ready else 1.0 - exp(-4.0 * delta)
 	_chase_ready = true
 	var pos := _chase.origin.lerp(target, k)
-	var look := cx.origin + fwd * 6.0 + Vector3.UP * 0.6
-	var flat := look - pos
-	flat.y = 0.0
-	_chase = Transform3D(Basis.looking_at(flat.normalized(), Vector3.UP), pos)
+	# Kierunek patrzenia wygładzany osobno i wolniej (auto drga na
+	# nierównościach - obrót kamery za nim szarpał tłem).
+	var want_yaw := atan2(-fwd.x, -fwd.z)
+	_chase_yaw = want_yaw if not _chase_yaw_ready else lerp_angle(_chase_yaw, want_yaw, 1.0 - exp(-2.0 * delta))
+	_chase_yaw_ready = true
+	_chase = Transform3D(Basis(Vector3.UP, _chase_yaw), pos)
 	origin.global_transform = _chase
 	car.set_cockpit_transparency(0.0)
 
@@ -145,13 +173,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _build_menu() -> void:
-	# Menu przypięte na sztywno do gracza (dziecko XROrigin = punkt
-	# odniesienia głowy w przestrzeni "local"): zawsze to samo miejsce przed
-	# nim, jedzie razem z kamerą. Podążanie za wzrokiem przy jadącej
-	# kamerze szarpało (użytkownik: "menu strasznie skacze").
+	# Menu nieruchome w świecie przed graczem (dziecko stojącego XROrigin).
+	# Przypięte do kamery i do jadącej platformy skakało (użytkownik).
 	_menu = Node3D.new()
 	_menu.name = "Menu"
 	_menu.position = Vector3(0.0, 0.0, -MENU_DISTANCE)
+	_menu.scale = Vector3.ONE * (MENU_DISTANCE / MENU_LAYOUT_DISTANCE)
 	origin.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
@@ -329,7 +356,28 @@ func _on_xr_button(button: String) -> void:
 			_cancel()
 
 
+## Menu ustawiane przed oczami, gdy gogle już śledzą głowę (pierwsze
+## klatki bywają bez pozycji) - potem nieruchome. Wcześniej stało w stałym
+## punkcie od startu i przy przesuniętej głowie bywało "bardzo daleko".
+var _menu_placed_t := 0.0
+
+func _place_menu() -> void:
+	var head := camera.global_transform
+	var f := -head.basis.z
+	f.y = 0.0
+	if f.length_squared() < 0.01:
+		f = -origin.global_basis.z
+	f = f.normalized()
+	_menu.global_transform = Transform3D(Basis.looking_at(f, Vector3.UP).scaled(
+			Vector3.ONE * (MENU_DISTANCE / MENU_LAYOUT_DISTANCE)), head.origin + f * MENU_DISTANCE)
+
+
 func _process(_delta: float) -> void:
+	# Ustawiane przez 1,5 s od startu (śledzenie głowy bywa opóźnione, np.
+	# po wybudzeniu Questa) i od nowa po przecentrowaniu widoku.
+	if _menu_placed_t < 1.5:
+		_menu_placed_t += _delta
+		_place_menu()
 	if _driver:
 		_follow_car(_delta)
 	# Drążek: gałka w goglach albo lewa gałka pada. Jeden ruch = jeden krok,

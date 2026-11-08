@@ -49,7 +49,11 @@ func _add_section() -> void:
 	var chunk := StuntTrack.new()
 	chunk.name = "Section%d" % _sections
 	chunk.segments.assign(TrackGenerator.generate_section(_sections, start, rng, canyon))
-	chunk.canyon = canyon
+	# Autostrada (co kilka odcinków) zamiast wąwozu - bez ścian, z drugą
+	# jezdnią; sąsiednie kawałki wąwozu otwierają się przy styku.
+	chunk.section_index = _sections
+	chunk.highway = canyon and TrackGenerator.is_highway(_sections)
+	chunk.canyon = canyon and not chunk.highway
 	chunk.scenery = not canyon
 	chunk.start_state = start
 	# Trasa bez końca: bez szachownicy startu/mety (użytkownik: "znika
@@ -145,6 +149,13 @@ func lateral_offset(world_pos: Vector3) -> Dictionary:
 		return {"offset": 0.0, "on_track": false}
 	# Ta sama próbka - bez drugiego szukania w kawałku.
 	return (r[0] as StuntTrack).lateral_offset(world_pos, r[1])
+
+
+## Czy na dystansie `dist` jest odcinek autostrady (w wczytanych kawałkach).
+func is_highway_at(dist: float) -> bool:
+	var c := _chunk_for(dist)
+	var r := c.dist_range()
+	return dist >= r.x and dist <= r.y and c.highway
 
 
 func transform_at_distance(dist: float) -> Transform3D:

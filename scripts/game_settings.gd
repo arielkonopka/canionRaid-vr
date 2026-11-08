@@ -46,6 +46,8 @@ var rage_calm: int = 6
 var rage_strategy: String = "mixed"
 ## Posiłki: szał jednego bota zaraża boty w promieniu 400 m.
 var rage_reinforce: bool = true
+## Szansa [%], że wyprzedzony (nie potrącony) bot wpadnie w furię.
+var rage_overtake: int = 25
 ## Opony: "all_season" całoroczne (domyślnie), "summer" letnie, "winter"
 ## zimowe (StuntCar.TIRE_COMPOUNDS).
 var tires: String = "all_season"
@@ -407,6 +409,17 @@ var OPTIONS: Array[Dictionary] = [
 			"Jedzie przed tobą od krawędzi do krawędzi - nie wyprzedzisz.",
 			"Wyprzedza, staje na poboczu i wyjeżdża ci przed maskę.",
 			"Dwa boty w szale biorą cię z obu boków. Sam bot spycha z boku.",
+		],
+	},
+	{
+		"key": "rage_overtake", "group": "rage", "label": "Furia po wyprzedzeniu",
+		"values": [0, 10, 25, 50],
+		"names": ["Wył.", "10%", "25%", "50%"],
+		"hints": [
+			"Bot wpada w szał tylko po stłuczce.",
+			"Czasem wyprzedzony bot się wścieka - posiłki wzywa dopiero po kontakcie.",
+			"Co czwarty wyprzedzony bot się wścieka - posiłki dopiero po kontakcie.",
+			"Co drugi wyprzedzony bot się wścieka - posiłki dopiero po kontakcie.",
 		],
 	},
 	{

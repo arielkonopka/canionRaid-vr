@@ -92,6 +92,11 @@ const LINE_DEPTH := 1.5
 @export var scenery: bool = true
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
+## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
+## nasyp, wiadukty - _build_highway. Numer odcinka mówi kawałkowi wąwozu,
+## czy sąsiad jest autostradą (wtedy ściany "otwierają się" przy styku).
+var highway := false
+var section_index := 0
 ## Wysokość ścian wąwozu nad jezdnią [m] (średnia; zmienia się z dystansem).
 @export var canyon_height: float = 30.0
 ## Linie startu i mety (pokazowa trasa). Trasa bez końca je wyłącza.
@@ -174,6 +179,10 @@ func build() -> void:
 		_build_canyon()
 		if not await _slice():
 			return
+	if highway:
+		_build_highway()
+		if not await _slice():
+			return
 	if scenery and not canyon:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name) ^ int(float(_samples[0]["dist"]))
@@ -220,6 +229,12 @@ func build() -> void:
 			_road_sign(float(smp["dist"]) + 20.0, "fuel" if meta["service_ahead"] == "station" else "repair")
 		if meta.has("service"):
 			_build_service(float(smp["dist"]), meta["service"])
+		# Znak drogowy z generatora (autostrada / koniec) - "sign" to już
+		# napis z prędkością przed skocznią (inne znaczenie).
+		if meta.has("road_sign"):
+			_road_sign(float(smp["dist"]) + 8.0, meta["road_sign"])
+		if meta.get("overpass", false):
+			_build_overpass(float(smp["dist"]) + 50.0)
 	# Ograniczenia prędkości: B-33 przy każdym nowym ograniczeniu, B-34
 	# "koniec ograniczenia" przy powrocie na otwartą drogę (zamiast "100").
 	# A-15 śliska jezdnia przed mokrym fragmentem i lodem.
@@ -857,7 +872,10 @@ func _canyon_profile(smp: Dictionary, side: int) -> Array:
 	var hscale := 1.0 + 0.25 * sin(d * 0.006 + ph) + 0.12 * sin(d * 0.023 + ph * 2.0)
 	var total_h := canyon_height * hscale
 	var sea := 0.0 if smp.get("roof", false) else sea_factor(d, side)
-	total_h = lerpf(total_h, PARAPET_H, sea)
+	# Wąwóz otwiera się przy styku z autostradą: ściany schodzą do niskiego
+	# progu, płaskowyż do terenu (zamiast ucięcia ściany na styku kawałków).
+	var openf := _open_factor(d)
+	total_h = lerpf(total_h, PARAPET_H, maxf(sea, openf))
 	var pts := [edge - Vector3.UP * 0.02]
 	var x := 1.8
 	var y := 0.1
@@ -873,12 +891,26 @@ func _canyon_profile(smp: Dictionary, side: int) -> Array:
 	# Płaskowyż - daleko, żeby z dna nie było widać jego końca. Nad morzem
 	# zamiast niego stok od progu w dół, pod lustro wody.
 	var plateau := edge + out * (x + 300.0) + Vector3.UP * y
-	if sea > 0.0:
-		var drop := edge + out * (x + 4.0 + 1.2 * maxf(edge.y + y - SEA_Y, 0.0)) \
-				+ Vector3.UP * (SEA_Y - 3.0 - edge.y)
-		plateau = plateau.lerp(drop, sea)
+	if sea > 0.0 or openf > 0.0:
+		var to_y := SEA_Y - 3.0 if sea >= openf else -0.5
+		var drop := edge + out * (x + 4.0 + 1.2 * maxf(edge.y + y - to_y, 0.0)) \
+				+ Vector3.UP * (to_y - edge.y)
+		plateau = plateau.lerp(drop, maxf(sea, openf))
 	pts.append(plateau)
 	return pts
+
+
+## 0..1 - jak bardzo wąwóz jest "otwarty" na dystansie d (styk z odcinkiem
+## autostrady przed albo za tym kawałkiem; przejście na 150 m).
+func _open_factor(d: float) -> float:
+	if section_index <= 0 or _dists.is_empty():
+		return 0.0
+	var f := 0.0
+	if TrackGenerator.is_highway(section_index - 1):
+		f = maxf(f, 1.0 - smoothstep(0.0, 150.0, d - _dists[0]))
+	if TrackGenerator.is_highway(section_index + 1):
+		f = maxf(f, 1.0 - smoothstep(0.0, 150.0, _dists[_dists.size() - 1] - d))
+	return f
 
 
 ## Czworokąt nawinięty tak, żeby jego przód patrzył w stronę `facing`
@@ -980,6 +1012,23 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 			_sign_box(root, Vector3(0.04, 0.16, 0.01), face + Vector3(0.09, 0.14, 0.025), mats["black"])
 			if value == 1:
 				_exit_arrow(root, face, mats["white"])
+		"highway", "highway_end":
+			# Autostrada / koniec autostrady (wzór jak w Polsce): niebieska
+			# tablica, biały piktogram - dwie jezdnie pod wiaduktem; koniec -
+			# czerwony skos.
+			if not _shared_mats.has("sign_blue"):
+				var bmh := StandardMaterial3D.new()
+				bmh.albedo_color = Color(0.05, 0.25, 0.65)
+				_shared_mats["sign_blue"] = bmh
+			_sign_box(root, Vector3(0.8, 0.8, 0.02), face, _shared_mats["sign_blue"])
+			_sign_box(root, Vector3(0.56, 0.06, 0.01), face + Vector3(0, 0.12, 0.015), mats["white"])
+			for sx in [-1.0, 1.0]:
+				var lane := _sign_box(root, Vector3(0.07, 0.36, 0.01), face + Vector3(0.11 * sx, -0.08, 0.015), mats["white"])
+				lane.rotation = Vector3(0, 0, 0.35 * sx)
+			_sign_box(root, Vector3(0.03, 0.28, 0.01), face + Vector3(0, -0.1, 0.015), mats["white"])
+			if kind == "highway_end":
+				var bar := _sign_box(root, Vector3(0.95, 0.07, 0.01), face + Vector3(0, 0, 0.025), mats["red"])
+				bar.rotation = Vector3(0, 0, -0.75)
 		"repair":
 			# Znak warsztatu: niebieska tablica, białe pole, klucz.
 			if not _shared_mats.has("sign_blue"):
@@ -1856,3 +1905,183 @@ func lateral_offset(world_pos: Vector3, s := {}) -> Dictionary:
 	var offset: float = delta.dot(s["right"])
 	var on_track: bool = not s["gap"] and absf(offset) <= float(s["width"]) * 0.5
 	return {"offset": offset, "on_track": on_track, "sample": s}
+
+
+
+# --------------------------------------------------------------------------
+# Autostrada
+# --------------------------------------------------------------------------
+
+## Druga jezdnia (przesunięta w lewo o szerokość jezdni + pas rozdziału),
+## betonowa bariera środkowa, trawiasty pas rozdziału, bariery
+## energochłonne po zewnętrznych krawędziach, nasyp do terenu (y = 0).
+## Wszystko z kolizją oprócz trawy na nasypie.
+func _build_highway() -> void:
+	var med := TrackGenerator.HIGHWAY_MEDIAN
+	# Druga jezdnia: te same próbki przesunięte w lewo - siatka i kolizja
+	# jak jezdni głównej (ten sam materiał z liniami).
+	var shifted: Array[Dictionary] = []
+	for smp in _samples:
+		var c: Dictionary = smp.duplicate()
+		c["pos"] = (smp["pos"] as Vector3) - (smp["right"] as Vector3) * (float(smp["width"]) + med)
+		shifted.append(c)
+	var keep := _samples
+	_samples = shifted
+	var opp_faces := {}
+	var opp_mesh := _build_mesh(opp_faces)
+	_samples = keep
+	var omi := MeshInstance3D.new()
+	omi.name = "OppositeRoad"
+	omi.mesh = opp_mesh
+	_adopt(omi)
+	_build_road_collision(opp_faces)
+
+	var concrete := SurfaceTool.new()
+	concrete.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var metal := SurfaceTool.new()
+	metal.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var grass := SurfaceTool.new()
+	grass.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var faces := PackedVector3Array()
+	var none := PackedVector3Array()
+	var prev := {}
+	var idxs := range(0, _samples.size(), 2)
+	if idxs[-1] != _samples.size() - 1:
+		idxs.append(_samples.size() - 1)
+	for i in idxs:
+		var smp: Dictionary = _samples[i]
+		var c: Vector3 = smp["pos"]
+		var r: Vector3 = smp["right"]
+		var rh := (r * Vector3(1, 0, 1)).normalized()
+		var hw := float(smp["width"]) * 0.5
+		var mid := c - r * (hw + med * 0.5)               # środek pasa rozdziału
+		var out_r := c + r * (hw + 0.6)                     # bariera prawa
+		var out_l := c - r * (hw + med + 2.0 * hw + 0.6)    # bariera lewa (druga jezdnia)
+		var h_r := maxf(out_r.y, 0.0)
+		var h_l := maxf(out_l.y, 0.0)
+		var p := {
+			# Bariera betonowa (New Jersey): podstawa 0,6 m, góra 0,2 m, 0,85 m.
+			"jb_l0": mid - rh * 0.3, "jb_l1": mid - rh * 0.1 + Vector3.UP * 0.85,
+			"jb_r0": mid + rh * 0.3, "jb_r1": mid + rh * 0.1 + Vector3.UP * 0.85,
+			# Trawa w pasie rozdziału (między krawędziami jezdni).
+			"md_r": c - r * hw + Vector3.DOWN * 0.03, "md_l": c - r * (hw + med) + Vector3.DOWN * 0.03,
+			# Bariery energochłonne: taśma 0,5-0,85 m.
+			"gr0": out_r + Vector3.UP * 0.5, "gr1": out_r + Vector3.UP * 0.85,
+			"gl0": out_l + Vector3.UP * 0.5, "gl1": out_l + Vector3.UP * 0.85,
+			# Nasyp 1:2 do terenu.
+			"er0": out_r + Vector3.DOWN * 0.05, "er1": Vector3(out_r.x, 0.0, out_r.z) + rh * (2.0 * h_r + 2.0),
+			"el0": out_l + Vector3.DOWN * 0.05, "el1": Vector3(out_l.x, 0.0, out_l.z) - rh * (2.0 * h_l + 2.0),
+			# Pobocze między jezdnią a barierą.
+			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
+		}
+		if not prev.is_empty():
+			var q := prev
+			_quad_facing(concrete, faces, q["jb_l0"], p["jb_l0"], p["jb_l1"], q["jb_l1"], -rh)
+			_quad_facing(concrete, faces, q["jb_r0"], p["jb_r0"], p["jb_r1"], q["jb_r1"], rh)
+			_quad_facing(concrete, faces, q["jb_l1"], p["jb_l1"], p["jb_r1"], q["jb_r1"], Vector3.UP)
+			# Pas rozdziału i pobocza z kolizją (przegląd PR #7: bez niej auto
+			# zepchnięte ~0,5 m za krawędź spadało pod nasyp); nasyp bez.
+			_quad_facing(grass, faces, q["md_r"], p["md_r"], p["md_l"], q["md_l"], Vector3.UP)
+			_quad_facing(metal, faces, q["gr0"], p["gr0"], p["gr1"], q["gr1"], -rh)
+			_quad_facing(metal, none, q["gr0"], p["gr0"], p["gr1"], q["gr1"], rh)
+			_quad_facing(metal, faces, q["gl0"], p["gl0"], p["gl1"], q["gl1"], rh)
+			_quad_facing(metal, none, q["gl0"], p["gl0"], p["gl1"], q["gl1"], -rh)
+			_quad_facing(grass, faces, q["sr0"], p["sr0"], p["er0"], q["er0"], Vector3.UP)
+			_quad_facing(grass, none, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
+			_quad_facing(grass, faces, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)
+			_quad_facing(grass, none, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
+			none.clear()
+		prev = p
+	concrete.generate_normals()
+	concrete.set_material(_concrete_material())
+	metal.generate_normals()
+	metal.set_material(_metal_material())
+	grass.generate_normals()
+	grass.set_material(_grass_material())
+	var mesh := concrete.commit()
+	metal.commit(mesh)
+	grass.commit(mesh)
+	var mi := MeshInstance3D.new()
+	mi.name = "HighwaySides"
+	mi.mesh = mesh
+	_adopt(mi)
+	_collision_body("HighwayBarriers", faces, "rock", 0.55)
+
+
+## Wiadukt nad autostradą na dystansie `dist`: poziomy pomost 10 m szeroki,
+## 6,5 m nad jezdnią, nad obiema jezdniami i nasypami, filary na poboczu,
+## w pasie rozdziału i za drugą jezdnią, przyczółki do terenu. Z kolizją.
+func _build_overpass(dist: float) -> void:
+	if dist > float(_samples[-1]["dist"]) - 10.0:
+		return
+	var smp := _sample_near(dist)
+	var c: Vector3 = smp["pos"]
+	var rh := ((smp["right"] as Vector3) * Vector3(1, 0, 1)).normalized()
+	var fh := Vector3(-rh.z, 0.0, rh.x) * -1.0           # kierunek jazdy w poziomie
+	var hw := float(smp["width"]) * 0.5
+	var med := TrackGenerator.HIGHWAY_MEDIAN
+	var deck_y := c.y + 6.5
+	var x_r := hw + 14.0
+	var x_l := -(hw + med + 2.0 * hw + 14.0)
+	var mid_x := (x_r + x_l) * 0.5
+	var span := x_r - x_l
+	var root := Node3D.new()
+	root.name = "Overpass"
+	_adopt(root)
+	var b := Basis(rh, Vector3.UP, -fh)
+	var base := Vector3(c.x, 0.0, c.z)
+	var shapes := PackedVector3Array()
+	var parts := [
+		# [środek (x w poprzek, y), rozmiar (w poprzek, w górę, wzdłuż)]
+		[Vector2(mid_x, deck_y + 0.6), Vector3(span, 1.2, 10.0)],
+		[Vector2(hw + 3.0, deck_y * 0.5), Vector3(1.2, deck_y, 1.2)],
+		[Vector2(-(hw + med * 0.5), deck_y * 0.5), Vector3(1.0, deck_y, 1.0)],
+		[Vector2(-(hw + med + 2.0 * hw + 3.0), deck_y * 0.5), Vector3(1.2, deck_y, 1.2)],
+		[Vector2(x_r - 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
+		[Vector2(x_l + 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
+	]
+	# Jedna siatka (SurfaceTool) i jedno ciało z kształtami - przegląd PR #7
+	# (było 6 MeshInstance3D + 6 StaticBody3D na wiadukt).
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var body := StaticBody3D.new()
+	body.name = "OverpassBody"
+	body.set_meta("surface", "concrete")
+	body.set_meta("grip", 0.6)
+	for pt in parts:
+		var size: Vector3 = pt[1]
+		var at: Vector2 = pt[0]
+		var xf := Transform3D(b, base + rh * at.x + Vector3.UP * at.y)
+		var bm := BoxMesh.new()
+		bm.size = size
+		st.append_from(bm, 0, xf)
+		var bs := BoxShape3D.new()
+		bs.size = size
+		var cs := CollisionShape3D.new()
+		cs.shape = bs
+		cs.transform = xf
+		body.add_child(cs)
+	st.set_material(_concrete_material())
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	root.add_child(mi)
+	root.add_child(body)
+
+
+func _metal_material() -> Material:
+	if not _shared_mats.has("metal"):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.72, 0.74, 0.76)
+		m.metallic = 0.7
+		m.roughness = 0.35
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_shared_mats["metal"] = m
+	return _shared_mats["metal"]
+
+
+func _grass_material() -> Material:
+	if not _shared_mats.has("grass"):
+		var m := ShaderMaterial.new()
+		m.shader = load("res://shaders/ground.gdshader")
+		_shared_mats["grass"] = m
+	return _shared_mats["grass"]

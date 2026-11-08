@@ -1757,11 +1757,12 @@ var _settle_t := 0.0
 # --------------------------------------------------------------------------
 # Paliwo (bateria w elektryku). Zużycie z mocy, którą silnik faktycznie
 # oddaje, plus wolne obroty (spalinowe). Pojemność dobrana tak, żeby przy
-# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~150 km
-# (ustalenie z użytkownikiem: zasięg 150 km, stacje co 50 km).
+# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~12 km
+# (użytkownik 2026-11-08: zasięg ~10-15 km zamiast 150 km - stacje co
+# 5 odcinków, ~4-5 km, mają znaczenie, a walka z botami kosztuje paliwo).
 # --------------------------------------------------------------------------
 ## Energia pełnego baku [kWh "na kołach"].
-@export var tank_kwh: float = 45.0
+@export var tank_kwh: float = 3.6
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
@@ -1775,8 +1776,9 @@ func _burn_fuel(power_w: float, delta: float) -> void:
 
 
 ## Zasięg na pozostałym paliwie przy spokojnej jeździe [km].
+## ~0,3 kWh/km przy spokojnej jeździe (~30 kW przy ~100 km/h).
 func range_km() -> float:
-	return fuel * 150.0
+	return fuel * tank_kwh / 0.3
 
 
 func refuel(amount: float) -> void:

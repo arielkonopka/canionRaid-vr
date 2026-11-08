@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: concept car jako opcja, sedan domyślny, optymalizacje CPU/GPU na Queście, menu przypięte do gracza, kamera menu za botem)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: autostrada co 5 odcinków, ruch z naprzeciwka, furia po wyprzedzeniu)
 
 ---
 
@@ -52,6 +52,40 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   pomocy (np. `steer_assist` w menu, łagodniejsze ustawienia domyślne).
   Potem: (3) "nie bardzo działa zakończenie poziomu" - dodana meta,
   zegar, wyniki, rekord; (4) w trybie lotu brak yaw/pitch - dodane.
+- **Nasłuch skrzynki** (użytkownik: "wydziel wątek, który będzie
+  nasłuchiwał tych wiadomości"): `tools/watch_inbox.sh [s]` - co 120 s
+  `git fetch --all`, kończy się, gdy pojawi się nowy commit zmieniający
+  `docs/agent/` na którejkolwiek gałęzi zdalnej. Agent uruchamia go
+  w tle (`run_in_background`), po powiadomieniu czyta wiadomość, robi
+  `git pull` i uruchamia nasłuch ponownie.
+- **Wizja projektu**: `docs/VISION.md` (spisana przez wątek w chmurze ze
+  słów użytkownika 2026-11-08): drogowy "river raid" w VR, furiaci
+  z manekinami crash-testowymi za kierownicą, uszkodzenia wpływają na
+  jazdę gracza i botów, punkty za ucieczkę (zwłaszcza przed zasadzkami),
+  za uszkodzenia zadane i ekstra za eksplozję furiata.
+- **Komunikacja z wątkami projektowymi w chmurze** (ustalone
+  2026-11-08, użytkownik zatwierdził propozycję): `docs/agent/` -
+  `inbox/` (zlecenia i specyfikacje z chmury, blok statusu: nowe /
+  przyjęte / w toku / zrobione / odrzucone, odpowiedź agenta lokalnego na
+  końcu pliku), `outbox/` (pomiary z Questa, wrażenia z jazdy, pytania).
+  Skrzynkę sprawdzać na początku sesji i po każdym `git pull`; odbiór =
+  zmiana statusu + commit. Wątki w chmurze nie zmieniają kodu ani
+  HANDOVER.md (tylko `docs/agent/`, osobna gałąź + PR). Specyfikacje to
+  propozycje - decyzje należą do użytkownika.
+- **Plan gry z chmury** (`docs/agent/inbox/2026-11-08-plan-gry-podzial-pracy.md`,
+  przyjęty): tryb ciągły "Furia" (unikanie albo walka z botami w szale,
+  punkty na naprawy w warsztacie, styl gier zręcznościowych z lat 80.)
+  i później tryb kaskaderski (pętle, beczki). Użytkownik: **farmienie
+  punktów nie przeszkadza** (`diminish_k = 0`), mandat zostaje. Chmura
+  pisze odizolowane pliki z czystą logiką (`scripts/score_keeper.gd` +
+  `tests/score_test.gd` - lokalnie OK), agent lokalny wpina je w gorące
+  pliki i sprawdza na Queście. Chmura może przeglądać i scalać PR-y.
+- **Punktacja szału (specyfikacja z chmury,
+  `docs/agent/inbox/2026-11-08-punktacja-szalu.md`, przyjęta, do
+  wdrożenia)** - decyzje użytkownika: punkty **zastępują** "-20 s za
+  potrącenie bota"; **mandat** za pierwsze uderzenie spokojnego bota
+  i brak punktów za taki pościg; **zasięg paliwa/prądu ~10-15 km**
+  (wcześniej 150 km - pytanie z sekcji 9 rozstrzygnięte).
 - **Ustalenia z sesji 3 (2026-11-08):**
   - **Wąwóz to jedyny tryb gry.** Wybór trasy zniknął z menu; estakady
     i trasa pokazowa zostały w kodzie tylko dla testów. Ekran tytułowy
@@ -114,9 +148,18 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     darmowa licencja freepbr wystarcza; tekstury dalej poza repo.
   - **Ekran tytułowy z jazdy** (użytkownik: "widok z jakiegoś bota"):
     auto jedzie samo wąwozem (BotDriver), **kamera goni je z tyłu**
-    (z fotela na starcie bywał widok spod jezdni), **menu przypięte na
-    sztywno do gracza** (podążanie za wzrokiem przy jadącej kamerze
-    "strasznie skakało").
+    (z fotela na starcie bywał widok spod jezdni), **menu przypięte do
+    kamery** (dziecko XRCamera3D, nieruchome w polu widzenia; użytkownik:
+    "powinno być względem kamery"). Przypięte do kamery też skakało
+    (prawdopodobnie niska płynność w goglach) - **ekran tytułowy jest
+    statyczny** (użytkownik: "stopklatka, scena statyczna"): auto stoi
+    zamrożone kołami na jezdni, kamera stoi za nim, menu nieruchome
+    w świecie (dziecko stojącego XROrigin). Jazda w menu w kodzie za
+    `TITLE_DRIVE` (false).
+    **Menu 1 m przed oczami** (użytkownik: przy 2,6 m bywało daleko
+    i słabo czytelne): `MENU_DISTANCE` 1, cały węzeł skalowany 1/2,6
+    (układ napisów liczony na 2,6 m); ustawiane przed głową przez
+    pierwsze 0,6 s (`_place_menu`, gdy gogle już śledzą), potem stoi.
   - **Sedan "najfajniejszy"** - domyślny model; concept do wyboru.
     Dynamika jazdy concept cara oceniona jako w porządku.
   - **Auto gracza ma mieć dach** - widoczny z kokpitu.
@@ -130,6 +173,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     Użytkownikowi 160% podobało się wizualnie - cel: odzyskać je
     optymalizacjami. Prawdziwego "4K jak monitor" się nie da (~25 px/°).
   - **README ma opisywać obecną grę** (był jeszcze o torze na słupach).
+  - **Autostrada zamiast wąwozu** (użytkownik, wybory z pytania): co
+    kilka odcinków cały odcinek, wąwóz otwiera się i zamyka na jej
+    końcach; druga jezdnia za barierą **z ruchem z naprzeciwka**;
+    skocznie zostają + wiadukty nad drogą, limit 140.
+  - **Furia po wyprzedzeniu**: czasem wyprzedzony (niepotrącony) bot
+    wpada w szał, ale posiłki wzywa dopiero po kontakcie.
   - **Pasy na dwa auta obok siebie** - jezdnia 14,8 m na starcie.
   - **Tunele wiercone, przekrój koła**; przy rozwidleniu **dwie osobno
     wiercone nitki**, które za górą znów się łączą.
@@ -284,11 +333,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   Gra nie nakłada winiety; ciemną ramkę dają dach i słupki - winyl
   prześwituje 1,5× mocniej niż reszta kabiny (`_vinyl_mat`), domyślna
   przezroczystość kokpitu 60%. Do dopytania, jeśli chodziło o coś innego.
-- **Paliwo i zjazdy (zrobione)**. Ustalenia: zasięg **150 km**, **zjazd
+- **Paliwo i zjazdy (zrobione)**. Ustalenia: zasięg **~12 km** (od
+  2026-11-08; wcześniej 150 km), **zjazd
   na stację co 5 odcinków** (pierwotnie "co 50 km" - zmienione), tankuje
   się **przejeżdżając powoli** pasem zjazdu; **warsztat też jako zjazd**
   ("wymaga zjechania tam"); **znak zjazdu co najmniej 800 m przed nim**.
-  - `StuntCar.fuel` (0..1), `tank_kwh` 45 (≈150 km przy ~30 kW średnio),
+  - `StuntCar.fuel` (0..1), `tank_kwh` 3,6 (≈12 km przy ~30 kW średnio;
+    było 45 kWh / 150 km),
     zużycie z mocy oddawanej przez silnik + 1,5 kW wolnych obrotów
     (spalinowe); bez paliwa brak momentu. `refuel()`, `range_km()`.
   - Generator: `service` w sekcji (stacja: `index % 5 == 0`, warsztat:
@@ -311,9 +362,8 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     do stacji; miniatura znaku ostrzegawczego 10,5 cm pod kolumną.
   - Test: `tests/service_test.gd` (ziarno 777: stacje odcinek 5/10/15,
     warsztat 11, znaki 860-1007 m przed zjazdem).
-  - **Do rozważenia z użytkownikiem**: przy stacji co ~3-4 km i zasięgu
-    150 km paliwo prawie nie ma znaczenia; dla napięcia jak w River Raid
-    zasięg ~10-15 km (zaproponowane, bez odpowiedzi).
+  - Zasięg skrócony (decyzja użytkownika 2026-11-08): przy 150 km paliwo
+    nie miało znaczenia; teraz ominięcie dwóch stacji z rzędu = pusty bak.
 - **Kierunek gry: dynamika jak w River Raid** - priorytet nad realizmem
   ruchu drogowego (przepisy są, ale gra ma pędzić).
 - **NASTĘPNY DUŻY KROK - rozwidlenia tuneli z odnogami** (prośba
@@ -524,6 +574,39 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   45 m rozszerzenia jak w rozwidleniu (wyspa `ISLAND_W` przez całą
   długość), dwie rury nad połowami jezdni, wspólna ściana czołowa (każda
   rura domyka ją do osi między nitkami), 45 m zwężenia za górą.
+- **Autostrada** (`TrackGenerator.is_highway`: odcinki 3, 8, 13, ...
+  (`HIGHWAY_EVERY` 5, `HIGHWAY_PHASE` 3) - nie trafia na stację ani
+  warsztat; `_highway_section`): wjazd z meta `highway`, zejście do
+  `HIGHWAY_HEIGHT` 4 m nad terenem (`_highway_level`, rampy ≤4°), znak
+  `road_sign: "highway"`, 5 modułów (łuki r 350-600 z małą przechyłką,
+  garby 2-3°, długie proste; jedna skocznia ze stołem), meta `overpass`
+  → wiadukt; na końcu "highway_end" i podjazd na 8 m. **Uwaga**: klucz
+  `meta.sign` to napis z prędkością przed skocznią (czyta go autopilot
+  testowy i mapka) - znaki drogowe z generatora mają `road_sign`
+  (wcześniej kolizja nazw: błąd `v_sign` w endless_test). EndlessTrack:
+  `chunk.highway`, `chunk.canyon = false` dla autostrady,
+  `section_index`. `StuntTrack._build_highway`: druga jezdnia = próbki
+  przesunięte w lewo o szerokość + `HIGHWAY_MEDIAN` 3 m (ta sama siatka
+  `_build_mesh` z podmienionymi `_samples`, kolizja), bariera New Jersey
+  0,85 m, trawa w pasie rozdziału, bariery energochłonne, nasyp 1:2 do
+  y = 0 (`_grass_material` = ground.gdshader); `_build_overpass` - pomost
+  6,5 m nad jezdnią + filary + przyczółki, z kolizją. Wąwóz przy styku
+  z autostradą: `_open_factor` (150 m) - ściany do progu, płaskowyż do
+  terenu (jak okno na morze, tylko do y -0,5). Znaki "highway" /
+  "highway_end" w `_road_sign`. Ruch z naprzeciwka (`xr_main`,
+  `_update_oncoming`): do 4 aut na drugiej jezdni, kinematyczne
+  (`FREEZE_MODE_KINEMATIC`), 110-140 km/h, tylko na odcinkach autostrady.
+  `endless_test ... canyon`: przejeżdża autostradę (3. odcinek) bez
+  upadku. Po przeglądzie PR #7 (chmura): pobocza i pas rozdziału mają
+  kolizję (bez niej auto zepchnięte ~0,5 m za krawędź spadało pod nasyp;
+  test `tests/highway_test.gd`), auta z naprzeciwka z puli
+  (`_oncoming_pool`), koła do przodu, wysokość 0,41 + promień; wiadukt
+  jedną siatką i jednym ciałem; `EndlessTrack.is_highway_at`. Znane: przy wyjeździe z autostrady początek wąwozu widać jako
+  płaskie "półki" płaskowyżu.
+- **Furia po wyprzedzeniu** (`BotDriver._check_overtake`, opcja
+  `rage_overtake` 0/10/25/50%, domyślnie 25): gracz przechodzi z tyłu
+  na przód bota (< 6 m w poprzek, szybszy) → losowo `enrage()` bez
+  posiłków; posiłki przy pierwszym kontakcie (`_reinforced`).
 - **Szerokość jezdni**: `difficulty().width` = 14,8 - 0,5/km, min. 10 m
   (3 pasy po ~4,6 m); start `EndlessTrack` 14,8. Linie i koleiny
   w `road.gdshader` liczą się z szerokości.
@@ -1327,7 +1410,6 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
-- Zasięg paliwa: 150 km czy ~10-15 km?
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone. Kokpit ma się wzorować na zdjęciu SUV-a.

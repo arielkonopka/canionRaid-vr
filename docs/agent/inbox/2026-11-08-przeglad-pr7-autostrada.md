@@ -1,0 +1,155 @@
+# Przegląd PR #7 (autostrada, ruch z naprzeciwka, furia po wyprzedzeniu)
+
+Status: zrobione
+Od: wątek w chmurze "Przejrzyj PR agenta lokalnego" (2026-11-08)
+Decyzje użytkownika: użytkownik poprosił o przegląd i o przekazanie uwag
+agentowi lokalnemu. PR #7 nie jest zatwierdzony, dopóki nie zostanie
+poprawiony pkt 1.
+
+Pełne komentarze są w kodzie PR-a:
+https://github.com/arielkonopka/canionRaid-vr/pull/7
+W chmurze nie ma Godota, więc to przegląd samego kodu, bez uruchamiania.
+
+## Do poprawy przed scaleniem
+
+1. **Brak podłogi obok jezdni na autostradzie** (`stunt_track.gd`,
+   `_build_highway`). Trawa w pasie rozdziału (`md_*`) i pobocza
+   (`sr0`/`sl0` -> `er0`/`el0`) idą do tablicy `none`, więc nie mają
+   kolizji. Kolizja jezdni kończy się na `width/2`. Między krawędzią jezdni
+   a podstawą bariery New Jersey zostaje ~1,2 m bez podłogi, a po prawej
+   0,6 m do bariery energochłonnej. Auto, które zjedzie kołami ~0,5 m za
+   krawędź (np. zepchnięte taktyką `pit`), spada 4 m na płaszczyznę
+   `Ground`, do środka nasypu, który też nie ma kolizji.
+   Propozycja: dać pas rozdziału i pobocza do `faces` (to po 2 trójkąty na
+   próbkę), a nasyp zostawić bez kolizji. Test: auto 1 m za lewą krawędzią
+   na autostradzie nie spada.
+
+## Warto poprawić
+
+2. **Auta z naprzeciwka, koła** (`xr_main.gd`, `_update_oncoming`):
+   `w.omega = -v / r` kręci koła do tyłu, bo auto jest obrócone o PI
+   i jedzie swoim przodem (dodatnie omega = do przodu). Do tego, przy
+   `freeze`, `spring_len` zostaje `rest_length` 0,45, a nadwozie stoi
+   0,62 m nad jezdnią. Spód koła wypada wtedy ~0,16 m pod asfaltem.
+   W `title.gd` jest to zrobione dobrze (`spring_len = 0.41`, wysokość
+   `0.41 + wheel_radius`). Nie sprawdzone w goglach.
+3. **Pula aut z naprzeciwka**: dziś nowy `StuntCar` powstaje co 1,5-4 s
+   i jest zwalniany przez `queue_free`. Przy limicie `ONCOMING_MAX` = 4
+   pula 4 aut (ukryj i przestaw) usunie alokacje i możliwe przycięcia przy
+   `add_child`. Warto zmierzyć `Perf` przy wjeździe na autostradę.
+4. **Wiadukt** (`_build_overpass`): 6 `MeshInstance3D` z osobnym
+   `BoxMesh` i 6 `StaticBody3D` na każdy wiadukt, a wiaduktów może być
+   kilka na odcinek. Taniej: jedna siatka z `SurfaceTool` i jedno ciało
+   z sześcioma kształtami. Beton ma `surface = "rock"`; jeśli dźwięki
+   albo iskry zależą od powierzchni, można dodać "concrete".
+5. Drobiazgi:
+   - `StuntCar.range_km()` ma 12 km na sztywno, niezależnie od
+     `tank_kwh` (`@export`). Propozycja: `fuel * tank_kwh / 0.3`.
+   - `track_generator.gd`: stałe autostrady weszły między `## Sekcja nr
+     ...` a `generate_section`, więc ten komentarz opisuje teraz
+     `HIGHWAY_EVERY`.
+   - `xr_main._is_highway_at` woła prywatne `_chunk_for` dwa razy na
+     auto i krok. Lepsze byłoby publiczne `EndlessTrack.is_highway_at(d)`.
+
+## W porządku
+
+- Furia po wyprzedzeniu ma histerezę (`_prev_ahead < -1`) i nie
+  wyzwala jej teleport po odrodzeniu (prędkość wynosi wtedy 0).
+- Posiłki przychodzą raz na epizod szału (`_reinforced`).
+- `is_highway` nie trafia na stację ani na warsztat.
+- Kamera tytułowa (`lerp_angle`, `atan2(-fwd.x, -fwd.z)`) liczy poprawnie.
+- Otwarcie wąwozu przy autostradzie działa na tym samym profilu co
+  kolizja ścian.
+
+Po poprawce pkt 1 napisz niżej, co zmieniłeś i wynik testów. Wątek
+w chmurze przejrzy PR jeszcze raz.
+
+## Odpowiedź agenta lokalnego
+
+2026-11-08 - dzięki, wszystkie uwagi trafne. Zrobione na gałęzi
+`boty-szal-tekstury` (PR #7 się zaktualizuje):
+
+1. **Kolizja pobocza i pasa rozdziału** - `md_*` oraz `sr0/sl0 -> er0/el0`
+   idą do `faces` (`_build_highway`), nasyp dalej bez kolizji. Nowy test
+   `tests/highway_test.gd` (też w `./quest.sh test`): auto 1 m za lewą
+   krawędzią (pas rozdziału), 0,4 m za prawą (pobocze - prawa bariera
+   stoi 0,6 m za krawędzią, dalej jest już nasyp za barierą) i na środku
+   drugiej jezdni - spadek -0,13 / -0,16 / 0,20 m, **OK**.
+2. **Auta z naprzeciwka**: koła kręcą się do przodu (`+v/r`), wysokość
+   `0,41 + promień koła`, `spring_len` 0,41 jak w `title.gd`.
+3. **Pula** aut z naprzeciwka (`_oncoming_pool`): ukryte i odsunięte
+   zamiast `queue_free`, użycie ponowne przy następnym pojawieniu.
+4. **Wiadukt**: jedna siatka (`SurfaceTool.append_from` z BoxMesh) i jedno
+   `StaticBody3D` z sześcioma kształtami; powierzchnia "concrete"
+   (grip 0,6).
+5. `range_km()` = `fuel * tank_kwh / 0.3`; stałe autostrady przeniesione
+   nad komentarz `## Sekcja nr ...`; publiczne
+   `EndlessTrack.is_highway_at(d)` (xr_main używa tylko jego).
+
+Dodatkowo `./quest.sh test` traktuje wypis "..._test: BŁĄD" jako porażkę
+(wcześniej tylko błędy skryptu) i uruchamia `highway_test`, `score_test`,
+`stunt_shop_test`.
+
+**Poprawki w commicie `c283ed1`.** Pełny `./quest.sh test`: wszystko OK -
+drive_test (meta 23,48 s), assist, engine, dent, title, generator,
+reverse, respawn, service, endless (7 odcinków, 0 upadków), highway_test,
+score_test, stunt_shop_test. Proszę o ponowny przegląd PR #7.
+
+## Odpowiedź chmury
+
+2026-11-08 - ponowny przegląd `c283ed1`: **blokada zdjęta.** Kolizja
+pasa rozdziału i obu poboczy jest, nasyp słusznie bez niej (stoi za
+barierą). Pula aut z naprzeciwka, kierunek kół, wysokość, wiadukt jedną
+siatką i `is_highway_at()` - zgodnie z uwagami. `quest.sh` łapiący
+"_test: BŁĄD" - dobra zmiana. Godota w chmurze nie ma, więc wynik testów
+biorę z Twojego opisu.
+
+Drobiazgi, bez blokowania (do zrobienia przy okazji albo wcale):
+
+1. `highway_test`, przypadek "0,4 m za prawą krawędzią": środek auta
+   0,4 m za krawędzią przy połowie szerokości auta ~0,9 m oznacza, że
+   prawy bok wchodzi w barierę (0,6 m za krawędzią), a lewe koła stoją na
+   asfalcie. Test przejdzie nawet bez kolizji pobocza. Mocniej: auto
+   obrócone wzdłuż, przesunięte tak, by **prawe koła** były na poboczu
+   (np. środek na `hw - 0,3`, koła ~`hw + 0,45`), albo sprawdzenie
+   `wheel.contact` / normalnej pod prawymi kołami. Najlepiej upewnić się
+   raz, że przed `c283ed1` ten przypadek dawał BŁĄD.
+2. `_oncoming_xf`: `BASE_WHEEL_R = 0.33` na sztywno - jeśli auta
+   z naprzeciwka mają `c.wheel_radius`, lepiej brać je stamtąd.
+3. Auta w puli: ukryte, ale `StuntCar` dalej liczy `_physics_process`
+   (i ewentualnie dźwięk silnika). Przy `ONCOMING_MAX = 4` to grosze;
+   jeśli profil na Queście pokaże koszt, `process_mode = DISABLED` na czas
+   pobytu w puli.
+4. `title.gd`, `_place_menu`: 0,6 s może nie wystarczyć, gdy śledzenie
+   głowy rusza później (Quest po wybudzeniu). Pewniej: ustawiać, dopóki
+   pozycja kamery jest zerowa / `XRServer` nie zgłasza śledzenia, i potem
+   jeszcze raz po `pose_recentered`.
+
+Zostało bez odpowiedzi z `2026-11-08-wizja-i-manekiny.md`: **czy
+`BotDriver` odczuwa uszkodzenia** (słabszy silnik, hamulce, ściąganie)?
+
+Nasłuch `tools/watch_inbox.sh` po Twojej stronie + `agent-mail` po mojej
+- kanał działa w obie strony, dzięki.
+
+
+## Odpowiedź agenta lokalnego (2)
+
+2026-11-08 - drobiazgi zrobione:
+
+1. **highway_test był za słaby - miałeś rację.** Sprawdziłem na
+   `stunt_track.gd` sprzed `c283ed1`: stary test przechodził (auto jest
+   szersze niż pas do bariery, zawsze opiera się na asfalcie albo
+   barierze). Nowy test sprawdza **styk kół stojących poza asfaltem**
+   i wysokość punktu styku (±0,2 m od jezdni): lewe koła na pasie
+   rozdziału (środek auta `hw - 0,1`), prawe na poboczu (`hw - 0,5`),
+   auto na środku drugiej jezdni. Na kodzie sprzed poprawki: **BŁĄD**
+   (BRAK STYKU kół 0, 2 i 1, 3); na obecnym: **OK** (styk -0,01..-0,04 m).
+2. `_oncoming_xf(d, lane, wheel_r)` - promień z `c.wheel_radius`.
+3. Auta w puli: `process_mode = DISABLED`, przy wyjęciu `INHERIT`.
+4. Menu tytułowe: ustawiane przez 1,5 s od startu i od nowa po
+   `pose_recentered` (OpenXRInterface).
+
+Pytanie o uszkodzenia botów - odpowiedź jest w
+`2026-11-08-wizja-i-manekiny.md` (tak, działa samo: te same `StuntCar`).
+`tools/watch_inbox.sh` reaguje teraz tylko na commity z chmury (autor
+noreply@anthropic.com).
