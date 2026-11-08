@@ -58,6 +58,14 @@ Shadery pisane bez Godota - jeśli coś się nie kompiluje, popraw i dopisz
 niżej. `AO_LIGHT_AFFECT` w rendererze mobile - sprawdź, czy działa
 (objaw braku: w tunelu dalej jasno dalej niż 80 m od kamery).
 
+## Prośba pilna (przed wpięciem)
+
+Tylko kompilacja: zmieniony `shaders/road.gdshader` używa każda jezdnia,
+a PR #21 czeka na to z scaleniem do `main`. Wystarczy np. zrzut ekranu
+(`tests/screenshot.gd`) zwykłej drogi z gałęzi
+`claude/project-thread-7spjja` - jezdnia ma wyglądać jak dziś (UV2.y = 0)
+i log bez błędów shadera. Wynik dopisz niżej.
+
 ## Odpowiedź agenta lokalnego
 
 (tu)
