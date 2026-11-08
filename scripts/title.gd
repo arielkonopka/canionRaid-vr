@@ -41,6 +41,8 @@ var _stick_ready := true
 var _group := ""
 var _entries: Array[Dictionary] = []
 var _selected := 0
+var _driver: BotDriver
+var _progress_t := 0.0
 
 
 func _ready() -> void:
@@ -61,27 +63,62 @@ func _ready() -> void:
 	demo.queue_free()
 	add_child(track)
 
-	# Auto stoi na torze jako wizytówka. Zamrożone - nie ma tu fizyki jazdy.
-	var xf := track.transform_at_distance(30.0)
-	xf.origin += xf.basis.y * 0.72
-	car.place(xf)
-	car.freeze = true
-
-	# Gracz stoi na jezdni za autem, z prawej, patrzy w stronę auta. W goglach
-	# XROrigin to podłoga (wysokość oczu daje głowa gracza) - wcześniej stał
-	# metr nad jezdnią i menu wypadało za wysoko.
-	var road := xf.origin - xf.basis.y * 0.72
-	var eye := road + xf.basis.x * 2.8 + xf.basis.z * 4.5 + Vector3.UP * (0.0 if _xr else 1.6)
-	origin.global_transform = Transform3D(Basis(), eye).looking_at(
-			xf.origin + xf.basis.z * 1.0 + Vector3.UP * (eye.y - road.y), Vector3.UP)
-	# Bez przechyłu w pionie - w goglach o to dba głowa gracza.
-	origin.rotation.x = 0.0
-	origin.rotation.z = 0.0
+	# Tło menu: gracz siedzi w aucie, które samo jedzie wąwozem przepisowo
+	# (sterownik bota) - prośba użytkownika; wcześniej stał przy aucie,
+	# a w przestrzeni "local" oczy wypadały na poziomie jezdni (widok spod
+	# spodu). Auto ma ustawienia gracza (lakier, napęd) na żywo.
+	_place_car(30.0)
+	_driver = BotDriver.new()
+	_driver.name = "Driver"
+	_driver.car = car
+	_driver.track = track
+	_driver.dist = 30.0
+	car.add_child(_driver)
+	_follow_car()
 
 	_build_menu()
 	enter_group("")
 	if _xr:
 		XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, false)
+
+
+## Auto na trasie w odległości `d`, w ruchu (prawy pas, 50 km/h).
+func _place_car(d: float) -> void:
+	var xf := track.transform_at_distance(d)
+	var lane := (float(track.samples_from(d, 1.0)[0]["width"]) - 1.0) / 3.0
+	car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
+	car._settle_t = 0.0
+	var v := 50.0 / 3.6
+	car.linear_velocity = -xf.basis.z * v
+	for w in car.wheels:
+		w.omega = v / car.wheel_radius
+	if _driver:
+		_driver.dist = d
+
+
+## Kamera (w goglach: punkt odniesienia głowy) w fotelu kierowcy, jak w grze.
+func _follow_car() -> void:
+	origin.global_transform = car.get_global_transform_interpolated() * car.seat.transform
+	car.set_cockpit_transparency(GameSettings.cockpit_alpha / 100.0)
+
+
+func _physics_process(delta: float) -> void:
+	if _driver == null:
+		return
+	# Trasa dobudowuje się przed autem; auto obrócone, wywrócone albo
+	# zjechane z trasy wraca na prawy pas trochę dalej.
+	_progress_t -= delta
+	if _progress_t <= 0.0:
+		_progress_t = 0.5
+		track.update_progress(_driver.dist)
+		var below: float = (track.transform_at_distance(_driver.dist).origin - car.global_position).y
+		if _driver.flipped_time > 2.0 or below > 4.0 or _driver._reverse_t > 0.0:
+			_place_car(_driver.dist + 25.0)
+	# Ziemia jedzie za autem (siatka 4 km).
+	var gm := get_node_or_null("GroundMesh") as Node3D
+	if gm:
+		var p := car.global_position
+		gm.global_position = Vector3(snappedf(p.x, 50.0), 0.0, snappedf(p.z, 50.0))
 
 
 func _build_menu() -> void:
@@ -90,13 +127,15 @@ func _build_menu() -> void:
 	gf.name = "Menu"
 	gf.camera = camera
 	gf.distance = MENU_DISTANCE
-	gf.height = -0.05
+	# Nad deską rozdzielczą (menu na tle zegarów było nieczytelne).
+	gf.height = 0.25
+	gf.height_rate = 30.0
 	_menu = gf
 	origin.add_child(_menu)
 
 	# Wysokość całego menu musi się zmieścić w wygodnym polu widzenia gogli
 	# (ok. ±25° w pionie na 2,6 m to ±1,2 m).
-	var title := _label("STUNT TRACK VR", 130, Vector3(0.0, 0.88, 0.0), COLOR_NORMAL)
+	var title := _label("CANION RAID VR", 130, Vector3(0.0, 0.88, 0.0), COLOR_NORMAL)
 	title.outline_size = 24
 	_heading = _label("", 44, Vector3(0.0, 0.72, 0.0), COLOR_DIM)
 	var y := 0.52
@@ -111,7 +150,7 @@ func _label(text: String, size: int, pos: Vector3, color: Color) -> Label3D:
 	var l := Label3D.new()
 	l.text = text
 	l.font_size = size
-	l.pixel_size = 0.0012
+	l.pixel_size = 0.001
 	l.position = pos
 	l.modulate = color
 	l.outline_size = 12
@@ -181,7 +220,7 @@ func _group_label(group_id: String) -> String:
 func _refresh() -> void:
 	# Auto z tła pokazuje wybrany lakier na żywo.
 	car.set_paint(GameSettings.PAINTS[GameSettings.paint])
-	_heading.text = "kaskaderskie wyścigi nad ziemią" if _group == "" \
+	_heading.text = "kaskaderska jazda wąwozem" if _group == "" \
 			else "- " + _group_label(_group) + " -"
 
 	for i in range(_rows.size()):
@@ -270,6 +309,8 @@ func _on_xr_button(button: String) -> void:
 
 
 func _process(_delta: float) -> void:
+	if _driver:
+		_follow_car()
 	# Drążek: gałka w goglach albo lewa gałka pada. Jeden ruch = jeden krok,
 	# kolejny dopiero po powrocie gałki do środka.
 	var stick := Vector2.ZERO
@@ -302,6 +343,8 @@ func _change(dir: int) -> void:
 			var opt: Dictionary = e["opt"]
 			var values: Array = opt["values"]
 			GameSettings.set(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
+			if opt["key"] == "xr_resolution" or opt["key"] == "xr_foveation":
+				GameSettings.apply_xr_quality()
 			_refresh()
 		"group":
 			if dir > 0:

@@ -499,6 +499,7 @@ func _spawn_bot(d: float) -> void:
 	bot.name = "Bot%d" % Time.get_ticks_msec()
 	bot.is_bot = true
 	bot.TIRE_SUBSTEPS = 2
+	bot.ray_probe = true
 	add_child(bot)
 	# Zdalnie sterowane auta mają mocny silnik (250 kW) - w szale muszą
 	# realnie dogonić gracza (przy 130 kW zostawały w tyle).
@@ -932,6 +933,7 @@ func _build_race_hud() -> void:
 
 func _process(delta: float) -> void:
 	_update_rain(delta)
+	_log_perf(delta)
 	if race_state == Race.WORKSHOP and _xr_ready:
 		# Wybór w warsztacie drążkiem (jak w menu: jeden krok na wychylenie).
 		var sy := left_hand.get_vector2("primary").y + right_hand.get_vector2("primary").y
@@ -1448,6 +1450,32 @@ func _update_env(s: Dictionary) -> void:
 		var hit := space.intersect_ray(q)
 		d.append(from.distance_to(hit["position"]) if hit else 60.0)
 	_env.set_walls(d[0], d[1])
+
+
+## Wydajność do logu co 5 s (na goglach: ./quest.sh log) - po tym
+## dobieramy najwyższą rozdzielczość, przy której gogle trzymają klatki.
+var _perf_t := 0.0
+var _perf_measure := false
+func _log_perf(delta: float) -> void:
+	_perf_t += delta
+	if _perf_t < 5.0:
+		return
+	_perf_t = 0.0
+	var rail := 0
+	for b in _bots:
+		if b.get_node("Driver").on_rail:
+			rail += 1
+	var vp := get_viewport().get_viewport_rid()
+	if not _perf_measure:
+		_perf_measure = true
+		RenderingServer.viewport_set_measure_render_time(vp, true)
+	print("PERF: %d kl./s, proces %.1f ms, fizyka %.1f ms, GPU %.1f ms, CPU render %.1f ms, boty %d (fizyka %d), odcinek %d" % [
+			Engine.get_frames_per_second(),
+			Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+			Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+			RenderingServer.viewport_get_measured_render_time_gpu(vp),
+			RenderingServer.viewport_get_measured_render_time_cpu(vp),
+			_bots.size(), _bots.size() - rail, _last_section])
 
 
 ## Szum deszczu: 2 s szumu przefiltrowanego dolnoprzepustowo, w pętli.
