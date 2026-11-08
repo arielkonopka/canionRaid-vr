@@ -16,7 +16,8 @@ class_name RadioCatalog
 ##   {"id": "fala", "name": "Fala 84", "tracks": [
 ##       {"file": "fala/utwor.ogg", "title": "...", "artist": "...",
 ##        "license": "CC-BY-4.0", "source": "https://..."}]}
-## "file" jest względem ROOT.
+## "file" jest względem ROOT. Opcjonalnie "credit": dodatkowy tekst
+## atrybucji, o który prosi autor (link do strony itp.).
 
 const ROOT := "res://audio/radio/"
 const FIELDS := ["file", "title", "artist", "license", "source"]
@@ -160,5 +161,8 @@ func credits_markdown() -> String:
 	for s in stations:
 		out += "\n### %s\n\n" % s["name"]
 		for t in s["tracks"]:
-			out += "- \"%s\" - %s, %s, %s\n" % [t["title"], t["artist"], t["license"], t["source"]]
+			out += "- \"%s\" - %s, %s, %s" % [t["title"], t["artist"], t["license"], t["source"]]
+			if str(t.get("credit", "")) != "":
+				out += " (%s)" % t["credit"]
+			out += "\n"
 	return out

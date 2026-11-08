@@ -72,6 +72,9 @@ wybór konkretnych utworów.
   `AudioStreamPlayer` (nie 3D) - do decyzji, czy dźwięk ma iść z tabletu.
 - `tests/radio_test.gd` - test headless tych modułów.
 - `audio/radio/README.md` - gdzie kłaść pliki.
+- `scripts/radio_stations.gd` - 3 stacje: Fala 84 (synthwave), Radio
+  Szuter (rock/drive), Nocna Zmiana (spokojne); `CREDITS.md`;
+  `tools/fetch_radio.py` (pobieranie + konwersja, `--check` zgodności).
 
 ## Zostaje dla agenta lokalnego
 
@@ -81,8 +84,17 @@ wybór konkretnych utworów.
    kontrolerze/kierownicy, napis `now_playing` na tablecie.
 3. Odsłuch na Queście: głośność `VOLUME_DB` względem silnika, brzmienie
    szyny, ewentualnie `AudioStreamPlayer3D` przy tablecie.
-4. Muzyka: chmura może przygotować listę kandydatów (CC0/CC-BY/CC-BY-SA)
-   do akceptacji użytkownika; pobranie plików tylko za jego zgodą.
+4. Muzyka: lista 15 utworów na 3 stacje jest już w `radio_stations.gd`
+   i `CREDITS.md` (licencje sprawdzone na stronach 2026-11-08; użytkownik
+   dał "zielone światło" na dobór i pobranie). Chmura nie ma dostępu do
+   opengameart.org, więc pobranie po Twojej stronie:
+   `python3 tools/fetch_radio.py` (ffmpeg -> Ogg 96 kb/s, wyrównana
+   głośność). Ok. 30-50 MB. Do decyzji z użytkownikiem: commit plików do
+   repo (licencje na to pozwalają) czy `.gitignore` jak `textures/`.
+   Jeśli wzorzec pliku na stronie nie pasuje, popraw tabelę w skrypcie.
+   Opcjonalnie do ręcznego pobrania z itch.io (CC-BY 4.0, zip):
+   "Neon Night" (Fatal Exit, amadan-interactive.itch.io) i
+   "Racing Music Pack" (Monsieur Fred, monsieur-fred.itch.io).
 
 ## Do sprawdzenia na Queście
 
