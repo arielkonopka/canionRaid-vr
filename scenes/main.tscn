@@ -1,0 +1,93 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/xr_main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/stunt_track.gd" id="2_track"]
+[ext_resource type="Shader" path="res://shaders/ground.gdshader" id="9_ground"]
+[ext_resource type="Script" path="res://scripts/stunt_car.gd" id="3_car"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_1"]
+sky_top_color = Color(0.22, 0.42, 0.78, 1)
+sky_horizon_color = Color(0.74, 0.82, 0.9, 1)
+sun_angle_max = 20.0
+ground_horizon_color = Color(0.72, 0.8, 0.88, 1)
+ground_bottom_color = Color(0.16, 0.18, 0.21, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("SkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+ambient_light_color = Color(0.62, 0.64, 0.68, 1)
+ambient_light_sky_contribution = 0.55
+reflected_light_source = 2
+tonemap_mode = 4
+tonemap_white = 6.0
+fog_enabled = true
+fog_light_color = Color(0.72, 0.8, 0.88, 1)
+fog_density = 0.0007
+fog_sun_scatter = 0.15
+fog_aerial_perspective = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Material_road"]
+albedo_color = Color(0.56, 0.57, 0.62, 1)
+roughness = 0.85
+metallic_specular = 0.3
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(4000, 4000)
+
+[sub_resource type="ShaderMaterial" id="Material_ground"]
+shader = ExtResource("9_ground")
+
+[sub_resource type="WorldBoundaryShape3D" id="Shape_ground"]
+
+[sub_resource type="StandardMaterial3D" id="Material_pillar"]
+albedo_color = Color(0.82, 0.62, 0.22, 1)
+roughness = 0.7
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8192, -0.4394, 0.3687, 0.0000, 0.6428, 0.7660, -0.5736, -0.6275, 0.5265, 0, 80, 0)
+light_color = Color(1, 0.95, 0.86, 1)
+light_energy = 1.35
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+metadata/surface = "grass"
+metadata/grip = 0.45
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = SubResource("Material_ground")
+
+[node name="GroundShape" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("Shape_ground")
+
+[node name="Track" type="Node3D" parent="."]
+script = ExtResource("2_track")
+road_material = SubResource("Material_road")
+pillar_material = SubResource("Material_pillar")
+
+[node name="Car" type="RigidBody3D" parent="."]
+script = ExtResource("3_car")
+
+[node name="XROrigin3D" type="XROrigin3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 36, 18)
+
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
+near = 0.05
+far = 4000.0
+
+[node name="LeftHand" type="XRController3D" parent="XROrigin3D"]
+tracker = &"left_hand"
+
+[node name="RightHand" type="XRController3D" parent="XROrigin3D"]
+tracker = &"right_hand"

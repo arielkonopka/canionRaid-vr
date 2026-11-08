@@ -1,0 +1,12 @@
+# Godot 4
+.godot/
+/android/
+build/
+*.apk
+*.aab
+*.translation
+
+# Edytory
+.vscode/
+.idea/
+*~

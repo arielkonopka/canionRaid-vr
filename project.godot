@@ -1,0 +1,53 @@
+; Engine configuration file.
+; Stunt Track VR - szkielet projektu pod Meta Quest.
+;
+; Jeśli Godot zaproponuje konwersję przy pierwszym otwarciu, zgódź się:
+; plik jest pisany pod Godota 4.4+, nowsze wersje tylko dopiszą swoje pola.
+
+config_version=5
+
+[application]
+
+config/name="Stunt Track VR"
+config/description="Kaskaderskie wyścigi VR na torach zawieszonych w powietrzu."
+run/main_scene="res://scenes/title.tscn"
+config/features=PackedStringArray("4.4", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameSettings="*res://scripts/game_settings.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/vsync/vsync_mode=0
+
+[physics]
+
+; Sztywne zawieszenia i lądowania z dużej wysokości rozsypują się przy 60 Hz.
+; 240 Hz to punkt wyjścia; da się zejść niżej, jak fizyka pojazdu już stoi.
+common/physics_ticks_per_second=240
+common/physics_interpolation=true
+
+[rendering]
+
+; Renderer mobilny - wymagany na Queście.
+renderer/rendering_method="mobile"
+; 4x MSAA; na płaskich, nieteksturowanych wielokątach robi największą różnicę.
+anti_aliasing/quality/msaa_3d=2
+; Quest (Android) wymaga tekstur ETC2/ASTC.
+textures/vram_compression/import_etc2_astc=true
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
+
+[xr]
+
+openxr/enabled=true
+; Bez gogli (np. na PC bez runtime'u OpenXR) gra po cichu przechodzi
+; w tryb płaski, zamiast pokazywać okno z ostrzeżeniem przy każdym starcie.
+openxr/startup_alert=false
+; Przestrzeń "local": punkt odniesienia przy głowie, nie na podłodze -
+; właściwa dla gry na siedząco w kokpicie (center_on_hmd ustawia go od nowa).
+openxr/reference_space=0
+shaders/enabled=true

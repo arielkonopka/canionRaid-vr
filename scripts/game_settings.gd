@@ -1,0 +1,336 @@
+extends Node
+
+## Ustawienia wybierane na ekranie tytułowym. Autoload "GameSettings".
+## Zapisywane w user://settings.cfg, więc przy następnym uruchomieniu
+## gracz zastaje swój ostatni wybór.
+##
+## Nowa opcja = nowa zmienna + wpis w OPTIONS (z "group" z GROUPS) + jej
+## użycie (apply_to_car() albo scena jazdy). Ekran tytułowy buduje menu sam.
+
+const PATH := "user://settings.cfg"
+## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
+## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
+## przestawiamy na wąwóz, reszta ustawień zostaje.
+const SETTINGS_VERSION := 3
+
+const TRANSMISSIONS := {
+	"auto": "Automat",
+	"manual": "Manual",
+}
+
+var transmission: String = "auto"
+var suspension: String = "sport"
+var abs_enabled: bool = true
+var tcs_enabled: bool = true
+var esp_enabled: bool = true
+## Ograniczenie skrętu z prędkością (StuntCar.steer_assist) - jawna pomoc.
+var steer_assist: bool = true
+var engine_type: String = "petrol"
+var engine_power: int = 180          # kW
+## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
+var drive_layout: String = "rwd"
+## Opony: "all_season" całoroczne (domyślnie), "summer" letnie, "winter"
+## zimowe (StuntCar.TIRE_COMPOUNDS).
+var tires: String = "all_season"
+## Elektryk: "central" jeden silnik, "hub" silnik w każdym kole (zawsze 4x4).
+var motor_layout: String = "central"
+var paint: String = "harvest_gold"
+## Układ sterowania w goglach: na którym spuście gaz (hamulec na drugim),
+## którym drążkiem kierownica, pod którym gripem ręczny.
+var gas_hand: String = "right"
+## Drążek kierownicy; drugi drążek (góra/dół) zmienia biegi.
+var steer_stick: String = "right"
+## Wykładnik krzywej drążka kierownicy: 1 = liniowo, większy = łagodniej w środku.
+var stick_expo: float = 1.6
+## Czułość drążka kierownicy w procentach (gogle i pad; klawiatura bez zmian).
+var stick_sensitivity: int = 100
+## Przezroczystość kabiny i maski w widoku z kokpitu, w procentach.
+var cockpit_alpha: int = 60
+## Rodzaj trasy. W grze tylko "canyon" (wąwóz bez końca) - jedyny tryb,
+## ustalone z użytkownikiem; nie ma go w menu. "endless" (estakady) i "demo"
+## (pokazowa z metą) zostały w kodzie dla testów (endless_test, drive_test).
+var track_mode: String = "canyon"
+## Dźwigi (życia) na trasie bez końca; 0 = bez limitu.
+var cranes: int = 3
+## Progi mocy silnika na trasie bez końca: start na pierwszym, każdy
+## warsztat (co 10 odcinków) pozwala przejść na następny.
+const POWER_TIERS := [90, 130, 180, 250, 350, 500, 700]
+## Rekord trasy pokazowej [s], 0 = brak. Zapisywany razem z ustawieniami.
+var best_time: float = 0.0
+## Rekord trasy bez końca [m].
+var best_distance: float = 0.0
+## false = nic nie jest zapisywane na dysk. Ustawiają to testy, żeby nie
+## nadpisywać ustawień i rekordów gracza.
+var persist := true
+
+## Grupy menu (podmenu na ekranie tytułowym), w kolejności wyświetlania.
+const GROUPS: Array[Dictionary] = [
+	{"id": "track", "label": "Trasa"},
+	{"id": "car", "label": "Samochód"},
+	{"id": "assist", "label": "Systemy wspomagania"},
+	{"id": "controls", "label": "Sterowanie"},
+	{"id": "look", "label": "Wygląd i widok"},
+]
+
+## Lakiery w duchu lat 70.
+const PAINTS := {
+	"harvest_gold": Color(0.80, 0.60, 0.18),
+	"avocado": Color(0.42, 0.47, 0.18),
+	"burnt_orange": Color(0.78, 0.33, 0.10),
+	"sky_blue": Color(0.45, 0.66, 0.82),
+	"chocolate": Color(0.30, 0.18, 0.10),
+	"cream": Color(0.92, 0.88, 0.76),
+	"red": Color(0.70, 0.08, 0.06),
+	"black": Color(0.04, 0.04, 0.045),
+}
+
+## Opis opcji dla menu. "values" to lista możliwych wartości w kolejności
+## przełączania, "names" ich nazwy na ekranie, "hints" opis pod opcją.
+var OPTIONS: Array[Dictionary] = [
+	{
+		"key": "cranes", "group": "track", "label": "Życia (auta)",
+		"values": [3, 5, 0],
+		"names": ["3", "5", "bez limitu"],
+		"hints": [
+			"Auto na dachu, rozbite albo spadnięte wybucha - kolejne auto stoi na miejscu wypadku.",
+			"Więcej szans.",
+			"Trening: aut nigdy nie zabraknie.",
+		],
+	},
+	{
+		"key": "engine_type", "group": "car", "label": "Napęd",
+		"values": ["petrol", "diesel", "electric"],
+		"names": ["Benzyna", "Diesel", "Elektryk"],
+		"hints": [
+			"Moment rośnie z obrotami, pełna moc dopiero wysoko - kręć silnik.",
+			"Dużo momentu nisko, szybko kończą się obroty, mocno hamuje silnikiem.",
+			"Pełny moment od zera, jeden bieg, puszczony gaz odzyskuje energię.",
+		],
+	},
+	{
+		"key": "engine_power", "group": "car", "label": "Moc maksymalna",
+		"values": [90, 130, 180, 250, 350, 500, 700],
+		"names": ["90 kW (122 KM)", "130 kW (177 KM)", "180 kW (245 KM)",
+				"250 kW (340 KM)", "350 kW (476 KM)", "500 kW (680 KM)",
+				"700 kW (952 KM)"],
+		"hints": [
+			"Spokojne auto - łatwo utrzymać przyczepność.",
+			"Żwawe, wybacza błędy.",
+			"Sportowe - na mokrym trzeba uważać z gazem.",
+			"Bardzo mocne - bez kontroli trakcji tył ucieka łatwo.",
+			"Potwór - pełny gaz na niskim biegu to poślizg nawet na suchym.",
+			"Hipersamochód w sedanie z lat 70. Bez 4x4 tylko kontrola trakcji ratuje.",
+			"Nierealne. Dłuższe przełożenia, ponad 400 km/h, 4x4 prawie konieczne.",
+		],
+	},
+	{
+		"key": "tires", "group": "car", "label": "Opony",
+		"values": ["all_season", "summer", "winter"],
+		"names": ["Całoroczne", "Letnie", "Zimowe"],
+		"hints": [
+			"Kompromis: na suchym trochę słabsze od letnich, na mokrym i lodzie lepsze.",
+			"Najlepsze na suchym, na lodzie jak łyżwy.",
+			"Najlepsze na lodzie, na suchym miękkie i wyraźnie słabsze.",
+		],
+	},
+	{
+		"key": "drive_layout", "group": "car", "label": "Napędzane koła",
+		"values": ["rwd", "awd"],
+		"names": ["Tył", "4x4"],
+		"hints": [
+			"Klasycznie, tylne koła z szperą - tył ucieka przy gazie w zakręcie.",
+			"Wszystkie koła: 40% przód, 60% tył, wiskoza między osiami. Ciężej o poślizg.",
+		],
+	},
+	{
+		"key": "motor_layout", "group": "car", "label": "Silnik elektryczny",
+		"values": ["central", "hub"],
+		"names": ["Jeden centralny", "W każdym kole"],
+		"hints": [
+			"Jeden silnik, napęd przez dyferencjał (koła wg opcji Napędzane koła).",
+			"Cztery silniki po 1/4 mocy, zawsze 4x4, każde koło niezależnie. Tylko elektryk.",
+		],
+	},
+	{
+		"key": "transmission", "group": "car", "label": "Skrzynia biegów",
+		"values": ["auto", "manual"],
+		"names": ["Automat", "Manual"],
+		"hints": [
+			"Automat zmienia biegi sam, hamulec na postoju = wsteczny.",
+			"Biegi zmieniasz sam, ogranicznik obrotów nie wybacza.",
+		],
+	},
+	{
+		"key": "suspension", "group": "car", "label": "Zawieszenie",
+		"values": ["soft", "sport", "stiff"],
+		"names": ["Miękkie", "Sportowe", "Twarde"],
+		"hints": [
+			"Duże przechyły, łagodne lądowania, auto pływa w zakrętach.",
+			"Kompromis: pewne w zakrętach, lądowania do zniesienia.",
+			"Ostre w zakrętach, ale twarde lądowania podbijają auto.",
+		],
+	},
+	{
+		"key": "paint", "group": "look", "label": "Lakier",
+		"values": ["harvest_gold", "avocado", "burnt_orange", "sky_blue",
+				"chocolate", "cream", "red", "black"],
+		"names": ["Złoty", "Awokado", "Pomarańcz", "Błękit",
+				"Czekolada", "Kremowy", "Czerwony", "Czarny"],
+		"hints": [
+			"Złoto żniw - najbardziej lata 70. kolor, jaki istnieje.",
+			"Zieleń awokado, jak lodówka u babci.",
+			"Palony pomarańcz.",
+			"Pastelowy błękit.",
+			"Brąz z metalikiem.",
+			"Kremowy, elegancko.",
+			"Klasyczna czerwień.",
+			"Czarny jak winylowy dach.",
+		],
+	},
+	{
+		"key": "abs_enabled", "group": "assist", "label": "ABS",
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Koła nie blokują się przy hamowaniu, auto da się skręcać.",
+			"Mocne hamowanie blokuje koła - auto jedzie prosto jak sanki.",
+		],
+	},
+	{
+		"key": "tcs_enabled", "group": "assist", "label": "Kontrola trakcji",
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Odcina moc, gdy tylne koła buksują.",
+			"Pełna moc zawsze - gaz w zakręcie może obrócić auto.",
+		],
+	},
+	{
+		"key": "esp_enabled", "group": "assist", "label": "ESP",
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Przyhamowuje pojedyncze koła, gdy auto zaczyna się obracać.",
+			"Poślizg łapiesz sam, kontrą i gazem.",
+		],
+	},
+	{
+		"key": "steer_assist", "group": "assist", "label": "Ograniczenie skrętu",
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Im szybciej, tym mniejszy skręt kół - drążek to nie kierownica.",
+			"Pełny skręt przy każdej prędkości - jak prawdziwa kierownica.",
+		],
+	},
+	{
+		"key": "gas_hand", "group": "controls", "label": "Gaz",
+		"values": ["right", "left"],
+		"names": ["prawy spust", "lewy spust"],
+		"hints": [
+			"Gaz prawym spustem, hamulec lewym. Grip przy gazie: wsteczny (po zatrzymaniu), grip przy hamulcu: ręczny.",
+			"Gaz lewym spustem, hamulec prawym. Grip przy gazie: wsteczny (po zatrzymaniu), grip przy hamulcu: ręczny.",
+		],
+	},
+	{
+		"key": "steer_stick", "group": "controls", "label": "Kierownica",
+		"values": ["right", "left"],
+		"names": ["prawy drążek", "lewy drążek"],
+		"hints": [
+			"Skręcasz prawym drążkiem. Lewy drążek w górę/w dół: bieg wyżej/niżej.",
+			"Skręcasz lewym drążkiem. Prawy drążek w górę/w dół: bieg wyżej/niżej.",
+		],
+	},
+	{
+		"key": "stick_expo", "group": "controls", "label": "Krzywa drążka",
+		"values": [1.6, 1.0, 2.2],
+		"names": ["łagodny środek", "liniowa", "bardzo łagodny środek"],
+		"hints": [
+			"Mały ruch = mały, precyzyjny skręt; pełne wychylenie = pełny skręt.",
+			"Skręt proporcjonalny do wychylenia.",
+			"Jeszcze spokojniej przy małych ruchach - dla dużych prędkości.",
+		],
+	},
+	{
+		"key": "stick_sensitivity", "group": "controls", "label": "Czułość drążka",
+		"values": [50, 70, 85, 100, 120, 150],
+		"names": ["50%", "70%", "85%", "100%", "120%", "150%"],
+		"hints": [
+			"Bardzo spokojnie - pełny skręt tylko przy dużych prędkościach przydatny.",
+			"Spokojnie - łatwiej trzymać prosty tor.",
+			"Lekko łagodniej niż domyślnie.",
+			"Domyślnie. Środek drążka i tak jest łagodny (krzywa), pełne wychylenie = pełny skręt.",
+			"Żywiej - pełny skręt przed końcem wychylenia.",
+			"Bardzo żywo - dla wprawnych.",
+		],
+	},
+	{
+		"key": "cockpit_alpha", "group": "look", "label": "Przezroczystość kokpitu",
+		"values": [0, 20, 40, 60, 80],
+		"names": ["0% (pełna)", "20%", "40%", "60%", "80%"],
+		"hints": [
+			"Kabina pełna, jak w prawdziwym aucie - maska zasłania jezdnię przed autem.",
+			"Maska i deska lekko prześwitują.",
+			"Widać jezdnię przez maskę, deskę i podłogę.",
+			"Domyślnie: kabina ledwo widoczna - jezdnia jak na dłoni.",
+			"Prawie sama jezdnia - kabina tylko jako zarys.",
+		],
+	},
+]
+
+
+func _ready() -> void:
+	load_settings()
+
+
+func load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(PATH) != OK:
+		return
+	for opt in OPTIONS:
+		var key: String = opt["key"]
+		var v = cfg.get_value("car", key, get(key))
+		# Wartość spoza listy (np. stary plik) - zostaje domyślna.
+		if opt["values"].has(v):
+			set(key, v)
+	var version: int = cfg.get_value("meta", "version", 1)
+	if version < 3:
+		# Nowy układ (użytkownik): kierownica prawym, biegi lewym drążkiem.
+		steer_stick = "right"
+	best_time = cfg.get_value("records", "best_time", 0.0)
+	best_distance = cfg.get_value("records", "best_distance", 0.0)
+
+
+func save_settings() -> void:
+	if not persist:
+		return
+	var cfg := ConfigFile.new()
+	for opt in OPTIONS:
+		cfg.set_value("car", opt["key"], get(opt["key"]))
+	cfg.set_value("meta", "version", SETTINGS_VERSION)
+	cfg.set_value("records", "best_time", best_time)
+	cfg.set_value("records", "best_distance", best_distance)
+	cfg.save(PATH)
+
+
+## Ustawia samochód zgodnie z wyborem gracza.
+func apply_to_car(car: StuntCar) -> void:
+	car.drive_layout = drive_layout
+	car.tires = tires
+	car.hub_motors = motor_layout == "hub"
+	car.apply_engine(engine_type, engine_power)
+	car.automatic = transmission == "auto"
+	car.apply_suspension_preset(suspension)
+	car.abs_enabled = abs_enabled
+	car.tcs_enabled = tcs_enabled
+	car.esp_enabled = esp_enabled
+	car.steer_assist = steer_assist
+	car.set_paint(PAINTS[paint])
+
+
+## Włącza renderowanie do gogli, jeśli OpenXR wystartował. Zwraca true w VR.
+## Wołane przez każdą scenę - po zmianie sceny viewport trzeba ustawić od nowa.
+func enable_xr(viewport: Viewport) -> bool:
+	var xr := XRServer.find_interface("OpenXR")
+	if xr and xr.is_initialized():
+		# W XR to kompozytor gogli decyduje o synchronizacji, nie okno pulpitu.
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		viewport.use_xr = true
+		return true
+	return false
