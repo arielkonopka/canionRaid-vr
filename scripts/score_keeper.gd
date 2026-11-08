@@ -20,6 +20,7 @@ class_name ScoreKeeper
 ##   - szał wygasł                → close_chase(id, "calmed", now, kmh)
 ##   - wybuch bota                → close_chase(id, "wreck", now, kmh)
 ##   - inne (pit, wmanewrowanie, skok, formacja) → award(kind, id, now, kmh)
+##   - sztuczka (StuntTracker)    → award_free(kind, pts, now, label)
 ##   - nowy odcinek               → new_section()
 ## Każda metoda zwraca listę wypłat (Dictionary: kind, points, combo, text)
 ## do wyświetlenia (pula Label3D, tylko przy zdarzeniu) i do logu
@@ -154,6 +155,16 @@ func award(kind: String, id: int, now: float, kmh: float) -> Array:
 	return [_pay(kind, pts, n)]
 
 
+## Punkty spoza pościgu (sztuczki z StuntTracker, tryb kaskaderski):
+## gotowa wartość `pts`, tylko z mnożnikiem serii.
+func award_free(kind: String, pts: int, now: float, label: String = "") -> Array:
+	if pts == 0:
+		return []
+	var n := _bump_combo(now)
+	var combo_mult := minf(1.0 + COMBO_STEP * float(n - 1), COMBO_MAX)
+	return [_pay(kind, int(round(float(pts) * combo_mult)), n, label)]
+
+
 ## Mnożnik niebezpieczeństwa: czas pościgu, liczba botów w szale, prędkość.
 func danger(c: Dictionary, now: float, kmh: float) -> float:
 	var t := now - float(c["start_t"])
@@ -191,12 +202,12 @@ func _bump_combo(now: float) -> int:
 	return combo
 
 
-func _pay(kind: String, pts: int, n: int) -> Dictionary:
+func _pay(kind: String, pts: int, n: int, label: String = "") -> Dictionary:
 	# Mandat nie schodzi poniżej zera w portfelu.
 	points = maxi(points + pts, 0)
 	if pts > 0:
 		total_earned += pts
-	var text := "%+d %s" % [pts, LABELS.get(kind, kind)]
+	var text := "%+d %s" % [pts, label if label != "" else LABELS.get(kind, kind)]
 	if n > 1:
 		text += " x%d" % n
 	return {"kind": kind, "points": pts, "combo": n, "text": text}

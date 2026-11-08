@@ -58,8 +58,8 @@ konfliktów, a chmura nie ma gogli.
 | Uruchomić `score_test`, poprawić ewentualne błędy składni | agent | do zrobienia |
 | Wpięcie: karta pościgu w `BotDriver` (koniec fazy ataku, min. odstęp, kontakt), `xr_main` (zgubienie/wybuch/uspokojenie), usunięcie `HIT_BONUS` | agent | do zrobienia |
 | Napisy punktów (pula Label3D przy desce), wynik na desce, dźwięki zdarzeń | agent | do zrobienia |
-| Warsztat: cennik napraw strefami + zakupy | chmura: cennik i logika (`workshop_shop.gd`, czysta); agent: menu | następny krok chmury |
-| Detektor sztuczek (`stunt_tracker.gd`: powietrze, obroty, lądowanie) - czysta logika z wejściem: basis auta, prędkość kątowa, koła na ziemi | chmura | następny krok chmury |
+| Warsztat: cennik napraw strefami + zakupy | chmura: `workshop_shop.gd` (gotowe); agent: menu | logika gotowa, test `stunt_shop_test` |
+| Detektor sztuczek (`stunt_tracker.gd`: powietrze, obroty, lądowanie, pętla, beczka) | chmura | gotowe, test `stunt_shop_test` |
 | Rama toru obracana, moduły pętla/beczka, tryb w menu | agent | później |
 | Wybór taktyki botów (utility AI zamiast losowania w "mixed"), czysta funkcja ocen | chmura | później |
 | Przegląd PR-ów agenta | chmura | na bieżąco |
