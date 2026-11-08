@@ -18,6 +18,7 @@ func _initialize() -> void:
 	_test_combo()
 	_test_wallet()
 	_test_styles_balanced()
+	_test_damage_and_ambush()
 	print("score_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails > 0 else 0)
 
@@ -120,3 +121,28 @@ func _test_styles_balanced() -> void:
 	_check(run.points > 0 and fight.points > 0, "oba style zarabiają")
 	var ratio := float(fight.points) / float(run.points)
 	_check(ratio > 0.5 and ratio < 3.0, "style porównywalne (wojownik/uciekinier %.2f)" % ratio)
+
+
+## Wizja (2026-11-08): punkty za obrażenia zadane, premia za eksplozję,
+## premia za unik zasadzki.
+func _test_damage_and_ambush() -> void:
+	var sk := SK.new()
+	sk.open_chase(1, "reinforce", 0.0)
+	_check(sk.damage_dealt(1, 0.04, 1.0, 100.0).is_empty(), "małe obrażenia sumują się bez napisu")
+	var d: Array = sk.damage_dealt(1, 0.08, 2.0, 100.0)
+	_check(d.size() == 1 and d[0]["kind"] == "damage" and int(d[0]["points"]) > 0, "obrażenia 12% dają punkty")
+	var before: int = sk.points
+	sk.note_contact(1, 3.0)
+	var w: Array = sk.close_chase(1, "wreck", 4.0, 100.0)
+	_check(w.size() == 1 and sk.points > before, "eksplozja daje premię ponad obrażenia")
+	var hit := SK.new()
+	hit.open_chase(2, "player_hit", 0.0)
+	_check(hit.damage_dealt(2, 0.5, 1.0, 100.0).is_empty(), "pościg z mandatem - bez punktów za obrażenia")
+	var amb := SK.new()
+	amb.open_chase(3, "overtake", 0.0)
+	var a: Array = amb.end_attack(3, false, 0.8, 100.0, 1.0, "ambush")
+	var plain := SK.new()
+	plain.open_chase(3, "overtake", 0.0)
+	var p: Array = plain.end_attack(3, false, 0.8, 100.0, 1.0)
+	_check(a[0]["kind"] == "ambush_dodge" and int(a[0]["points"]) > int(p[0]["points"]),
+			"unik zasadzki wart więcej niż zwykły unik")
