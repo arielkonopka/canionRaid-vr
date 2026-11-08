@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: autostrada co 5 odcinków, ruch z naprzeciwka, furia po wyprzedzeniu)
+Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: strażnik wysokości jezdni - droga pod trawą / pod morzem; wątek w chmurze)
 
 ---
 
@@ -816,6 +816,27 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
     Fizycznie poprawne. Do zrobienia: limit prędkości z krzywizny
     pionowej w autopilocie (v² < g·R) i **znaki ostrzegawcze przed
     garbami** w grze (jak przed skokami).
+  - **Strażnik wysokości** (`TrackGenerator._guarded`, `lowest_edge`,
+    `_rise`; błąd użytkownika 2026-11-08 "droga pod wodą / pod łąką,
+    bo jest zielona"): teren to wciąż jedna płaska trawa na y = 0
+    (`main.tscn` Ground + `WorldBoundaryShape3D`, pozostałość toru na
+    palach), morze z okna na `SEA_Y` 0,3. Wąwóz nie ma własnego dna, więc
+    jezdnia poniżej ~0,3 m znika pod trawą albo wodą. Przyczyna: wysokość
+    sprawdzano tylko **przed** modułem, a skocznia (stół + zeskok -12°)
+    schodzi o 5-10 m w jego trakcie - na autostradzie (4 m) prawie zawsze
+    pod trawę (do -2,2 m), w wąwozie od ~6 m w dół. Symulacja w Pythonie
+    (port wysokości generatora, 300 ziaren × 40 odcinków): 8% odcinków
+    z jezdnią < 0,3 m, ponad połowa na autostradzie. Teraz każdy moduł
+    (i skocznia/garb autostrady) jest najpierw budowany na próbę na kopii
+    stanu przy tym samym `rng.state`; jeśli najniższy punkt (z niższą
+    krawędzią na przechyłce) < `d.hmin` (2 m), przed modułem idzie
+    podjazd (`_climb` w wąwozie, `_highway_level` na autostradzie)
+    i próba od nowa. Geometria modułu nie zależy od wysokości startu,
+    więc moduł wychodzi ten sam, tylko wyżej. Losowanie
+    modułu bez zmian; dalszy przebieg trasy może się różnić, bo podjazdy
+    zmieniają wysokość. Test:
+    `tests/track_height_test.gd`. **Nie usuwaj płaskiej trawy, zanim
+    nie będzie innego terenu** - autostrada stoi na nasypie do y = 0.
   - Pułapka strojenia: każdy skok obniża tor o ~10 m, więc podjazd był
     wybierany prawie zawsze i znikały łuki - podjazd tylko blisko dolnej
     granicy i od razu po skoku, jeśli nisko.
@@ -1140,7 +1161,13 @@ godot --headless --xr-mode off -s res://tests/drive_test.gd -- 95 sport auto </d
 godot --headless --xr-mode off -s res://tests/assist_test.gd -- dry </dev/null   # dry/wet/ice
 godot --headless --xr-mode off -s res://tests/engine_test.gd </dev/null
 godot --headless --xr-mode off -s res://tests/title_test.gd </dev/null
+godot --headless --xr-mode off -s res://tests/track_height_test.gd </dev/null  # sam generator, sekundy
 ```
+
+- `track_height_test` (generator): 10 ziaren × 40 odcinków wąwozu
+  z autostradą, najniższa jezdnia (z krawędzią na przechyłce) ≥ 1,9 m,
+  inaczej "BŁĄD". Wynik: **jeszcze nie uruchomiony** (napisany w chmurze,
+  bez Godota) - uruchomić i wpisać.
 
 - `drive_test` (prędkość, zawieszenie, skrzynia): jedzie do mety (max 70 s),
   woła `main.update_race`; autopilot planuje
@@ -1288,6 +1315,14 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   przeniesione ze ściany na pobocze.
 - Naprawione dwa testy (assist, drive), które psuły się po cichu od
   poprzednich zmian (szczegóły w sekcji 6); wszystkie testy przechodzą.
+
+### 2026-11-08, wątek w chmurze "Napraw drogę pod wodą i łąką"
+- Błąd użytkownika: droga czasem pod wodą albo pod trawą. Przyczyna:
+  generator sprawdzał wysokość tylko przed modułem, skocznie schodziły
+  w trakcie poniżej y = 0 (płaska trawa z czasów toru na palach) i SEA_Y.
+  Naprawione strażnikiem wysokości (`_guarded`, sekcja 5) i nowym
+  testem `track_height_test` (w `quest.sh test`). Kod napisany bez
+  Godota - lokalny agent musi uruchomić testy i sprawdzić na goglach.
 
 ## 8. Kolejka zadań
 
