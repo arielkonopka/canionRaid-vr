@@ -93,6 +93,7 @@ do_test() {
 	run_test dent_test   ""              "wgnieceń|czas"
 	run_test title_test  ""              "auto:"
 	run_test generator_test "777"        "Section|skok"
+	run_test track_height_test ""        "najniższa|track_height_test|za nisko"
 	run_test reverse_test ""             "^t="
 	run_test respawn_test ""             "max obrót"
 	run_test service_test ""             "station|workshop"
