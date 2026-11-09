@@ -1399,6 +1399,9 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Główny zysk wydajności: kompresja VRAM i mipmapy tekstur skał
   (S1 100%: GPU 22,6 → 10,0 ms; 130%: 32 → 15,8 ms).
 - adb przestał padać po buildzie (ustawienie edytora, sekcja 3).
+- `user://bench.cfg` jednorazowy (Bench kasuje go po wczytaniu - plik
+  zostawiony w goglach przełączał każde uruchomienie w tryb pomiaru);
+  w pomiarze czerwony napis "BENCH S1" nad mapką (uwagi z chmury).
 - Scalone z chmury: wnętrze sedana z epoki (PR #24), zrzuty obejrzane.
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.

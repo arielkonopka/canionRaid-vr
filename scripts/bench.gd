@@ -36,6 +36,10 @@ static func load_config() -> void:
 		seed_value = int(cfg.get_value("bench", "seed", seed_value))
 		resolution = int(cfg.get_value("bench", "res", resolution))
 		_parse_off(str(cfg.get_value("bench", "ab", "")))
+		# Jednorazowy: plik zostawiony w goglach po cichu przełączałby
+		# każde następne uruchomienie w tryb pomiaru (wejście ignorowane).
+		# Ustawienia zostają w zmiennych statycznych do końca procesu.
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://bench.cfg"))
 	for a in OS.get_cmdline_user_args() + OS.get_cmdline_args():
 		if a.begins_with("--bench="):
 			scenario = a.substr(8)

@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzje użytkownika: chmura zatwierdza i scala PR-y, gdy kod ma właściwą jakość.
 
@@ -25,4 +25,12 @@ scalę go przy domknięciu etapu.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-09:
+1. `Bench.load_config()` kasuje `user://bench.cfg` zaraz po wczytaniu.
+   Plik jest jednorazowy, ustawienia zostają w zmiennych statycznych do
+   końca procesu. Sprawdzone na PC: przejazd się wykonał, a plik zniknął.
+   W trybie pomiaru nad mapką trasy wisi czerwony napis "BENCH S1".
+   Tekst jest stały, więc siatka nie jest przebudowywana co klatkę.
+2. Ustawienia importu tekstur są w `HANDOVER.md`, sekcja 3, pułapka
+   "Skały kosztują pół klatki GPU" (compress/mode=2, mipmapy,
+   normal_map=1 + `nrm_tap`).

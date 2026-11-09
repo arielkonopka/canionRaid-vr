@@ -956,6 +956,19 @@ func _build_race_hud() -> void:
 	_track_hud.position = Vector3(-0.38, 0.375, -0.40) + car.cockpit_offset
 	_track_hud.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
 	car.add_child(_track_hud)
+	if Bench.active():
+		# Widać od razu, że to przejazd pomiarowy (wejście ignorowane).
+		var bl := Label3D.new()
+		bl.name = "BenchLabel"
+		bl.text = "BENCH " + Bench.scenario
+		bl.font_size = 26
+		bl.pixel_size = 0.0006
+		bl.modulate = Color(1.0, 0.4, 0.3)
+		bl.outline_size = 6
+		bl.no_depth_test = true
+		bl.position = _track_hud.position + Vector3(0.0, TrackHud.SIZE.y * 0.5 + 0.02, 0.0)
+		bl.rotation = _track_hud.rotation
+		car.add_child(bl)
 
 	_ws_label = _result_label.duplicate()
 	_ws_label.name = "Workshop"
