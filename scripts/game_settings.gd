@@ -97,6 +97,10 @@ var best_distance: float = 0.0
 ## false = nic nie jest zapisywane na dysk. Ustawiają to testy, żeby nie
 ## nadpisywać ustawień i rekordów gracza.
 var persist := true
+## Radio online (stacja Jamendo, menu pauzy) - jawna opcja, domyślnie
+## wyłączona (inbox radio-online-jamendo). Poza OPTIONS: nie ma jej
+## w menu tytułowym, tylko w menu pauzy.
+var radio_online := false
 
 ## Grupy menu (podmenu na ekranie tytułowym), w kolejności wyświetlania.
 const GROUPS: Array[Dictionary] = [
@@ -497,6 +501,7 @@ func load_settings() -> void:
 		steer_stick = "right"
 	best_time = cfg.get_value("records", "best_time", 0.0)
 	best_distance = cfg.get_value("records", "best_distance", 0.0)
+	radio_online = bool(cfg.get_value("radio", "online", false))
 
 
 func save_settings() -> void:
@@ -508,6 +513,7 @@ func save_settings() -> void:
 	cfg.set_value("meta", "version", SETTINGS_VERSION)
 	cfg.set_value("records", "best_time", best_time)
 	cfg.set_value("records", "best_distance", best_distance)
+	cfg.set_value("radio", "online", radio_online)
 	cfg.save(PATH)
 
 

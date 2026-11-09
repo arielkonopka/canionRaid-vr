@@ -1030,6 +1030,9 @@ func _build_radio() -> void:
 		_radio_label.no_depth_test = true
 		_hud_panel.add_child(_radio_label)
 	_radio.now_playing.connect(_on_radio_text)
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs:
+		_radio.set_online(gs.radio_online)
 	_pause = PauseMenu.new()
 	_pause.camera = camera
 	_pause.hands = [left_hand, right_hand]
