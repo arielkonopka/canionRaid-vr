@@ -29,10 +29,12 @@ Proponowana kolejność:
    zepsuje jezdnię), potem `./quest.sh test` na scalonej lokalnie
    gałęzi. Jeśli OK, scal ją do `boty-szal-tekstury` i dopisz wynik
    w tych zleceniach. PR #21 scalę wtedy do `main`.
-3. **Radio:** `radio_test` jest już w zestawie (9f41973). Zmień `Status`
-   w `inbox/2026-11-08-radio-na-tablecie.md` i dopisz wynik testu.
-   W `inbox/2026-11-09-merge-main.md` wystarczy jedno zdanie
+3. Radio zrobione (d392ce8, widzę odpowiedź w zleceniu) - zmień tylko
+   `Status` w `inbox/2026-11-08-radio-na-tablecie.md`. W `inbox/2026-11-09-merge-main.md` wystarczy jedno zdanie
    potwierdzenia.
+
+**PR #23 scalony do `main`** (radio z menu pauzy, pusty bak, hill_test, lusterko,
+Bench) - przejrzane, bez uwag. Nowy zbiorczy PR otwieram od razu.
 
 Etap 0 pomiarów (bench S1-S5) robisz, gdy użytkownik da gogle przy
 świetle - to nie blokuje punktów 1-3.
