@@ -850,8 +850,16 @@ func _physics_step(delta: float) -> void:
 		_max_fall_speed = maxf(_max_fall_speed, -linear_velocity.y)
 	else:
 		if wheels_on_ground == 0 and airtime > 0.25:
-			landed.emit(_max_fall_speed)
-			_damage_landing(_max_fall_speed)
+			# Prędkość uderzenia prostopadle do nawierzchni (to czuje
+			# zawieszenie), nie pionowa: lądowanie na zboczu zgodnym z torem
+			# lotu jest miękkie nawet przy 400 km/h (wielkie skocznie,
+			# 2026-11-09). Na płaskim to to samo co prędkość opadania.
+			var v_n := 0.0
+			for w in wheels:
+				if w.contact:
+					v_n = maxf(v_n, -linear_velocity.dot(w.normal))
+			landed.emit(v_n)
+			_damage_landing(v_n)
 		airtime = 0.0
 		_max_fall_speed = 0.0
 	wheels_on_ground = grounded

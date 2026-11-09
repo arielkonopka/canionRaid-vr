@@ -502,10 +502,18 @@ func _physics_process(delta: float) -> void:
 ## (ścieżka obiektu). Najwyżej raz na 3 s.
 var _inc_v := Vector3.ZERO
 var _inc_cool := 0.0
+var _inc_hist: Array[Vector3] = []
 func _watch_incident(delta: float) -> void:
 	var v: Vector3 = car.linear_velocity
-	var dec := (_inc_v.length() - v.length()) / maxf(delta, 1e-4) / 9.81
-	var v_before := _inc_v.length()
+	# Opóźnienie poziome (bez składowej pionowej - inaczej każde lądowanie
+	# i wjazd na rampę wyglądały jak "hamowanie 3-100 g"), z okna ~0,1 s
+	# (pojedyncze kroki fizyki szumią). Log z jazdy 2026-11-09.
+	_inc_hist.append(Vector3(v.x, 0.0, v.z))
+	if _inc_hist.size() > 12:
+		_inc_hist.pop_front()
+	var h0: Vector3 = _inc_hist[0]
+	var dec := (h0.length() - Vector3(v.x, 0.0, v.z).length()) / maxf(delta * (_inc_hist.size() - 1), 1e-4) / 9.81
+	var v_before := h0.length()
 	_inc_v = v
 	_inc_cool = maxf(_inc_cool - delta, 0.0)
 	var tilt: float = rad_to_deg(acos(clampf(car.global_basis.y.y, -1.0, 1.0)))
@@ -1330,7 +1338,15 @@ func _watch_track(delta: float) -> void:
 		# i auto wyrzucone z wąwozu zostawało na trawie (zgłoszenie: wirowanie
 		# skończyło się "na zielonym placu").
 		var hw := float(s["width"]) * 0.5
-		var off_track := absf(float(info.get("offset", 0.0))) > hw + 15.0 or absf(below) > 6.0
+		var off_side := absf(float(info.get("offset", 0.0))) > hw + 15.0
+		# Lot nad jezdnią (żadne koło nie dotyka, auto nad drogą, nie
+		# z boku) to nie upadek - przy 200 km/h ze skoczni auto leci ~12 m
+		# nad drogą przez 2-3 s i reguła "> 6 m nad jezdnią" ogłaszała
+		# upadek w powietrzu (użytkownik 2026-11-09: "gra uznaje, że
+		# samochód gdzieś zawisł i wybucha - dajmy mu chociaż upaść").
+		# Limit 10 s na wypadek auta zawieszonego wysoko na czymś.
+		var flying := car.wheels_on_ground == 0 and below < 0.0 and not off_side and car.airtime < 10.0
+		var off_track := off_side or below > 6.0 or (below < -6.0 and not flying)
 		fell = fell or (off_track and _endless)
 		# Zawieszone podwoziem na krawędzi jezdni, koła w powietrzu - samo nie zjedzie.
 		var beached := car.wheels_on_ground < 3 and car.linear_velocity.length() < 0.5

@@ -462,6 +462,31 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   (`tests/topspeed_test.gd`, jazda w -Z): 130 kW 213/229/232/264 km/h;
   350 kW ~282 wszędzie (ogranicza 6. bieg na odcince); 700 kW
   378/393/393/398 km/h, 0-300 17-19 s.
+- **Skocznie: dwa rodzaje** (użytkownik 2026-11-09: "żeby dało się skakać
+  na maksymalnych prędkościach, do 400 km/h"; wybór z pytania): krótkie
+  w wąwozie jak dotąd (projektowane na prędkość ze znaku; dużo szybciej =
+  dobicie zawieszenia na rampie ~3-4 g albo lot nosem w dół), a na
+  odcinkach autostrady **wielka skocznia do 400 km/h**
+  (`TrackGenerator._big_jump`): próg 3,5° z łagodnym wejściem 77 m
+  (≤ 1 g dociążenia przy 400 km/h), za nim stół 170 m na wysokości progu.
+  Uderzenie przy lądowaniu na wysokości progu = v·sin θ niezależnie od
+  długości lotu, więc 3,5° to granica, przy której 400 km/h (6,8 m/s)
+  mieści się pod progiem uszkodzeń 7,5 m/s. Lot: 189 km/h 0,5 s, 400 km/h
+  ~1,4 s i ~150 m. Znak meta `sign` "SKOCZNIA DO 400 km/h", `big_jump`,
+  `v_sign` 0 (boty i autopilot jej nie celują).
+- **Twarde lądowanie liczone prostopadle do nawierzchni** (prędkość wzdłuż
+  normalnych kół w chwili dotknięcia), nie pionowo - lądowanie na zboczu
+  zgodnym z lotem jest miękkie.
+- **Lot to nie upadek** (użytkownik: "gra uznaje, że samochód gdzieś zawisł
+  i wybucha - dajmy mu chociaż upaść"): reguła "> 6 m nad jezdnią" nie
+  działa, gdy żadne koło nie dotyka, auto jest nad drogą i nie z boku
+  (limit 10 s w powietrzu).
+- **Punkty** (2026-11-09): uderzenie spokojnego bota **bez mandatu**,
+  sprowokowany pościg płaci jak każdy (uszkodzenia, obrót, wybuch, unik).
+  **Za lot** zakończony lądowaniem na kołach (`StuntTracker.air_units`,
+  jednostka 100 pkt): < 2 s nic, 2-10 s 1, od 10 do 30 s +1 co 5 s, od 30
+  do 40 s +1 co 2 s, dalej +1 co sekundę (zastąpiło 60 pkt/s). Salta,
+  beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
 - **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:

@@ -40,8 +40,14 @@ func _initialize() -> void:
 	chunk.start_state = start
 	chunk.build_lines = false
 	root.add_child(chunk)
-	for layout in [["fwd", 700], ["rwd", 180], ["awd", 700]]:
-		for kmh in [80.0, 110.0, 140.0]:
+	var speeds := [80.0, 110.0, 140.0]
+	var layouts := [["fwd", 700], ["rwd", 180], ["awd", 700]]
+	# -- [indeks do śledzenia] [km/h,km/h...]: np. "-- -1 170,200" - szybkie wjazdy 4x4.
+	if OS.get_cmdline_user_args().size() > 1:
+		speeds = Array(OS.get_cmdline_user_args()[1].split(",")).map(func(x): return float(x))
+		layouts = [["awd", 700]]
+	for layout in layouts:
+		for kmh in speeds:
 			for thr in [0.0, 1.0]:
 				runs.append([layout[0], layout[1], kmh, thr])
 

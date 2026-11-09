@@ -1,7 +1,7 @@
 extends SceneTree
 ## Test logiki punktacji furii drogowej (ScoreKeeper) - bez sceny i fizyki.
 ##   godot --headless --xr-mode off -s res://tests/score_test.gd </dev/null
-## Sprawdza: mandat i brak punktów z pościgu "player_hit", unik, zgubienie,
+## Sprawdza: brak mandatu i punkty z pościgu "player_hit", unik, zgubienie,
 ## uspokojenie tylko bez trafień, winę za wybuch, wmanewrowanie, serię,
 ## portfel i wydatki. Kod wyjścia 1 przy błędzie.
 
@@ -39,14 +39,15 @@ func _sum(pays: Array) -> int:
 func _test_fine() -> void:
 	var sk = SK.new()
 	sk.points = 500
+	# Od 2026-11-09 bez mandatu: sprowokowany pościg płaci jak każdy inny.
 	var p: Array = sk.open_chase(1, "player_hit", 0.0)
-	_check(p.size() == 1 and p[0]["kind"] == "fine", "mandat przy uderzeniu spokojnego bota")
-	_check(sk.points == 400, "mandat odejmuje punkty (%d)" % sk.points)
-	_check(sk.end_attack(1, false, 0.5, 120.0, 5.0).is_empty(), "pościg player_hit bez punktów za unik")
-	_check(sk.close_chase(1, "lost", 30.0, 120.0).is_empty(), "pościg player_hit bez punktów za zgubienie")
+	_check(p.is_empty(), "bez mandatu przy uderzeniu spokojnego bota")
+	_check(sk.points == 500, "portfel bez zmian (%d)" % sk.points)
+	_check(not sk.end_attack(1, false, 0.5, 120.0, 5.0).is_empty(), "pościg player_hit daje punkty za unik")
+	_check(not sk.close_chase(1, "lost", 30.0, 120.0).is_empty(), "pościg player_hit daje punkty za zgubienie")
 	var sk2 = SK.new()
-	sk2.open_chase(2, "player_hit", 0.0)
-	_check(sk2.points == 0, "portfel nie schodzi poniżej zera")
+	sk2.points = 50
+	_check(not sk2.spend(100) and sk2.points == 50, "portfel nie schodzi poniżej zera")
 
 
 func _test_dodge_and_lost() -> void:
@@ -137,7 +138,7 @@ func _test_damage_and_ambush() -> void:
 	_check(w.size() == 1 and sk.points > before, "eksplozja daje premię ponad obrażenia")
 	var hit := SK.new()
 	hit.open_chase(2, "player_hit", 0.0)
-	_check(hit.damage_dealt(2, 0.5, 1.0, 100.0).is_empty(), "pościg z mandatem - bez punktów za obrażenia")
+	_check(not hit.damage_dealt(2, 0.5, 1.0, 100.0).is_empty(), "sprowokowany pościg - punkty za obrażenia")
 	var amb := SK.new()
 	amb.open_chase(3, "overtake", 0.0)
 	var a: Array = amb.end_attack(3, false, 0.8, 100.0, 1.0, "ambush")
