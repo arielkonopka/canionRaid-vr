@@ -18,6 +18,7 @@ var last_bots := 0
 ## reguła upadku nie może zabierać życia w powietrzu, 2026-11-09).
 var jump_override := 0.0
 var _air := 0.0
+var _dbg_v := 0.0
 var _air_v := 0.0
 
 
@@ -59,6 +60,20 @@ func _physics_process(delta: float) -> bool:
 	if frame > 3:
 		main._check_origin_shift()
 		main._watch_incident(delta)
+		# DBG_STOP=1: szczegóły klatki, gdy prędkość pozioma spada > 2 km/h
+		# w jednym kroku (diagnostyka "nagłego zatrzymania", 2026-11-09).
+		if OS.has_environment("DBG_STOP") and car:
+			var hv: float = Vector2(car.linear_velocity.x, car.linear_velocity.z).length() * 3.6
+			if _dbg_v - hv > 2.0:
+				var ws := ""
+				for w in car.wheels:
+					ws += " [%s n%s s%.2f L%.0f]" % ["K" if w.contact else "-", str(w.normal.snapped(Vector3.ONE * 0.01)), w.spring_len, w.load]
+				var bodies := []
+				for b in car.get_colliding_bodies():
+					bodies.append(str(b.get_path()).get_file())
+				var sm: Dictionary = trk.nearest_sample(car.global_position)
+				print("  STOP %.0f -> %.0f km/h, poz %s, v %s, pochylenie auta %.1f°, próbka d=%.0f pochyl %.1f° wys %.2f, kolizje %s, koła%s" % [_dbg_v, hv, str(car.global_position.snapped(Vector3.ONE * 0.01)), str(car.linear_velocity.snapped(Vector3.ONE * 0.1)), rad_to_deg(car.global_rotation.x), float(sm.get("dist", 0)), rad_to_deg(float(sm.get("pitch", 0))), (car.global_position - trk.to_global(sm["pos"])).y, str(bodies), ws])
+			_dbg_v = hv
 	if frame == 1:
 		return false
 	if frame == 2:
@@ -93,7 +108,12 @@ func _physics_process(delta: float) -> bool:
 		if car.linear_velocity.length() < 0.5:
 			print("  warsztat t=%.0f s, %.2f km: %s" % [t, main._last_safe_dist / 1000.0,
 					main._ws_options[main._ws_selected]["label"]])
-			main.workshop_choose(main._ws_selected)
+			# Sklep: najdroższa dostępna wymiana silnika, potem wyjazd.
+			for i in range(main._ws_options.size()):
+				if main._ws_options[i]["kind"] == "engine" and int(main._ws_options[i]["cost"]) <= main.score.points:
+					main.workshop_choose(i)
+					break
+			main.workshop_choose(main.ws_exit_index())
 		return false
 	if main.race_state == main.Race.FINISHED:
 		print("KONIEC po %.0f s: odcinek %d, %.2f km, stan auta %d%%" % [t, trk.section_at(main._max_dist), main._max_dist / 1000.0, roundi((1.0 - car.damage["structure"]) * 100)])

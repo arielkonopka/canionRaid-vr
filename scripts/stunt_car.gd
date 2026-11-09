@@ -2439,6 +2439,21 @@ func damage_total() -> float:
 	return damage["structure"]
 
 
+## Naprawa samej karoserii (sklep warsztatu, strefa "structure"):
+## wgniecenia wyprostowane, auto znów jezdne; silnik, skrzynia, hamulce
+## i zawieszenie bez zmian.
+func repair_body() -> void:
+	damage["structure"] = 0.0
+	is_wrecked = false
+	for k in _dent_groups:
+		var g: Dictionary = _dent_groups[k]
+		if g.has("orig"):
+			g["verts"] = g["orig"].duplicate()
+			g["normals"] = g["orig_normals"].duplicate()
+			g["dirty"] = true
+	dent_count = 0
+
+
 ## Przywraca fabryczny kształt karoserii i naprawia wszystkie układy.
 func repair() -> void:
 	damage = {

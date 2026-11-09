@@ -121,6 +121,8 @@ do_test() {
 	run_test regen_test ""              "rekuperacja|regen_test"
 	run_test bot_drive_test ""          "bot_drive_test"
 	run_test feud_test ""               "feud_test"
+	run_test horn_test ""               "klakson|horn_test"
+	run_test shop_test ""               "shop_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

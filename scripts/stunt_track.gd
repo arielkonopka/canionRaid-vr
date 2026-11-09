@@ -224,7 +224,12 @@ func build() -> void:
 			_build_tunnel(float(smp["dist"]), float(meta["tunnel_len"]), meta.get("twin", {}))
 		if meta.has("island"):
 			var isl: Dictionary = meta["island"]
-			_build_island(float(smp["dist"]) + float(isl["start"]), float(isl["len"]), float(isl["w"]))
+			var d_isl := float(smp["dist"]) + float(isl["start"])
+			_build_island(d_isl, float(isl["len"]), float(isl["w"]))
+			# Ostrzeżenie przed rozwidleniem (użytkownik 2026-11-09: "na
+			# prostej, przede mną wzniesienie, samochód uderzył w nie jak
+			# w barierę" - czubek wysepki wyglądał jak podjazd).
+			_road_sign(maxf(d_isl - 120.0, float(_samples[0]["dist"]) + 2.0), "fork")
 		# Skocznie i sztuczki: bez tabliczek z napisami - ograniczenie przed
 		# (B-33 z pętli niżej) i koniec ograniczenia za (B-34).
 		if meta.has("grade"):
@@ -1086,6 +1091,12 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 					for k in [-1.0, 1.0]:
 						var tr2 := _sign_box(root, Vector3(0.025, 0.12, 0.01), face + Vector3(0.05 * k, -0.13, 0.03), sym)
 						tr2.rotation = Vector3(0, 0, 0.5 * k)
+				"fork":
+					# Rozwidlenie: pień i dwa ramiona rozchodzące się (jak Y).
+					_sign_box(root, Vector3(0.035, 0.13, 0.01), face + Vector3(0, -0.12, 0.03), sym)
+					for k in [-1.0, 1.0]:
+						var arm2 := _sign_box(root, Vector3(0.035, 0.16, 0.01), face + Vector3(0.05 * k, 0.0, 0.03), sym)
+						arm2.rotation = Vector3(0, 0, -0.55 * k)
 				"bump":
 					for k in [-1.0, 1.0]:
 						var b := _sign_box(root, Vector3(0.12, 0.035, 0.01), face + Vector3(0.05 * k, -0.05, 0.03), sym)
@@ -1420,19 +1431,26 @@ func _build_island(d0: float, length: float, w: float) -> void:
 		if d < d0 or d > d0 + length:
 			continue
 		var t := minf(d - d0, d0 + length - d)
-		var half := w * 0.5 * clampf(t / 12.0, 0.05, 1.0)
+		# Tępe, wysokie czoło (było: klin od 5% szerokości i 1 m wysokości -
+		# z daleka wyglądał jak stromy podjazd na środku drogi).
+		var half := w * 0.5 * clampf(0.45 + t / 20.0, 0.45, 1.0)
 		var c: Vector3 = smp["pos"]
 		var r_h: Vector3 = (smp["right"] * Vector3(1, 0, 1)).normalized()
-		var h := 3.5 * clampf(t / 6.0, 0.3, 1.0)
+		var h := 3.5 * clampf(0.6 + t / 15.0, 0.6, 1.0)
 		var p := {"l0": c - r_h * half, "r0": c + r_h * half,
 				"l1": c - r_h * half * 0.8 + Vector3.UP * h, "r1": c + r_h * half * 0.8 + Vector3.UP * h}
 		if not prev.is_empty():
 			_quad_facing(st, faces, prev["l0"], p["l0"], p["l1"], prev["l1"], -r_h)
 			_quad_facing(st, faces, prev["r0"], p["r0"], p["r1"], prev["r1"], r_h)
 			_quad_facing(st, faces, prev["l1"], p["l1"], p["r1"], prev["r1"], Vector3.UP)
+		else:
+			# Ściana czołowa (i druga na końcu niżej) - zamknięta bryła.
+			var fw: Vector3 = -(smp["fwd"] as Vector3)
+			_quad_facing(st, faces, p["l0"], p["r0"], p["r1"], p["l1"], fw)
 		prev = p
 	if faces.is_empty():
 		return
+	_island_nose(d0, w)
 	st.generate_normals()
 	st.set_material(_rock_material("cavern"))
 	var mi := MeshInstance3D.new()
@@ -1440,6 +1458,36 @@ func _build_island(d0: float, length: float, w: float) -> void:
 	mi.mesh = st.commit()
 	_adopt(mi)
 	_collision_body("IslandBody", faces, "rock", 0.55)
+
+
+## Czoło wysepki rozwidlenia: żółto-czarne pasy przez całą szerokość czoła
+## i niebieski znak "objazd z obu stron" (wzór C-11) nad nim - wysepka ma
+## wyglądać jak przeszkoda, nie jak podjazd.
+func _island_nose(d0: float, w: float) -> void:
+	var root := Node3D.new()
+	root.name = "IslandNose"
+	_adopt(root)
+	var xf := global_transform.affine_inverse() * transform_at_distance(d0)
+	var fwd_h := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
+	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
+	root.position = xf.origin
+	var mats := _sign_mats()
+	var face_w := w * 0.45
+	# Tablica na czole (przed skałą, przodem do nadjeżdżających).
+	for k in range(6):
+		var col: Material = mats["yellow"] if k % 2 == 0 else mats["black"]
+		_sign_box(root, Vector3(face_w, 0.25, 0.04), Vector3(0.0, 0.15 + k * 0.25, 0.12), col)
+	# C-11: niebieska tarcza, dwie białe strzałki w dół na boki.
+	if not _shared_mats.has("sign_blue"):
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(0.05, 0.25, 0.65)
+		_shared_mats["sign_blue"] = bm
+	var face := Vector3(0.0, 2.4, 0.16)
+	_sign_box(root, Vector3(0.07, 0.9, 0.07), Vector3(0.0, 1.95, 0.1), mats["post"])
+	_sign_disc(root, face, 0.4, _shared_mats["sign_blue"], 0.0)
+	for sx in [-1.0, 1.0]:
+		var arr := _sign_box(root, Vector3(0.05, 0.3, 0.01), face + Vector3(0.1 * sx, -0.04, 0.02), mats["white"])
+		arr.rotation = Vector3(0, 0, 0.7 * sx)
 
 
 func _collision_body(n: String, faces: PackedVector3Array, surface: String, grip: float) -> void:

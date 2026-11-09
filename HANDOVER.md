@@ -120,7 +120,7 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - **Sterowanie: prawy drążek = kierownica, lewy drążek = biegi**
     (w górę wyżej, w dół niżej). Opcja "Kierownica" zamienia strony.
   - **Przyciski w jeździe (gogle)**: klik prawego drążka = nowe auto
-    (strata życia), klik lewego = wolna kamera, A = ABS, B = ESP,
+    (strata życia), klik lewego = klakson (szał aut w promieniu 250 m, użytkownik 2026-11-09; wolna kamera tylko F na klawiaturze), A = ABS, B = ESP,
     X = TCS, Y krótko = ograniczenie skrętu (`steer_assist`, teraz też
     w menu "Systemy wspomagania"); "pozostałe przyciski zostają" -
     spusty, gripy, Menu, Y przytrzymany (centrowanie) bez zmian.
@@ -454,13 +454,32 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
-- **Menu pauzy = menu główne ustawień** (użytkownik 2026-11-09): w pauzie
-  te same grupy opcji co na ekranie tytułowym; radio, wspomagania,
-  sterowanie, wygląd, szał botów działają od razu; zmiana samochodu /
-  nadwozia / trasy **resetuje jazdę, ale najpierw ostrzeżenie** (A: zacznij
-  od nowa, B: cofnij zmiany). **Ustawienia radia w ustawieniach gry**
-  (grupa "Radio": radio przy starcie, stacja, głośność, Jamendo online),
-  wspólne z menu pauzy. Do zrobienia (sekcja 8).
+- **Menu pauzy = menu ustawień gry** (użytkownik 2026-11-09, zrobione):
+  w pauzie te same grupy co na ekranie tytułowym (`PauseMenu` buduje się
+  z `GameSettings.GROUPS/OPTIONS`); radio, wspomagania, sterowanie, wygląd,
+  szał botów działają od razu (`setting_changed` -> `xr_main.
+  _on_setting_changed`); trasa / samochód / nadwozie (`RESTART_GROUPS`)
+  przy powrocie do jazdy pytają: A/spust - nowa jazda (reload sceny),
+  B - cofnij zmiany. **Grupa "Radio"** w ustawieniach (radio przy starcie,
+  stacja, głośność, Jamendo online) - wspólna dla tytułu i pauzy.
+- **Spójne sterowanie menu** (użytkownik: "całe menu obsługuje się
+  manetką i spustem, a nagle zatwierdzenie wymaga A"): w pauzie
+  i warsztacie zatwierdza spust **albo** A, B wraca/cofa. W warsztacie
+  spust działa po 0,4 s od wjazdu (gaz trzymany przy wjeździe nie kupuje).
+- **Warsztat = sklep za punkty** (użytkownik: "powinny być punkty za każdą
+  rzecz, wymianę silnika, naprawę"; "za rzadko można wymienić punkty na
+  naprawę"; "naprawa poszczególnych uszkodzeń zależnie od typu
+  samochodu"): `WorkshopShop` (cennik chmury) podłączony - naprawy
+  strefami (silnik, skrzynia, karoseria, hamulce, zawieszenie), pełna
+  naprawa z rabatem, zapasowe auto, większy bak; wymiana silnika
+  300 pkt x próg; menu otwarte do "Wyjazd". Ceny stref x
+  `WorkshopShop.car_multipliers` (moc, masa, elektryk: drogi silnik,
+  tania skrzynia, silniki w kołach drożej; diesel: droższa skrzynia).
+  **Naprawy także na stacjach** (postój < 3 km/h na pasie stacji, sam
+  serwis bez silnika). Bez dźwigu w menu. Test: `shop_test`.
+- **Klakson** (użytkownik 2026-11-09): klik lewego drążka (H na
+  klawiaturze) - szał wszystkich botów w promieniu 250 m (`player_horn`,
+  pochodzenie "horn" w ScoreKeeper). Wolna kamera tylko pod F.
 - **Rekuperacja elektryka** (użytkownik 2026-11-09): opcja menu
   "Rekuperacja" wył./słaba/normalna/mocna (`StuntCar.REGEN_LEVELS` 0 /
   0,07 / 0,15 / 0,30 maks. momentu), energia wraca do baterii ze
@@ -582,6 +601,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **"Auto nagle staje jak przed barierą na prostej pod górkę"** (jazda
+  2026-11-09): to **wysepka rozwidlenia** (`IslandBody`) tuż za
+  wzniesieniem - skalny klin z niskim, pochyłym czubkiem wyglądał jak
+  podjazd. Teraz: tępe, wysokie czoło, żółto-czarna tablica, znak C-11,
+  trójkąt "rozwidlenie" 120 m przed. **Linia INCYDENT "kontakt: brak"
+  wprowadza w błąd** - impuls pojedynczego kontaktu bywa < 200 N·s (próg
+  `last_hit`), choć auto stoi na przeszkodzie; w testach sprawdzać
+  `car.get_colliding_bodies()` (endless_test z `DBG_STOP=1`).
 
 - **Nie edytuj `quest.sh` w miejscu, gdy działa** (`./quest.sh test` trwa
   ~25 min): bash czyta skrypt na bieżąco, a zapis z obcięciem pliku
@@ -1836,8 +1864,6 @@ Propozycje (do uzgodnienia):
 - Etap 5: przeciwnik AI (punkt wyjścia: autopilot z `drive_test`).
 - Wydajność na Queście: 4 sfery + `get_rest_info` × 240 Hz, liniowe
   `nearest_sample`. Zmierzyć na sprzęcie.
-- Przełączanie ABS i ESP w trakcie jazdy, jak TCS (wolny jest jeszcze
-  klik lewego drążka).
 
 ## 9. Otwarte pytania do użytkownika
 

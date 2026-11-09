@@ -214,7 +214,9 @@ static func _biome_props(samples: Array, plan: HighwayPlan, edges: Vector2, d0: 
 			continue
 		var bl := plan.biome_blend(d)
 		var biome: String = bl["b"] if rng.randf() < float(bl["t"]) else bl["a"]
-		for side in [-1, 1]:
+		# Nad morzem obiekty tylko po prawej - z lewej (za jezdnią
+		# z naprzeciwka) jest woda (xr_main._update_biome).
+		for side in ([1] if biome == "seaside" else [-1, 1]):
 			var edge := edges.y if side > 0 else -edges.x
 			for entry in BIOME_PROPS.get(biome, []):
 				if rng.randf() > float(entry[1]) * PROP_STEP / 6.0 * 0.5:

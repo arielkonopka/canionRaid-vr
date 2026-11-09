@@ -68,8 +68,10 @@ func step(player_dist: float, cars: Array, rng: RandomNumberGenerator) -> Dictio
 		if not c.get("raging", false) and not c.get("visible", true):
 			var outside := d < player_dist - BEHIND - DESPAWN_MARGIN \
 					or d > player_dist + AHEAD + DESPAWN_MARGIN
-			# Poza strefą miasta ruch zwykły się rozpływa.
-			gone = outside or not plan.in_traffic_zone(d)
+			# Poza strefą miasta ruch rzednie: nadmiar ponad gęstość
+			# między miastami (TRAFFIC_BETWEEN) znika poza oknem; w oknie
+			# auta zostają (użytkownik: "rzadki ruch też między miastami").
+			gone = outside
 		if gone:
 			despawn.append(c["id"])
 		elif d >= player_dist - BEHIND and d <= player_dist + AHEAD and not c.get("raging", false):

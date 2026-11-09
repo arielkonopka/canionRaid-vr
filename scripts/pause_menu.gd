@@ -1,17 +1,26 @@
 extends GazeFollow
 class_name PauseMenu
 
-## Menu pauzy w jeździe (lewy przycisk menu; na PC Esc). Ustalone
-## z użytkownikiem (2026-11-09): radio sterowane z pauzy - żaden przycisk
-## w jeździe się nie zmienia. Pauza zatrzymuje drzewo sceny (fizyka, boty),
-## a ten węzeł, radio i XROrigin (śledzenie głowy i kontrolerów) działają
-## dalej (PROCESS_MODE_ALWAYS) - zamrożony obraz w goglach męczyłby.
-## Wybór drążkiem (góra/dół), zmiana wartości drążkiem w bok, A zatwierdza.
+## Menu pauzy = menu ustawień gry (użytkownik 2026-11-09: "menu pauzy
+## będzie menu głównym, gdzie zmiana samochodu zresetuje grę, ale najpierw
+## uprzedzić gracza"; "ustawienia radia w ustawieniach gry").
+##
+## Te same grupy i opcje co na ekranie tytułowym (GameSettings.GROUPS /
+## OPTIONS). Zmiany zapisują się od razu; radio, wspomagania, sterowanie,
+## wygląd i szał botów działają od razu (sygnał setting_changed -> xr_main).
+## Trasa, samochód i nadwozie (RESTART_GROUPS) wymagają nowej jazdy: przy
+## powrocie do jazdy pytanie - A/spust: zacznij od nowa, B: cofnij zmiany.
+##
+## Pauza zatrzymuje drzewo sceny; ten węzeł, radio i XROrigin działają dalej
+## (PROCESS_MODE_ALWAYS). Drążek: góra/dół wybór, w bok zmiana wartości /
+## wejście do grupy; A albo spust zatwierdza, B wraca.
 
 signal resumed
 signal quit_requested
+signal restart_requested
+signal setting_changed(key: String)
 
-const ITEMS := ["resume", "radio", "station", "online", "volume", "quit"]
+const RESTART_GROUPS := ["track", "car", "body"]
 const VOLUME_STEPS := [-30.0, -24.0, -18.0, -14.0, -10.0, -8.0, -6.0, -3.0, 0.0]
 
 var radio: CarRadio
@@ -19,9 +28,11 @@ var hands: Array = []          # XRController3D (drążki)
 var xr := false
 var label: Label3D
 var selected := 0
+var _group := ""
+var _entries: Array = []
+var _snapshot := {}
+var _confirm := false
 var _stick_ready := false
-## Głośność radia na całą sesję (scena jazdy ładuje się od nowa).
-static var volume_index := 5
 
 
 func _init() -> void:
@@ -30,7 +41,7 @@ func _init() -> void:
 	distance = 1.5
 	label = Label3D.new()
 	label.name = "PauseLabel"
-	label.font_size = 60
+	label.font_size = 56
 	label.pixel_size = 0.0012
 	label.outline_size = 16
 	label.modulate = Color(0.9, 0.95, 1.0)
@@ -40,12 +51,19 @@ func _init() -> void:
 	visible = false
 
 
+func _gs() -> Node:
+	return (Engine.get_main_loop() as SceneTree).root.get_node_or_null("GameSettings")
+
+
 func open() -> void:
+	_snapshot = _restart_values()
+	_confirm = false
+	_group = ""
 	selected = 0
 	_stick_ready = false
+	_build()
 	snap()
 	visible = true
-	refresh()
 
 
 func close() -> void:
@@ -56,76 +74,196 @@ func is_open() -> bool:
 	return visible
 
 
+## Wartości opcji wymagających nowej jazdy (do porównania przy powrocie).
+func _restart_values() -> Dictionary:
+	var gs := _gs()
+	var out := {}
+	if gs == null:
+		return out
+	for opt in gs.OPTIONS:
+		if opt["group"] in RESTART_GROUPS:
+			out[opt["key"]] = gs.get(opt["key"])
+	return out
+
+
+func _build() -> void:
+	_entries.clear()
+	var gs := _gs()
+	if _group == "":
+		_entries.append({"type": "resume"})
+		if gs:
+			for g in gs.GROUPS:
+				_entries.append({"type": "group", "id": g["id"], "label": g["label"]})
+		_entries.append({"type": "quit"})
+	else:
+		for opt in gs.OPTIONS:
+			if opt["group"] == _group:
+				_entries.append({"type": "option", "opt": opt})
+		_entries.append({"type": "back"})
+	selected = clampi(selected, 0, _entries.size() - 1)
+	refresh()
+
+
+func _value_index(opt: Dictionary) -> int:
+	return maxi(opt["values"].find(_gs().get(opt["key"])), 0)
+
+
+## Indeks wpisu (testy): "resume", "quit", "back", grupa po id, opcja po kluczu.
+func find_entry(what: String) -> int:
+	for i in range(_entries.size()):
+		var e: Dictionary = _entries[i]
+		if e["type"] == what or e.get("id", "") == what \
+				or (e["type"] == "option" and e["opt"]["key"] == what):
+			return i
+	return -1
+
+
 func refresh() -> void:
-	var lines := PackedStringArray(["PAUZA", ""])
-	for i in range(ITEMS.size()):
-		var t := _item_text(ITEMS[i])
+	var lines := PackedStringArray()
+	if _confirm:
+		lines.append("ZMIANY AUTA / TRASY")
+		lines.append("")
+		lines.append("Nowe ustawienia samochodu albo trasy")
+		lines.append("zaczną jazdę od nowa.")
+		lines.append("")
+		lines.append("A / spust: zacznij od nowa")
+		lines.append("B: cofnij zmiany i wróć do jazdy")
+		label.text = "\n".join(lines)
+		return
+	var gs := _gs()
+	var title := "PAUZA"
+	if _group != "":
+		for g in gs.GROUPS:
+			if g["id"] == _group:
+				title = "- %s -" % g["label"]
+	lines.append(title)
+	if _group in RESTART_GROUPS:
+		lines.append("(zmiana zacznie jazdę od nowa)")
+	lines.append("")
+	for i in range(_entries.size()):
+		var t := _entry_text(_entries[i])
 		lines.append(("> " + t + " <") if i == selected else t)
 	lines.append("")
-	lines.append("drążek: wybór i zmiana   A: zatwierdź" if xr else "strzałki: wybór i zmiana   Enter: zatwierdź")
+	var e: Dictionary = _entries[selected]
+	if e["type"] == "option":
+		var opt: Dictionary = e["opt"]
+		var hints: Array = opt["hints"]
+		var vi := _value_index(opt)
+		if vi < hints.size() and str(hints[vi]) != "":
+			lines.append(str(hints[vi]))
+	elif e["type"] == "group" and e["id"] == "radio" and radio:
+		lines.append("Teraz: " + radio.station_name() + ("" if radio.is_on else " (wył.)"))
+	lines.append("drążek: wybór i zmiana   A/spust: zatwierdź   B: wstecz" if xr \
+			else "strzałki: wybór i zmiana   Enter: zatwierdź   Esc: wstecz")
 	label.text = "\n".join(lines)
 
 
-func _item_text(id: String) -> String:
-	match id:
+func _entry_text(e: Dictionary) -> String:
+	match e["type"]:
 		"resume":
 			return "Wróć do jazdy"
-		"radio":
-			return "Radio: " + ("włączone" if radio and radio.is_on else "wyłączone")
-		"station":
-			var n := radio.station_name() if radio else "-"
-			return "Stacja:  < %s >" % n
-		"online":
-			if radio and radio.jamendo and not radio.jamendo.configured():
-				return "Radio online: brak klucza"
-			return "Radio online (Jamendo):  < %s >" % ("wł." if radio and radio.online_enabled else "wył.")
-		"volume":
-			return "Głośność radia:  < %d / %d >" % [volume_index + 1, VOLUME_STEPS.size()]
 		"quit":
 			return "Wyjdź do menu głównego"
-	return id
+		"group":
+			return e["label"] + "   >"
+		"back":
+			return "<   Wróć"
+		"option":
+			var opt: Dictionary = e["opt"]
+			return "%s:  < %s >" % [opt["label"], opt["names"][_value_index(opt)]]
+	return ""
 
 
 func move(dir: int) -> void:
-	selected = wrapi(selected + dir, 0, ITEMS.size())
+	if _confirm:
+		return
+	selected = wrapi(selected + dir, 0, _entries.size())
 	refresh()
 
 
-## Drążek w bok / strzałki: zmiana wartości.
+## Drążek w bok / strzałki: zmiana wartości albo wejście/wyjście z grupy.
 func change(dir: int) -> void:
-	match ITEMS[selected]:
-		"radio":
-			if radio:
-				radio.toggle()
-		"station":
-			if radio:
-				radio.next_station(dir)
-		"online":
-			if radio:
-				radio.set_online(not radio.online_enabled)
-				var gs := get_node_or_null("/root/GameSettings")
-				if gs:
-					gs.radio_online = radio.online_enabled
-					gs.save_settings()
-		"volume":
-			volume_index = clampi(volume_index + dir, 0, VOLUME_STEPS.size() - 1)
-			apply_volume()
-	refresh()
+	if _confirm:
+		return
+	var e: Dictionary = _entries[selected]
+	match e["type"]:
+		"option":
+			var opt: Dictionary = e["opt"]
+			var values: Array = opt["values"]
+			var gs := _gs()
+			gs.set(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
+			gs.save_settings()
+			setting_changed.emit(opt["key"])
+			refresh()
+		"group":
+			if dir > 0:
+				enter_group(e["id"])
+		"back":
+			if dir < 0:
+				enter_group("")
+
+
+func enter_group(group_id: String) -> void:
+	var prev := _group
+	_group = group_id
+	selected = 0
+	_build()
+	if group_id == "":
+		for i in range(_entries.size()):
+			if _entries[i].get("id", "") == prev:
+				selected = i
+		refresh()
 
 
 func accept() -> void:
-	match ITEMS[selected]:
+	if _confirm:
+		restart_requested.emit()
+		return
+	var e: Dictionary = _entries[selected]
+	match e["type"]:
 		"resume":
-			resumed.emit()
+			try_resume()
 		"quit":
 			quit_requested.emit()
-		"radio", "station", "online", "volume":
+		"group":
+			enter_group(e["id"])
+		"back":
+			enter_group("")
+		"option":
 			change(1)
 
 
+## B / Esc: z pytania - cofnij zmiany i jedź dalej; z grupy - wyżej; z menu
+## głównego pauzy - powrót do jazdy.
+func cancel() -> void:
+	if _confirm:
+		var gs := _gs()
+		for k in _snapshot:
+			gs.set(k, _snapshot[k])
+		gs.save_settings()
+		_confirm = false
+		resumed.emit()
+		return
+	if _group != "":
+		enter_group("")
+	else:
+		try_resume()
+
+
+## Powrót do jazdy: jeśli zmieniono auto/trasę - najpierw pytanie.
+func try_resume() -> void:
+	if _restart_values() != _snapshot:
+		_confirm = true
+		refresh()
+		return
+	resumed.emit()
+
+
+## Głośność radia z ustawień.
 func apply_volume() -> void:
-	if radio:
-		radio.set_volume_db(VOLUME_STEPS[volume_index])
+	var gs := _gs()
+	if radio and gs:
+		radio.set_volume_db(VOLUME_STEPS[clampi(gs.radio_volume, 0, VOLUME_STEPS.size() - 1)])
 
 
 func _process(delta: float) -> void:
@@ -161,7 +299,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("ui_accept"):
 		accept()
 	elif event.is_action_pressed("ui_cancel"):
-		resumed.emit()
+		cancel()
 	else:
 		return
 	get_viewport().set_input_as_handled()

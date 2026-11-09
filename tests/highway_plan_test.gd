@@ -148,6 +148,7 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 	var in_zone_short := 0
 	var in_zone_checks := 0
 	var far_cars := 0
+	var far_checks := 0
 	var raging_id := -1
 	while t * v_player < 60000.0:
 		var pd := t * v_player
@@ -183,6 +184,7 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			if n < tz.wanted(pd) - 3:
 				in_zone_short += 1
 		if pd > 37000.0 and pd < 42000.0:      # strefa miasta 1 do 31 km, miasta 2 od 45 km
+			far_checks += 1
 			for c in cars:
 				if not c["raging"] and float(c["dist"]) > pd - 300.0 and float(c["dist"]) < pd + 1500.0:
 					far_cars += 1
@@ -191,5 +193,9 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			next_id, in_zone_short, in_zone_checks, far_cars])
 	if in_zone_checks == 0 or in_zone_short > in_zone_checks / 5:
 		_fail("za mało aut w strefie miasta")
-	if far_cars > 0:
-		_fail("ruch daleko od miast (%d)" % far_cars)
+	# Między miastami rzadki ruch (użytkownik 2026-11-09, ~0,75 auta/km na
+	# jezdnię) - nie pusto, ale wyraźnie rzadziej niż przy mieście.
+	var far_avg := float(far_cars) / maxf(far_checks, 1.0)
+	print("ruch między miastami: średnio %.1f aut w oknie" % far_avg)
+	if far_avg < 0.5 or far_avg > 6.0:
+		_fail("ruch między miastami %.1f aut w oknie (oczekiwane ~1-4)" % far_avg)

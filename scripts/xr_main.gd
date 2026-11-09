@@ -247,25 +247,36 @@ func _ready() -> void:
 ##   A - ABS wł./wył. (po mecie: jeszcze raz; w warsztacie: wybór)
 ##   B - ESP,  X - TCS,  Y krótko - ograniczenie skrętu (przytrzymany:
 ##   centrowanie widoku). Klik prawego drążka: nowe auto (strata życia),
-##   klik lewego: wolna kamera. Biegi: drugi drążek (patrz _physics_process).
+##   klik lewego: klakson - wpędza w szał wszystkie auta w promieniu
+##   HORN_RADIUS (użytkownik 2026-11-09, zamiast wolnej kamery - ta została
+##   pod F na klawiaturze). Biegi: drugi drążek (patrz _physics_process).
 func _on_xr_button(button: String, is_right: bool) -> void:
 	# Pomiar: kontrolery leżą obok gogli i potrafią wysyłać zdarzenia
 	# (powrót do menu przerywał przejazd) - wejście ignorowane.
 	if Bench.active():
 		return
 	if _pause and _pause.is_open():
-		# W pauzie: lewe menu wraca do jazdy, A zatwierdza w menu.
+		# W pauzie: lewe menu wraca do jazdy, A albo spust zatwierdza w menu
+		# (jak na ekranie tytułowym - użytkownik 2026-11-09: niespójne).
 		if not is_right and button == "menu_button":
-			_set_paused(false)
-		elif is_right and button == "ax_button":
+			_pause.try_resume()
+		elif (is_right and button == "ax_button") or button == "trigger_click":
 			_pause.accept()
+		elif is_right and button == "by_button":
+			_pause.cancel()
+		return
+	if button == "trigger_click":
+		# Spust w warsztacie zatwierdza (w jeździe spust to gaz/hamulec).
+		if race_state == Race.WORKSHOP and _ws_arm_t <= 0.0:
+			workshop_choose(_ws_selected)
 		return
 	match [is_right, button]:
 		[true, "ax_button"]:          # A
 			if race_state == Race.FINISHED:
 				restart_race()
 			elif race_state == Race.WORKSHOP:
-				workshop_choose(_ws_selected)
+				if _ws_arm_t <= 0.0:
+					workshop_choose(_ws_selected)
 			else:
 				toggle_assist("abs")
 		[true, "by_button"]:          # B
@@ -287,7 +298,7 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 			else:
 				_use_crane()
 		[false, "primary_click"]:
-			_set_mode(Mode.FLY if _mode == Mode.DRIVE else Mode.DRIVE)
+			player_horn()
 
 
 func _on_left_released(button: String) -> void:
@@ -355,6 +366,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			KEY_F:
 				_set_mode(Mode.FLY if _mode == Mode.DRIVE else Mode.DRIVE)
+			KEY_H:
+				player_horn()
 			KEY_R:
 				if race_state == Race.FINISHED:
 					restart_race()
@@ -503,6 +516,81 @@ func _physics_process(delta: float) -> void:
 		_update_bots(delta)
 		_update_oncoming(delta)
 	Perf.add("boty_mgr", t0)
+
+
+## Tryb Autostrada, etap 2: sceneria z planu (HighwayPlan.biome_blend
+## w miejscu auta) - paleta ziemi (ground.gdshader, przejście 2 km),
+## horyzont biomu (wymieniany przy zmianie biomu, 1,5-2,5 km od auta)
+## i morze po lewej w biomie nadmorskim.
+## Palety: trawa A, trawa B, ziemia/odmiana, pasy pól.
+const BIOME_GROUND := {
+	"meadow": [Color(0.27, 0.40, 0.18), Color(0.42, 0.47, 0.22), Color(0.42, 0.36, 0.25), 0.0],
+	"fields": [Color(0.62, 0.54, 0.25), Color(0.40, 0.46, 0.20), Color(0.36, 0.28, 0.18), 1.0],
+	"desert": [Color(0.80, 0.68, 0.47), Color(0.72, 0.58, 0.38), Color(0.62, 0.48, 0.32), 0.0],
+	"mountains": [Color(0.30, 0.36, 0.24), Color(0.42, 0.42, 0.36), Color(0.48, 0.46, 0.42), 0.0],
+	"seaside": [Color(0.40, 0.48, 0.25), Color(0.62, 0.60, 0.42), Color(0.80, 0.74, 0.56), 0.0],
+	"canyon": [Color(0.55, 0.36, 0.22), Color(0.62, 0.44, 0.28), Color(0.46, 0.30, 0.20), 0.0],
+}
+var _biome := ""
+var _biome_key := ""
+var _sea: MeshInstance3D
+func _update_biome() -> void:
+	if not _endless or not track.autostrada or track.plan == null:
+		return
+	var bl: Dictionary = track.plan.biome_blend(_last_safe_dist)
+	var a: String = bl["a"]
+	var b: String = bl["b"]
+	var t: float = bl["t"]
+	var key := "%s|%s|%.2f" % [a, b, t]
+	if key != _biome_key:
+		_biome_key = key
+		var mat := ($Ground/GroundMesh as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		if mat:
+			var pa: Array = BIOME_GROUND.get(a, BIOME_GROUND["meadow"])
+			var pb: Array = BIOME_GROUND.get(b, BIOME_GROUND["meadow"])
+			mat.set_shader_parameter("grass_a", pa[0])
+			mat.set_shader_parameter("grass_b", pa[1])
+			mat.set_shader_parameter("dirt", pa[2])
+			mat.set_shader_parameter("stripes_a", pa[3])
+			mat.set_shader_parameter("b_grass_a", pb[0])
+			mat.set_shader_parameter("b_grass_b", pb[1])
+			mat.set_shader_parameter("b_dirt", pb[2])
+			mat.set_shader_parameter("stripes_b", pb[3])
+			mat.set_shader_parameter("biome_t", t)
+	# Horyzont: biom dominujący (t < 0,5 -> a).
+	if a != _biome:
+		_biome = a
+		var hrng := RandomNumberGenerator.new()
+		hrng.seed = hash([a, int(_last_safe_dist / 1000.0)])
+		if _horizon:
+			_horizon.queue_free()
+		_horizon = Scenery.horizon(hrng, a)
+		add_child(_horizon)
+		print("BIOM: %s (%.1f km)" % [a, _last_safe_dist / 1000.0])
+	# Morze po lewej (za jezdnią z naprzeciwka) przez cały biom nadmorski.
+	var sea_on := a == "seaside" or (b == "seaside" and t > 0.25)
+	if sea_on and _sea == null:
+		_sea = MeshInstance3D.new()
+		_sea.name = "Sea"
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(4000.0, 4000.0)
+		_sea.mesh = pm
+		var m := ShaderMaterial.new()
+		m.shader = load("res://shaders/ocean.gdshader")
+		_sea.material_override = m
+		_sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_sea)
+	if _sea:
+		_sea.visible = sea_on
+		if sea_on:
+			var s: Dictionary = track.nearest_sample(car.global_position)
+			if not s.is_empty():
+				var c: Vector3 = track.to_global(s["pos"])
+				var r: Vector3 = ((s["right"] as Vector3) * Vector3(1, 0, 1)).normalized()
+				# Brzeg ~90 m za lewą krawędzią jezdni z naprzeciwka.
+				var shore := float(s["width"]) * 1.5 + TrackGenerator.HIGHWAY_MEDIAN + 90.0
+				var mid := c - r * (shore + 2000.0)
+				_sea.global_transform = Transform3D(Basis(Vector3.UP, atan2(r.x, r.z)), Vector3(mid.x, 0.05, mid.z))
 
 
 ## Tryb Autostrada: przesuwanie początku świata (WorldOrigin), na początku
@@ -668,8 +756,11 @@ func _update_bot_lod(delta: float) -> void:
 
 func _update_bots(delta: float) -> void:
 	_update_bot_lod(delta)
+	var hwy: bool = _endless and track.autostrada
+	if hwy:
+		_update_traffic(delta)
 	_bot_timer -= delta
-	if _bot_timer <= 0.0 and race_state == Race.RACING:
+	if not hwy and _bot_timer <= 0.0 and race_state == Race.RACING:
 		var limit := bot_limit(_last_section) if _endless else 2
 		if Bench.scenario == "S4":
 			limit = 20                         # pomiar: pełny ruch
@@ -681,7 +772,9 @@ func _update_bots(delta: float) -> void:
 		var drv: BotDriver = b.get_node("Driver")
 		# Bot w szale nie znika tak łatwo - ma czas dogonić gracza.
 		var behind_max := 700.0 if drv.rage > 0.05 else 250.0
-		var gone: bool = drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0
+		# Autostrada: spokojny ruch usuwa TrafficZone (poza wzrokiem); bot
+		# w szale zgubiony daleko za graczem znika jak w wąwozie ("lost").
+		var gone: bool = (not hwy or drv.rage > 0.05) and (drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0)
 		var dead: bool = b.is_wrecked or drv.flipped_time > 3.0 or b.global_position.y < -50.0
 		if gone or dead:
 			if drv.rage > 0.05:
@@ -700,6 +793,39 @@ func _update_bots(delta: float) -> void:
 			_bots.erase(b)
 			_retire_bot(b)
 			Perf.mark("bot_free")
+
+
+## Klakson gracza (klik lewego drążka, H na klawiaturze): dwa tony jak
+## u botów i szał wszystkich botów w promieniu HORN_RADIUS (użytkownik
+## 2026-11-09: "klakson, który wpędza w furię wszystkie samochody
+## w okolicy"). Auta z naprzeciwka są kinematyczne - nie reagują.
+const HORN_RADIUS := 250.0
+var _player_horn: AudioStreamPlayer3D
+var _horn_cd := 0.0
+func player_horn() -> void:
+	if _mode != Mode.DRIVE:
+		return
+	if _player_horn == null:
+		_player_horn = AudioStreamPlayer3D.new()
+		_player_horn.stream = BotDriver._make_horn()
+		_player_horn.unit_size = 8.0
+		_player_horn.bus = EnvAudio.BUS
+		car.add_child(_player_horn)
+	_player_horn.play()
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _horn_cd:
+		return
+	_horn_cd = now + 1.0
+	var n := 0
+	for b in _bots:
+		if not is_instance_valid(b):
+			continue
+		var drv: BotDriver = b.get_node("Driver")
+		if drv.rage < 0.5 and b.global_position.distance_to(car.global_position) < HORN_RADIUS:
+			drv.enrage("horn")
+			n += 1
+	if n > 0:
+		print("Klakson: %d aut w szale" % n)
 
 
 ## Posiłki: boty w promieniu `radius` m od wściekłego bota też wpadają w szał.
@@ -727,7 +853,13 @@ func rage_partner(me: StuntCar) -> StuntCar:
 	return best
 
 
-func _spawn_bot(d: float) -> void:
+## Oś pasu naszej jezdni na autostradzie [m od osi jezdni]: 0 prawy, 1 lewy.
+func hwy_lane_off(lane: int) -> float:
+	var right := HighwayGenerator.WIDTH * 0.5 - HighwayGenerator.SHOULDER_R - HighwayGenerator.LANE_W * 0.5
+	return right if lane == 0 else right - HighwayGenerator.LANE_W
+
+
+func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	if track.is_gap_at(d) or d > track.total_length() - 20.0:
 		return
 	var xf: Transform3D = track.transform_at_distance(d)
@@ -744,9 +876,11 @@ func _spawn_bot(d: float) -> void:
 		bot.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
 	# Prawy albo środkowy pas - przy wielu autach nie wszystkie jednym torem.
 	var lane := lane_w if _bot_rng.randf() < 0.65 else 0.0
+	if lane_i >= 0:
+		lane = hwy_lane_off(lane_i)
 	bot.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
 	bot._settle_t = 0.0         # place() zjadałby prędkość przepisową startu
-	var v := lim / 3.6
+	var v := (speed_kmh if speed_kmh > 0.0 else lim) / 3.6
 	bot.linear_velocity = -xf.basis.z * v
 	for w in bot.wheels:
 		w.omega = v / bot.wheel_radius
@@ -759,6 +893,7 @@ func _spawn_bot(d: float) -> void:
 	drv.track = track
 	drv.main = self
 	drv.dist = d
+	drv.lane = maxi(lane_i, 0)
 	bot.add_child(drv)
 	_bots.append(bot)
 
@@ -935,6 +1070,7 @@ func _check_workshop() -> void:
 		_enter_workshop(int(_next_ws["tier"]))
 
 
+var _station_shop_done := -1.0
 ## Stacja: tankowanie przy powolnym przejeździe (< 35 km/h) pasem zjazdu
 ## (pełny bak w ~8 s). Pusty bak i auto stoi - utrata życia.
 func _check_fuel(delta: float) -> void:
@@ -944,47 +1080,90 @@ func _check_fuel(delta: float) -> void:
 				and _lateral > float(_next_station["lane_x"]) and absf(car.speed) * 3.6 < 35.0:
 			car.refuel(delta / 8.0)
 			_refueling = true
+			# Postój na stacji: sklep z naprawami za punkty (raz na stację).
+			if absf(car.speed) * 3.6 < 3.0 and race_state == Race.RACING \
+					and float(_next_station["start"]) != _station_shop_done:
+				_station_shop_done = float(_next_station["start"])
+				_enter_workshop(0, "station")
 	if car.fuel <= 0.0 and absf(car.speed) < 0.5 and race_state == Race.RACING:
 		lose_life("brak paliwa")
 
 
-func _enter_workshop(tier: int) -> void:
+## Warsztat i sklep (użytkownik 2026-11-09: "w menu warsztatu jest mowa
+## o dźwigu, a powinny być punkty za każdą rzecz, wymianę silnika,
+## naprawę"; "za rzadko można wymienić punkty na naprawę"): każda pozycja
+## kosztuje punkty z furii (ScoreKeeper), menu zostaje otwarte do "Wyjazd".
+## Naprawy strefami i ulepszenia z WorkshopShop (cennik chmury). Na stacji
+## paliw (postój na pasie zjazdu) - ten sam sklep, tylko naprawy.
+## Tankowanie w warsztacie bez opłaty (jak na stacji).
+## Cena silnika rośnie z progiem mocy.
+const ENGINE_COST_PER_TIER := 300
+const SHOP_EFFECTS := ["repaired", "repaired_full", "life", "tank"]
+var _ws_kind := "workshop"
+var _ws_new_tier := 0
+var _ws_arm_t := 0.0
+var _ws_owned: Array = []
+
+
+func _enter_workshop(tier: int, kind := "workshop") -> void:
 	race_state = Race.WORKSHOP
-	_ws_done_stop = float(_next_ws["stop"])
-	_next_ws = {}
-	var gs := get_node_or_null("/root/GameSettings")
-	var tiers: Array = gs.POWER_TIERS if gs else [90, 130, 180, 250, 350]
+	_ws_kind = kind
+	if kind == "workshop":
+		_ws_done_stop = float(_next_ws["stop"])
+		_next_ws = {}
+		car.refuel(1.0)
 	# Próg z trasy, ale nigdy nie słabszy ani równy obecnemu (start z mocą
-	# z menu). Ostatni próg osiągnięty - tylko "bez zmian".
-	tier = maxi(tier, _tier + 1)
-	var kw: int = tiers[mini(tier, tiers.size() - 1)]
-	# Opcje: trzy rodzaje napędu na nowym progu mocy + bez zmian.
-	# Moment liczony na prawdziwej krzywej silnika (tymczasowe auto).
-	_ws_options.clear()
-	var probe := StuntCar.new()
-	var hub_only: bool = gs != null and kw >= gs.HUB_ONLY_KW
-	var types: Array = [] if tier >= tiers.size() else (["electric"] if hub_only else ["petrol", "diesel", "electric"])
-	for t in types:
-		probe.apply_engine(t, kw)
-		var name_pl: String = StuntCar.ENGINE_TYPES[t]["label"]
-		var opt := {"type": t, "kw": kw, "tier": tier,
-				"label": "%s %d kW   %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]}
-		if hub_only:
-			# Ostatni próg: tylko elektryk z silnikiem w każdym kole.
-			opt["hub"] = true
-			opt["label"] = "Elektryk 4 x 250 kW w kołach   %d Nm" % roundi(probe.peak_torque())
-		_ws_options.append(opt)
-	probe.free()
-	var cur: String = StuntCar.ENGINE_TYPES[car.engine_type]["label"]
-	_ws_options.append({"type": "", "label": "bez zmian (%s %d kW)" % [cur, car.engine_power_kw]})
-	# Domyślnie podświetlony ten sam rodzaj napędu, mocniejszy.
+	# z menu). Ostatni próg osiągnięty - bez wymiany silnika.
+	_ws_new_tier = maxi(tier, _tier + 1)
 	_ws_selected = 0
-	for i in range(_ws_options.size() - 1):
-		if _ws_options[i]["type"] == car.engine_type:
-			_ws_selected = i
-	_ws_refresh()
+	_ws_arm_t = 0.4                     # spust trzymany przy wjeździe nie kupuje
+	_ws_build()
 	_ws_follow.snap()
 	_ws_label.visible = true
+
+
+## Lista pozycji sklepu (po każdym zakupie od nowa - ceny napraw maleją).
+func _ws_build() -> void:
+	_ws_options.clear()
+	var gs := get_node_or_null("/root/GameSettings")
+	var tiers: Array = gs.POWER_TIERS if gs else [90, 130, 180, 250, 350]
+	if _ws_kind == "workshop" and _ws_new_tier < tiers.size():
+		var tier := _ws_new_tier
+		var kw: int = tiers[tier]
+		var probe := StuntCar.new()
+		probe.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM   # poza drzewem (bez _ready)
+		var hub_only: bool = gs != null and kw >= gs.HUB_ONLY_KW
+		var cost := ENGINE_COST_PER_TIER * tier
+		for t in (["electric"] if hub_only else ["petrol", "diesel", "electric"]):
+			probe.apply_engine(t, kw)
+			var name_pl: String = StuntCar.ENGINE_TYPES[t]["label"]
+			var opt := {"kind": "engine", "type": t, "kw": kw, "tier": tier, "cost": cost,
+					"label": "Silnik: %s %d kW, %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]}
+			if hub_only:
+				opt["hub"] = true
+				opt["label"] = "Silnik: elektryk 4 x 250 kW w kołach, %d Nm" % roundi(probe.peak_torque())
+			_ws_options.append(opt)
+		probe.free()
+	for o in WorkshopShop.offers(car.damage, score.points, _ws_owned, _ws_mult()):
+		var eff := ""
+		for u in WorkshopShop.UPGRADES:
+			if u["id"] == o["id"]:
+				eff = u["effect"]
+		# Tylko to, co gra już obsługuje (orurowanie, radio CB - później).
+		if eff != "" and not eff in SHOP_EFFECTS:
+			continue
+		if _ws_kind == "station" and eff != "":
+			continue                    # na stacji tylko naprawy
+		_ws_options.append({"kind": "offer", "id": o["id"], "cost": int(o["cost"]),
+				"label": ("Naprawa: " if str(o["id"]).begins_with("repair:") else "") + str(o["label"])})
+	_ws_options.append({"kind": "exit", "cost": 0, "label": "Wyjazd"})
+	_ws_selected = clampi(_ws_selected, 0, _ws_options.size() - 1)
+	_ws_refresh()
+
+
+## Mnożniki cen napraw dla tego auta (WorkshopShop.car_multipliers).
+func _ws_mult() -> Dictionary:
+	return WorkshopShop.car_multipliers(car.engine_type, car.engine_power_kw, car.car_mass, car.hub_motors and car.electric)
 
 
 func _ws_move(dir: int) -> void:
@@ -993,35 +1172,68 @@ func _ws_move(dir: int) -> void:
 
 
 func _ws_refresh() -> void:
-	var lines := PackedStringArray(["WARSZTAT", "wybierz silnik:", ""])
+	var title := "WARSZTAT" if _ws_kind == "workshop" else "STACJA - NAPRAWY"
+	var lines := PackedStringArray([title, "punkty: %d" % score.points, ""])
 	for i in range(_ws_options.size()):
-		var lbl: String = _ws_options[i]["label"]
+		var o: Dictionary = _ws_options[i]
+		var lbl: String = o["label"]
+		var cost: int = o["cost"]
+		if o["kind"] != "exit":
+			lbl += ("   %d pkt" % cost) if cost <= score.points else ("   %d pkt (za mało punktów)" % cost)
 		lines.append(("> " + lbl + " <") if i == _ws_selected else lbl)
 	lines.append("")
-	lines.append("+ naprawa karoserii, + 1 dźwig")
-	lines.append("drążek: wybór   A: zatwierdź" if _xr_ready else "strzałki: wybór   Enter: zatwierdź")
+	lines.append("drążek: wybór   spust albo A: zatwierdź" if _xr_ready else "strzałki: wybór   Enter: zatwierdź")
 	_ws_label.text = "\n".join(lines)
 
 
-## Zatwierdzenie wyboru w warsztacie (też z testów).
+## Indeks pozycji "Wyjazd" (testy).
+func ws_exit_index() -> int:
+	for i in range(_ws_options.size()):
+		if _ws_options[i]["kind"] == "exit":
+			return i
+	return _ws_options.size() - 1
+
+
+## Zatwierdzenie pozycji w warsztacie (też z testów).
 func workshop_choose(i: int) -> void:
 	if race_state != Race.WORKSHOP:
 		return
 	var opt: Dictionary = _ws_options[clampi(i, 0, _ws_options.size() - 1)]
-	if opt["type"] != "":
-		# Silniki w kołach tylko z ostatniego progu albo gdy elektryk już je
-		# miał (inbox menu-a-gra-niespojnosci pkt 5: benzyna z ukrytym "hub"
-		# z menu dostawała w warsztacie 4x4 w kołach).
-		car.hub_motors = opt.get("hub", false) or (opt["type"] == "electric" and car.engine_type == "electric" and car.hub_motors)
-		car.apply_engine(opt["type"], opt["kw"])
-		_tier = opt["tier"]
-	car.repair()
-	car.refuel(1.0)
-	if cranes_left >= 0:
-		cranes_left += 1
-	_ws_label.visible = false
-	race_state = Race.RACING
-	print("Warsztat: %s" % opt["label"])
+	match opt["kind"]:
+		"exit":
+			_ws_label.visible = false
+			race_state = Race.RACING
+			print("Warsztat: wyjazd, %d pkt" % score.points)
+			return
+		"engine":
+			if not score.spend(int(opt["cost"])):
+				return
+			# Silniki w kołach tylko z ostatniego progu albo gdy elektryk już je
+			# miał (inbox menu-a-gra-niespojnosci pkt 5).
+			car.hub_motors = opt.get("hub", false) or (opt["type"] == "electric" and car.engine_type == "electric" and car.hub_motors)
+			car.apply_engine(opt["type"], opt["kw"])
+			_tier = opt["tier"]
+			_ws_new_tier = _tier + 1
+			print("Warsztat: %s" % opt["label"])
+		"offer":
+			var id: String = opt["id"]
+			var eff := WorkshopShop.buy(id, car.damage, score, _ws_mult())
+			match eff:
+				"":
+					return                  # za mało punktów
+				"repaired_full":
+					car.repair()
+				"repaired":
+					if id == "repair:structure":
+						car.repair_body()
+				"life":
+					if cranes_left >= 0:
+						cranes_left += 1
+				"tank":
+					car.tank_kwh *= 1.4
+					_ws_owned.append(id)
+			print("Warsztat: %s" % opt["label"])
+	_ws_build()
 
 
 var _warn_timer := 0.0
@@ -1159,6 +1371,9 @@ func _build_radio() -> void:
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		_radio.set_online(gs.radio_online)
+		_radio.set_station(gs.radio_station)
+		if gs.radio_on:
+			_radio.set_power(true)
 	_pause = PauseMenu.new()
 	_pause.camera = camera
 	_pause.hands = [left_hand, right_hand]
@@ -1166,9 +1381,40 @@ func _build_radio() -> void:
 	_pause.radio = _radio
 	_pause.resumed.connect(_set_paused.bind(false))
 	_pause.quit_requested.connect(_back_to_title)
+	_pause.restart_requested.connect(_restart_from_pause)
+	_pause.setting_changed.connect(_on_setting_changed)
 	add_child(_pause)
 	_pause.add_to_group(WorldOrigin.GROUP)
 	_pause.apply_volume()
+
+
+## Zmiana ustawienia w menu pauzy, która działa od razu (bez nowej jazdy).
+func _on_setting_changed(key: String) -> void:
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs == null:
+		return
+	match key:
+		"radio_on":
+			_radio.set_power(gs.radio_on)
+		"radio_station":
+			_radio.set_station(gs.radio_station)
+		"radio_volume":
+			_pause.apply_volume()
+		"radio_online":
+			_radio.set_online(gs.radio_online)
+		"abs_enabled", "tcs_enabled", "esp_enabled", "steer_assist":
+			car.set(key, gs.get(key))
+		"paint":
+			car.set_paint(gs.PAINTS[gs.paint])
+		"xr_resolution", "xr_foveation":
+			gs.apply_xr_quality()
+
+
+## Zmiana auta albo trasy w pauzie, potwierdzona: nowa jazda z nowymi
+## ustawieniami (scena od nowa - GameSettings.apply_to_car w _ready).
+func _restart_from_pause() -> void:
+	_set_paused(false)
+	get_tree().reload_current_scene()
 
 
 func _on_radio_text(text: String) -> void:
@@ -1272,6 +1518,7 @@ func _process(delta: float) -> void:
 	_update_rain(delta)
 	Perf.add("deszcz", t0)
 	_log_perf(delta)
+	_ws_arm_t = maxf(_ws_arm_t - delta, 0.0)
 	if race_state == Race.WORKSHOP and _xr_ready:
 		# Wybór w warsztacie drążkiem (jak w menu: jeden krok na wychylenie).
 		var sy := left_hand.get_vector2("primary").y + right_hand.get_vector2("primary").y
@@ -1305,6 +1552,7 @@ func _process(delta: float) -> void:
 	var p := car.global_position
 	gm.global_position = Vector3(snappedf(p.x, 50.0), 0.0, snappedf(p.z, 50.0))
 	# Góry na horyzoncie też (jak tło - nie da się do nich dojechać).
+	_update_biome()
 	if _horizon:
 		_horizon.global_position = Vector3(p.x, 0.0, p.z)
 
@@ -1939,7 +2187,7 @@ var _oncoming_pool: Array[StuntCar] = []
 
 func _update_oncoming(delta: float) -> void:
 	_oncoming_timer -= delta
-	if _oncoming_timer <= 0.0 and race_state == Race.RACING:
+	if _oncoming_timer <= 0.0 and race_state == Race.RACING and not (_endless and track.autostrada):
 		_oncoming_timer = _bot_rng.randf_range(1.5, 4.0)
 		var d := _last_safe_dist + _bot_rng.randf_range(500.0, 900.0)
 		if _oncoming.size() < ONCOMING_MAX and _is_highway_at(d):
@@ -1949,18 +2197,76 @@ func _update_oncoming(delta: float) -> void:
 		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
 		var d2: float = o["dist"]
 		if d2 < _last_safe_dist - 150.0 or not _is_highway_at(d2) or not is_instance_valid(c):
-			# Do puli (ukryte), zamiast queue_free - bez alokacji w trakcie jazdy.
-			if is_instance_valid(c):
-				c.visible = false
-				c.global_position.y -= 500.0
-				c.process_mode = Node.PROCESS_MODE_DISABLED   # w puli nic nie liczy
-				_oncoming_pool.append(c)
-			_oncoming.erase(o)
+			_pool_oncoming(o)
 			continue
 		c.global_transform = _oncoming_xf(d2, float(o["lane"]), c.wheel_radius)
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = float(o["v"]) / c.wheel_radius
+
+
+## Auto z naprzeciwka do puli (ukryte), zamiast queue_free - bez alokacji.
+func _pool_oncoming(o: Dictionary) -> void:
+	var c: StuntCar = o["car"]
+	if is_instance_valid(c):
+		c.visible = false
+		c.global_position.y -= 500.0
+		c.process_mode = Node.PROCESS_MODE_DISABLED   # w puli nic nie liczy
+		_oncoming_pool.append(c)
+	_oncoming.erase(o)
+
+
+## Ruch trybu Autostrada (etap 3, TrafficZone, co 0,5 s): gęstość z planu
+## (miasta 3-5 aut/km do 5 km od zabudowy, między miastami ~0,75/km) na
+## obu jezdniach. Auta bez szału znikają tylko poza oknem i poza wzrokiem
+## (głowa + lusterka), nowe pojawiają się 700-1500 m przed graczem, też
+## poza wzrokiem. Na naszej jezdni boty (spokojne, szał jak w wąwozie),
+## z naprzeciwka - auta kinematyczne.
+var _traffic: TrafficZone
+var _traffic_t := 0.0
+func _update_traffic(delta: float) -> void:
+	_traffic_t -= delta
+	if _traffic_t > 0.0 or race_state != Race.RACING:
+		return
+	_traffic_t = 0.5
+	if _traffic == null:
+		_traffic = TrafficZone.new(track.plan)
+	var head := camera.global_position
+	var hf := -camera.global_basis.z
+	var cf := -car.global_basis.z
+	var cars := []
+	for b in _bots:
+		var drv: BotDriver = b.get_node("Driver")
+		cars.append({"id": b.get_instance_id(), "dist": drv.dist, "lane": drv.lane, "oncoming": false,
+				"raging": drv.rage > 0.05, "visible": TrafficZone.visible(head, hf, cf, b.global_position)})
+	for o in _oncoming:
+		var oc: StuntCar = o["car"]
+		cars.append({"id": oc.get_instance_id(), "dist": o["dist"], "lane": int(o["lane"]), "oncoming": true,
+				"raging": false, "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
+	var r: Dictionary = _traffic.step(_last_safe_dist, cars, _bot_rng)
+	for id in r["despawn"]:
+		for b in _bots.duplicate():
+			if b.get_instance_id() == id:
+				_bots.erase(b)
+				_retire_bot(b)
+		for o in _oncoming.duplicate():
+			if (o["car"] as Node).get_instance_id() == id:
+				_pool_oncoming(o)
+	for sp in r["spawn"]:
+		var d: float = sp["dist"]
+		var lane: int = sp["lane"]
+		var pos: Vector3
+		if sp["oncoming"]:
+			pos = _oncoming_xf(d, float(lane)).origin
+		else:
+			var xf: Transform3D = track.transform_at_distance(d)
+			pos = xf.origin + xf.basis.x * hwy_lane_off(lane)
+		if TrafficZone.visible(head, hf, cf, pos):
+			continue                       # spróbuje przy następnym kroku
+		if sp["oncoming"]:
+			_spawn_oncoming(d, lane, float(sp["speed_kmh"]))
+		else:
+			_spawn_bot(d, lane, float(sp["speed_kmh"]))
 
 
 func _is_highway_at(d: float) -> bool:
@@ -1975,13 +2281,17 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
 	var lane_w := (w - 1.0) / 3.0
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
+	if _endless and track.autostrada:
+		# 2+2: wolny pas jezdni z naprzeciwka (lane 0) przy jej poboczu,
+		# szybki (1) przy pasie rozdziału - lustrzanie do hwy_lane_off.
+		x = -(w + TrackGenerator.HIGHWAY_MEDIAN) - hwy_lane_off(int(lane))
 	var b := xf.basis.rotated(xf.basis.y, PI)
 	# Kołami na jezdni: środek koła 0,41 m pod mocowaniem + promień koła
 	# (przegląd PR #7: przy 0,62 koła wchodziły ~0,16 m w asfalt).
 	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * (0.41 + wheel_r))
 
 
-func _spawn_oncoming(d: float) -> void:
+func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	var c: StuntCar
 	if not _oncoming_pool.is_empty():
 		c = _oncoming_pool.pop_back()
@@ -2002,8 +2312,11 @@ func _spawn_oncoming(d: float) -> void:
 		var keys: Array = gs.PAINTS.keys()
 		c.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
 	var lane := float(_bot_rng.randi_range(-1, 1))     # trzy pasy drugiej jezdni
+	if lane_i >= 0:
+		lane = float(lane_i)
+	var v := (speed_kmh if speed_kmh > 0.0 else _bot_rng.randf_range(110.0, 140.0)) / 3.6
 	c.global_transform = _oncoming_xf(d, lane, c.wheel_radius)
-	_oncoming.append({"car": c, "dist": d, "v": _bot_rng.randf_range(110.0, 140.0) / 3.6, "lane": lane})
+	_oncoming.append({"car": c, "dist": d, "v": v, "lane": lane})
 
 
 

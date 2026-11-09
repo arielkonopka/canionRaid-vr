@@ -262,15 +262,22 @@ func limit_changes(d0: float, d1: float) -> Array:
 
 ## Gęstość ruchu [aut/km na naszej jezdni] na dystansie d; 0 poza strefami
 ## miast. Druga jezdnia (z naprzeciwka) - tyle samo, liczy TrafficZone.
+## Między miastami rzadki ruch (użytkownik 2026-11-09: "rzadki ruch też
+## między", ~0,5-1 auta/km) - nie pusto.
+const TRAFFIC_BETWEEN := 0.75
+
+
 func traffic_density(d: float) -> float:
 	var nc := nearest_city(d)
 	if nc["city"].is_empty() or float(nc["gap"]) > TRAFFIC_RADIUS:
-		return 0.0
-	return float(nc["city"]["density"])
+		return TRAFFIC_BETWEEN
+	return maxf(float(nc["city"]["density"]), TRAFFIC_BETWEEN)
 
 
+## Strefa gęstego ruchu wokół miasta (do TRAFFIC_RADIUS od zabudowy).
 func in_traffic_zone(d: float) -> bool:
-	return traffic_density(d) > 0.0
+	var nc := nearest_city(d)
+	return not nc["city"].is_empty() and float(nc["gap"]) <= TRAFFIC_RADIUS
 
 
 # --------------------------------------------------------------------------

@@ -57,6 +57,8 @@ var _prev_ahead := 0.0
 const LOD_FAR := 380.0
 const LOD_NEAR := 320.0
 var on_rail := false
+## Pas na autostradzie (0 prawy, 1 lewy) - tryb Autostrada (TrafficZone).
+var lane := 0
 ## Poziom szczegółowości z xr_main (BotLod.NEAR/MID/RAIL). -1 = bez BotLod
 ## (testy) - wtedy jak dawniej: szyna z progów LOD_FAR / LOD_NEAR.
 var lod := -1
@@ -146,6 +148,10 @@ func _drive_step(delta: float) -> void:
 	var rel := car.global_position - (best["pos"] as Vector3)
 	var offset := rel.dot(right)
 	var target_off := lane_w                          # prawy pas
+	if main and main._endless and main.track.autostrada:
+		# Autostrada 2+2: osie pasów z HighwayGenerator (prawy 0,75 m od osi
+		# jezdni, lewy -3,0 m) - 3-pasowe lane_w wąwozu jechałoby poboczem.
+		target_off = main.hwy_lane_off(lane)
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh)
 	if rage > 0.05 and player:

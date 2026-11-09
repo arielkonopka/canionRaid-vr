@@ -59,7 +59,8 @@ Pełny stan projektu i decyzje: `HANDOVER.md`.
 | T | Back | X | kontrola trakcji (TCS/ASR) wł./wył. |
 | - | - | Y krótko | ograniczenie skrętu z prędkością wł./wył. |
 | C | - | - | kokpit / kamera z tyłu |
-| F | - | klik lewego drążka | swobodny lot (podgląd toru) |
+| F | - | - | swobodny lot (podgląd toru) |
+| H | - | klik lewego drążka | klakson - wpędza w szał auta w promieniu 250 m |
 | Esc | Start | Menu | powrót do ekranu tytułowego |
 | - | - | Y przytrzymany 0,8 s | wycentruj widok |
 

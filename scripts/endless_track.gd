@@ -31,6 +31,8 @@ const KEEP_BEHIND := 1
 @export var autostrada: bool = false
 var plan: HighwayPlan
 var _hgen: HighwayGenerator
+## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
+var first_biome := ""
 
 var rng := RandomNumberGenerator.new()
 var _chunks: Array[StuntTrack] = []
@@ -44,6 +46,8 @@ func _ready() -> void:
 	if autostrada:
 		var sv := rng.randi()
 		plan = HighwayPlan.new(sv)
+		if first_biome != "":
+			plan._kinds[0] = first_biome
 		_hgen = HighwayGenerator.new(plan, sv)
 	for i in range(1 + AHEAD):
 		_add_section()

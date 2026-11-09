@@ -100,9 +100,14 @@ var best_distance: float = 0.0
 ## false = nic nie jest zapisywane na dysk. Ustawiają to testy, żeby nie
 ## nadpisywać ustawień i rekordów gracza.
 var persist := true
-## Radio online (stacja Jamendo, menu pauzy) - jawna opcja, domyślnie
-## wyłączona (inbox radio-online-jamendo). Poza OPTIONS: nie ma jej
-## w menu tytułowym, tylko w menu pauzy.
+## Radio (grupa "Radio" - w menu tytułowym i w pauzie, użytkownik
+## 2026-11-09: "ustawienia radia w ustawieniach gry"): włączone przy
+## starcie jazdy, stacja (indeks w RadioStations.STATIONS - nazwy
+## uzupełnia _ready), głośność (indeks PauseMenu.VOLUME_STEPS), stacja
+## online Jamendo (jawna opcja, domyślnie wył.).
+var radio_on := false
+var radio_station := 0
+var radio_volume := 5
 var radio_online := false
 
 ## Grupy menu (podmenu na ekranie tytułowym), w kolejności wyświetlania.
@@ -113,6 +118,7 @@ const GROUPS: Array[Dictionary] = [
 	{"id": "assist", "label": "Systemy wspomagania"},
 	{"id": "controls", "label": "Sterowanie"},
 	{"id": "look", "label": "Wygląd i widok"},
+	{"id": "radio", "label": "Radio"},
 	{"id": "rage", "label": "Szał drogowy botów"},
 ]
 
@@ -207,6 +213,27 @@ var OPTIONS: Array[Dictionary] = [
 			"Mały docisk: ok. 70 kg przy 200 km/h na tylną oś, trochę więcej oporu.",
 			"Duży docisk: ok. 170 kg przy 200 km/h, ok. 480 kg przy 300 km/h; większy opór.",
 		],
+	},
+	{
+		"key": "radio_on", "group": "radio", "label": "Radio przy starcie",
+		"values": [false, true], "names": ["Wył.", "Wł."],
+		"hints": ["Jazda w ciszy - radio włączysz w pauzie.", "Radio gra od startu jazdy."],
+	},
+	{
+		"key": "radio_station", "group": "radio", "label": "Stacja",
+		"values": [0], "names": ["-"],
+		"hints": ["Stacja, od której radio zaczyna."],
+	},
+	{
+		"key": "radio_volume", "group": "radio", "label": "Głośność",
+		"values": [0, 1, 2, 3, 4, 5, 6, 7, 8], "names": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
+		"hints": ["Cicho - silnik ważniejszy.", "", "", "", "", "Domyślnie: nie zagłusza silnika.", "", "", "Najgłośniej."],
+	},
+	{
+		"key": "radio_online", "group": "radio", "label": "Radio online (Jamendo)",
+		"values": [false, true], "names": ["Wył.", "Wł."],
+		"hints": ["Tylko muzyka z gry (offline).",
+				"Dodatkowa stacja z muzyką z Jamendo (internet, utwory w pamięci)."],
 	},
 	{
 		"key": "aero", "group": "body", "label": "Opływowość",
@@ -491,7 +518,21 @@ var OPTIONS: Array[Dictionary] = [
 
 
 func _ready() -> void:
+	_fill_radio_stations()
 	load_settings()
+
+
+## Nazwy stacji z katalogu radia (lista zależy od plików muzyki).
+func _fill_radio_stations() -> void:
+	var st: Array = preload("res://scripts/radio_stations.gd").STATIONS
+	for opt in OPTIONS:
+		if opt["key"] == "radio_station":
+			opt["values"] = range(st.size())
+			opt["names"] = st.map(func(x): return str(x["name"]))
+			var hints := []
+			for x in st:
+				hints.append("Stacja, od której radio zaczyna.")
+			opt["hints"] = hints
 
 
 func load_settings() -> void:
@@ -524,7 +565,9 @@ func load_settings() -> void:
 		steer_stick = "right"
 	best_time = cfg.get_value("records", "best_time", 0.0)
 	best_distance = cfg.get_value("records", "best_distance", 0.0)
-	radio_online = bool(cfg.get_value("radio", "online", false))
+	# Dawny zapis (przed grupą "Radio" w OPTIONS).
+	if cfg.has_section_key("radio", "online") and not cfg.has_section_key("car", "radio_online"):
+		radio_online = bool(cfg.get_value("radio", "online", false))
 
 
 func save_settings() -> void:
@@ -536,7 +579,6 @@ func save_settings() -> void:
 	cfg.set_value("meta", "version", SETTINGS_VERSION)
 	cfg.set_value("records", "best_time", best_time)
 	cfg.set_value("records", "best_distance", best_distance)
-	cfg.set_value("radio", "online", radio_online)
 	cfg.save(PATH)
 
 
