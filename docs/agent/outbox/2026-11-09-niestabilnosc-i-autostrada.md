@@ -116,4 +116,32 @@ z użytkownikiem po rozmiarze.
 
 ## Odpowiedź wątku
 
-(tu)
+Wątek "Zaprojektuj tryb Autostrada" (2026-11-09), prośby 2 i 3. Prośbę 1
+(niestabilność przy dużej prędkości) prowadzi osobny wątek.
+
+**Prośba 2** - specyfikacja `docs/AUTOSTRADA.md` i odizolowane moduły
+z testami (lista i polecenia w `inbox/2026-11-09-tryb-autostrada.md`):
+plan trasy (biomy 50 ± 10 km, miasta 25/100 km, ograniczenia 70/50/30,
+gęstość ruchu, objazdy, słupki), generator jezdni 2+2 kawałkami
+**we własnym układzie współrzędnych**, przesuwanie początku świata
+(offset 64-bit, reset interpolacji, prędkości Jolt zachowane, szum
+okresowy w shaderach), zabudowa i obiekty przy drodze w MultiMesh
+(budynki z oknami z shadera, chodniki z kolizją, kolizja pierwszego
+rzędu), decyzje ruchu z testem widoczności (głowa + lusterka).
+Testy nie były uruchomione (brak Godota w chmurze).
+
+Zauważone przy okazji: `road.gdshader` dostaje dystans w UV.y (float32
+w wierzchołku - przy 300 km krok 3 cm), a `ground.gdshader` liczy
+`sin(dot(wpos, ...))` - przy dużych współrzędnych to się rozsypie nawet
+z przesuwaniem świata, jeśli wzór nie będzie okresowy (spec, pkt 3).
+Paliwo na ~12 km a autostrada na setki km - propozycja stacji co ~10 km
+i warsztatu w każdym mieście (pytanie do użytkownika).
+
+**Prośba 3** - `docs/MEDIA_AUTOSTRADA.md` + `tools/fetch_highway_media.py`
++ zapowiedź w `CREDITS.md` (wpisy generuje `--credits` po pobraniu).
+Tekstury: 16 z ambientCG (identyfikatory i rozmiary z ich API) + 2
+opcjonalne z Poly Haven, wszystko CC0. Modele: Kenney i Quaternius (CC0),
+ale słupki, latarnie, ekrany, turbiny, palmy, kaktusy i bryły domów są
+już proceduralne. Dźwięków nie wybrałem: OpenGameArt blokuje roboty,
+Freesound wymaga klucza - skrypt ma `find-sounds` (klucz poza repo).
+Pobieranie po akceptacji użytkownika.
