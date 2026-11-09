@@ -213,6 +213,15 @@ mieszkalna z oknami (okna w `facade.gdshader`), deski płotów/stodół.
    - trudność, odcinki, punkty i boty liczone od **przejechanej drogi**
      (licznik kilometrów gracza), nie od dystansu wzdłuż jednej osi;
      wyjazd z miasta - któraś z ulic przechodzi znów w drogę poza miastem.
+   - **Graf niejawny, nic nie trzeba pamiętać** (użytkownik: "wystarczy
+     pamiętać trasę, którą się przyjechało, a i to nie jestem pewien"):
+     ulice to czysta funkcja `(ziarno, komórka siatki)`. Krawędź między
+     dwoma węzłami liczyć z hasha **pary węzłów** (posortowanej), nie
+     z kierunku, z którego się przyjechało - wtedy ta sama ulica wygląda
+     tak samo z obu stron i przy każdym powrocie. Pamiętać trzeba tylko
+     to, co zmieniła gra (wraki, stan botów, punkty), licznik kilometrów
+     i miejsce odrodzenia (początek bieżącego odcinka); przejechana trasa
+     wystarczy do mapki w HUD.
    Do tego potrzebny jest graf ścieżek z etapu 3 (węzły z dystansem na
    każdej ścieżce, dobudowa ścieżek w trakcie jazdy) - zaprojektuj go
    od razu tak, żeby węzeł mógł mieć więcej niż 2 wyloty i żeby ścieżki
