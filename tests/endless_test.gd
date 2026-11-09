@@ -110,7 +110,7 @@ func _physics_process(delta: float) -> bool:
 					main._ws_options[main._ws_selected]["label"]])
 			# Sklep: najdroższa dostępna wymiana silnika, potem wyjazd.
 			for i in range(main._ws_options.size()):
-				if main._ws_options[i]["kind"] == "engine" and int(main._ws_options[i]["cost"]) <= main.score.points:
+				if str(main._ws_options[i].get("id", "")).begins_with("engine:") and int(main._ws_options[i]["cost"]) <= main.score.points:
 					main.workshop_choose(i)
 					break
 			main.workshop_choose(main.ws_exit_index())

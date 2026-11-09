@@ -855,8 +855,7 @@ func rage_partner(me: StuntCar) -> StuntCar:
 
 ## Oś pasu naszej jezdni na autostradzie [m od osi jezdni]: 0 prawy, 1 lewy.
 func hwy_lane_off(lane: int) -> float:
-	var right := HighwayGenerator.WIDTH * 0.5 - HighwayGenerator.SHOULDER_R - HighwayGenerator.LANE_W * 0.5
-	return right if lane == 0 else right - HighwayGenerator.LANE_W
+	return HighwayGenerator.lane_center(lane)
 
 
 func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
@@ -1127,24 +1126,25 @@ func _ws_build() -> void:
 	_ws_options.clear()
 	var gs := get_node_or_null("/root/GameSettings")
 	var tiers: Array = gs.POWER_TIERS if gs else [90, 130, 180, 250, 350]
+	var spec := WorkshopShop.car_spec(car)
 	if _ws_kind == "workshop" and _ws_new_tier < tiers.size():
+		# Wymiana silnika - cena z WorkshopShop (za kW, rodzaj napędu, odkup
+		# starego silnika pomniejszony o jego uszkodzenie).
 		var tier := _ws_new_tier
 		var kw: int = tiers[tier]
 		var probe := StuntCar.new()
 		probe.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM   # poza drzewem (bez _ready)
 		var hub_only: bool = gs != null and kw >= gs.HUB_ONLY_KW
-		var cost := ENGINE_COST_PER_TIER * tier
 		for t in (["electric"] if hub_only else ["petrol", "diesel", "electric"]):
 			probe.apply_engine(t, kw)
 			var name_pl: String = StuntCar.ENGINE_TYPES[t]["label"]
-			var opt := {"kind": "engine", "type": t, "kw": kw, "tier": tier, "cost": cost,
-					"label": "Silnik: %s %d kW, %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]}
+			var lbl := "Silnik: %s %d kW, %d Nm" % [name_pl, kw, roundi(probe.peak_torque())]
 			if hub_only:
-				opt["hub"] = true
-				opt["label"] = "Silnik: elektryk 4 x 250 kW w kołach, %d Nm" % roundi(probe.peak_torque())
-			_ws_options.append(opt)
+				lbl = "Silnik: elektryk 4 x 250 kW w kołach, %d Nm" % roundi(probe.peak_torque())
+			var o := WorkshopShop.engine_offer(t, kw, lbl, score.points, spec, car.damage, hub_only)
+			_ws_options.append({"kind": "offer", "id": o["id"], "cost": int(o["cost"]), "label": lbl, "tier": tier})
 		probe.free()
-	for o in WorkshopShop.offers(car.damage, score.points, _ws_owned, _ws_mult()):
+	for o in WorkshopShop.offers(car.damage, score.points, _ws_owned, spec, _ws_kind):
 		var eff := ""
 		for u in WorkshopShop.UPGRADES:
 			if u["id"] == o["id"]:
@@ -1152,18 +1152,11 @@ func _ws_build() -> void:
 		# Tylko to, co gra już obsługuje (orurowanie, radio CB - później).
 		if eff != "" and not eff in SHOP_EFFECTS:
 			continue
-		if _ws_kind == "station" and eff != "":
-			continue                    # na stacji tylko naprawy
 		_ws_options.append({"kind": "offer", "id": o["id"], "cost": int(o["cost"]),
 				"label": ("Naprawa: " if str(o["id"]).begins_with("repair:") else "") + str(o["label"])})
 	_ws_options.append({"kind": "exit", "cost": 0, "label": "Wyjazd"})
 	_ws_selected = clampi(_ws_selected, 0, _ws_options.size() - 1)
 	_ws_refresh()
-
-
-## Mnożniki cen napraw dla tego auta (WorkshopShop.car_multipliers).
-func _ws_mult() -> Dictionary:
-	return WorkshopShop.car_multipliers(car.engine_type, car.engine_power_kw, car.car_mass, car.hub_motors and car.electric)
 
 
 func _ws_move(dir: int) -> void:
@@ -1205,22 +1198,20 @@ func workshop_choose(i: int) -> void:
 			race_state = Race.RACING
 			print("Warsztat: wyjazd, %d pkt" % score.points)
 			return
-		"engine":
-			if not score.spend(int(opt["cost"])):
-				return
-			# Silniki w kołach tylko z ostatniego progu albo gdy elektryk już je
-			# miał (inbox menu-a-gra-niespojnosci pkt 5).
-			car.hub_motors = opt.get("hub", false) or (opt["type"] == "electric" and car.engine_type == "electric" and car.hub_motors)
-			car.apply_engine(opt["type"], opt["kw"])
-			_tier = opt["tier"]
-			_ws_new_tier = _tier + 1
-			print("Warsztat: %s" % opt["label"])
 		"offer":
 			var id: String = opt["id"]
-			var eff := WorkshopShop.buy(id, car.damage, score, _ws_mult())
+			var eff := WorkshopShop.buy(id, car.damage, score, WorkshopShop.car_spec(car), _ws_kind)
 			match eff:
 				"":
 					return                  # za mało punktów
+				"engine":
+					var e := WorkshopShop.parse_engine(id)
+					# Silniki w kołach tylko z ostatniego progu albo gdy elektryk już je
+					# miał (inbox menu-a-gra-niespojnosci pkt 5).
+					car.hub_motors = bool(e["hub"]) or (e["type"] == "electric" and car.engine_type == "electric" and car.hub_motors)
+					car.apply_engine(e["type"], e["kw"])
+					_tier = int(opt.get("tier", _tier))
+					_ws_new_tier = _tier + 1
 				"repaired_full":
 					car.repair()
 				"repaired":
@@ -2284,7 +2275,7 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	if _endless and track.autostrada:
 		# 2+2: wolny pas jezdni z naprzeciwka (lane 0) przy jej poboczu,
 		# szybki (1) przy pasie rozdziału - lustrzanie do hwy_lane_off.
-		x = -(w + TrackGenerator.HIGHWAY_MEDIAN) - hwy_lane_off(int(lane))
+		x = HighwayGenerator.lane_center(int(lane), true, w)
 	var b := xf.basis.rotated(xf.basis.y, PI)
 	# Kołami na jezdni: środek koła 0,41 m pod mocowaniem + promień koła
 	# (przegląd PR #7: przy 0,62 koła wchodziły ~0,16 m w asfalt).

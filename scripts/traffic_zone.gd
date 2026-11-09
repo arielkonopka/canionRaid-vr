@@ -1,10 +1,12 @@
 extends RefCounted
 class_name TrafficZone
 
-## Ruch wokół miast w trybie "Autostrada" (ustalenie użytkownika
-## 2026-11-09): w strefie do HighwayPlan.TRAFFIC_RADIUS (5 km) od zabudowy
-## zawsze 3-5 aut na kilometr; auta, które nie są w furii, mogą znikać -
-## ale tylko wtedy, gdy gracz ich nie widzi.
+## Ruch w trybie "Autostrada" na całej długości, w obie strony (ustalenia
+## użytkownika 2026-11-09): w strefie do HighwayPlan.TRAFFIC_RADIUS (5 km)
+## od zabudowy 3-5 aut na kilometr, między miastami rzadki ruch 0,5-1/km.
+## Auta, które nie są w furii, mogą znikać - ale tylko wtedy, gdy gracz ich
+## nie widzi: za oknem wokół gracza albo jako nadmiar, gdy gęstość spada
+## (wyjazd ze strefy miasta).
 ##
 ## Czysta logika decyzji, bez węzłów: scena jazdy co ~0,5 s podaje listę
 ## aut (dystans wzdłuż trasy, furia, czy widoczne) i dostaje, które auta
@@ -12,9 +14,10 @@ class_name TrafficZone
 ## w xr_main / BotDriver (pliki gorące - wpina agent lokalny).
 ##
 ## Jak to się ma do dzisiejszego `bot_limit` (limit z numeru odcinka): w trybie
-## Autostrada poza strefami miast ruchu zwykłego nie ma (puste autostrady
-## między miastami - "chwile oddechu", wizja filar 11); furiaci (szał,
-## zasadzki) dochodzą osobno, według trudności - to nie jest ruch.
+## Autostrada liczbę spokojnych aut na naszej jezdni wyznacza ta gęstość
+## (zamiast `bot_limit`); każde z nich może wpaść w furię jak dziś
+## (wyprzedzenie, kontakt, waśnie FeudDirector). Auto w furii nie jest
+## liczone do gęstości i nie znika.
 
 ## Okno, w którym utrzymujemy gęstość [m od gracza].
 const AHEAD := 1500.0
@@ -28,6 +31,10 @@ const SPAWN_GAP := 40.0
 const MAX_SPAWN_PER_STEP := 1
 ## Za oknem (z zapasem) auto bez furii jest usuwane, gdy niewidoczne.
 const DESPAWN_MARGIN := 300.0
+## Nadmiar ponad `wanted` (np. po wyjeździe ze strefy miasta) - usuwamy
+## niewidoczne auta bez furii, najdalsze od gracza najpierw, gdy aut jest
+## więcej niż wanted + SURPLUS.
+const SURPLUS := 1
 
 ## Widoczność (VR: głowa się obraca, są lusterka) - zgrubnie i z zapasem.
 const VIEW_DIST := 900.0
@@ -62,22 +69,31 @@ func wanted(player_dist: float) -> int:
 func step(player_dist: float, cars: Array, rng: RandomNumberGenerator) -> Dictionary:
 	var despawn := []
 	var count := {false: 0, true: 0}
+	var removable := {false: [], true: []}      # niewidoczne bez furii w oknie
 	for c in cars:
 		var d: float = c["dist"]
-		var gone := false
-		if not c.get("raging", false) and not c.get("visible", true):
-			var outside := d < player_dist - BEHIND - DESPAWN_MARGIN \
-					or d > player_dist + AHEAD + DESPAWN_MARGIN
-			# Poza strefą miasta ruch rzednie: nadmiar ponad gęstość
-			# między miastami (TRAFFIC_BETWEEN) znika poza oknem; w oknie
-			# auta zostają (użytkownik: "rzadki ruch też między miastami").
-			gone = outside
-		if gone:
+		var calm_hidden: bool = not c.get("raging", false) and not c.get("visible", true)
+		var outside := d < player_dist - BEHIND - DESPAWN_MARGIN \
+				or d > player_dist + AHEAD + DESPAWN_MARGIN
+		if calm_hidden and outside:
 			despawn.append(c["id"])
 		elif d >= player_dist - BEHIND and d <= player_dist + AHEAD and not c.get("raging", false):
-			count[bool(c.get("oncoming", false))] += 1
+			var side := bool(c.get("oncoming", false))
+			count[side] += 1
+			if calm_hidden:
+				removable[side].append(c)
 	var spawn := []
 	var want := wanted(player_dist)
+	# Nadmiar (gęstość spadła): najdalsze od gracza niewidoczne auta znikają.
+	for side in [false, true]:
+		var extra: int = int(count[side]) - want - SURPLUS
+		if extra <= 0:
+			continue
+		var list: Array = removable[side]
+		list.sort_custom(func(a, b): return absf(float(a["dist"]) - player_dist) > absf(float(b["dist"]) - player_dist))
+		for i in range(mini(extra, list.size())):
+			despawn.append(list[i]["id"])
+			count[side] -= 1
 	for oncoming in [false, true]:
 		var missing: int = want - int(count[oncoming])
 		for _k in range(mini(missing, MAX_SPAWN_PER_STEP)):

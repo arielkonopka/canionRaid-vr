@@ -27,7 +27,10 @@ func _check(ok: bool, what: String) -> void:
 func _find(kind: String, id := "") -> int:
 	for i in range(main._ws_options.size()):
 		var o: Dictionary = main._ws_options[i]
-		if o["kind"] == kind and (id == "" or o.get("id", "") == id):
+		if kind == "engine":
+			if str(o.get("id", "")).begins_with("engine:"):
+				return i
+		elif o["kind"] == kind and (id == "" or o.get("id", "") == id):
 			return i
 	return -1
 

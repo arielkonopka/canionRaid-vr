@@ -193,6 +193,39 @@ mieszkalna z oknami (okna w `facade.gdshader`), deski płotów/stodół.
      jednego liniowego `dist` dla całego świata;
    - `ground_y` w mieście liczyć z najbliższej ulicy (nie z jednej osi).
    Zapisz to w HANDOVER, sekcja 8, jako pomysł użytkownika na później.
+   **Doprecyzowanie użytkownika (2026-11-09, 22:58):** "tworzyć
+   skrzyżowania, w które można skręcić, i one wtedy wiodą prosto i też
+   mają skrzyżowania, gdzie droga tworzona jest tam, gdzie gracz jedzie".
+   Czyli **leniwy, nieskończony graf ulic**, jak dziś trasa bez końca,
+   tylko z rozgałęzieniami:
+   - skrzyżowanie = węzeł z kilkoma wylotami; każdy wylot to **nierozwinięta
+     ulica** (krótki zalążek + zamknięcie widoku zabudową/zakrętem).
+     Ulica rozwija się kawałkami dopiero, gdy gracz w nią skręci (jak
+     `EndlessTrack.AHEAD`), i znów kończy się skrzyżowaniem;
+   - **deterministycznie z ziarna i położenia** (hash współrzędnych węzła
+     na siatce miasta), żeby powrót w to samo miejsce dał te same ulice,
+     a dwa wyloty prowadzące w ten sam punkt siatki spotkały się w tym
+     samym węźle (miasto to siatka z zaburzeniami, nie drzewo - inaczej
+     ulice będą na siebie nachodzić). Zajętość komórek siatki pilnuje,
+     żeby nowa ulica nie przecięła istniejącej bez skrzyżowania;
+   - sprzątanie: rozwinięte ulice daleko za graczem i poza wzrokiem
+     wracają do stanu zalążka (jak `KEEP_BEHIND`);
+   - trudność, odcinki, punkty i boty liczone od **przejechanej drogi**
+     (licznik kilometrów gracza), nie od dystansu wzdłuż jednej osi;
+     wyjazd z miasta - któraś z ulic przechodzi znów w drogę poza miastem.
+   - **Graf niejawny, nic nie trzeba pamiętać** (użytkownik: "wystarczy
+     pamiętać trasę, którą się przyjechało, a i to nie jestem pewien"):
+     ulice to czysta funkcja `(ziarno, komórka siatki)`. Krawędź między
+     dwoma węzłami liczyć z hasha **pary węzłów** (posortowanej), nie
+     z kierunku, z którego się przyjechało - wtedy ta sama ulica wygląda
+     tak samo z obu stron i przy każdym powrocie. Pamiętać trzeba tylko
+     to, co zmieniła gra (wraki, stan botów, punkty), licznik kilometrów
+     i miejsce odrodzenia (początek bieżącego odcinka); przejechana trasa
+     wystarczy do mapki w HUD.
+   Do tego potrzebny jest graf ścieżek z etapu 3 (węzły z dystansem na
+   każdej ścieżce, dobudowa ścieżek w trakcie jazdy) - zaprojektuj go
+   od razu tak, żeby węzeł mógł mieć więcej niż 2 wyloty i żeby ścieżki
+   dało się dobudowywać i usuwać niezależnie.
 3. **Zamienniki tekstur** (użytkownik: "tam, gdzie nie udało się pobrać,
    bierz zamienniki"): skrypt ma `FALLBACKS` - pozycja, która się nie
    pobierze (zmieniony ID, 404), sama przechodzi na zastępczą (CC0),
