@@ -14,9 +14,13 @@ class_name JamendoSource
 ##  - zakaz przechowywania do grania offline: utwór żyje tylko w pamięci
 ##    (bieżący + jeden pobrany na zapas), nic nie trafia na dysk.
 ##
-## Klucz client_id (darmowy, devportal.jamendo.com) - z user://radio.cfg
-## ([jamendo] client_id="...") albo z ustawienia projektu
-## canionraid/radio/jamendo_client_id. Bez klucza stacja się nie pokazuje.
+## Klucz client_id (darmowy, devportal.jamendo.com) NIE trafia do repo
+## (decyzja użytkownika 2026-11-09). Plik `radio_secrets.cfg` w katalogu
+## projektu, w .gitignore, dołączany do APK przez include_filter eksportu:
+##   [jamendo]
+##   client_id="..."
+## Pierwszeństwo ma user://radio.cfg (ten sam format). Bez klucza stacja
+## się nie pokazuje.
 ##
 ## Przepływ: refill() -> lista utworów (losowa strona popularnych w gatunkach
 ## TAGS) -> prefetch() pobiera MP3 jednego utworu -> AudioStreamMP3
@@ -27,8 +31,7 @@ signal track_ready                 # jest utwór do take()
 signal failed(reason: String)      # brak sieci / błąd API
 
 const API := "https://api.jamendo.com/v3.0/tracks/"
-const SETTING := "canionraid/radio/jamendo_client_id"
-const CFG := "user://radio.cfg"
+const CFGS := ["user://radio.cfg", "res://radio_secrets.cfg"]
 ## Gatunki stacji (fuzzytags = LUB). Pasują do gry: noc, szosa, lata 80.
 const TAGS := ["synthwave", "retrowave", "rock", "electronic", "funk"]
 const PAGE := 50                   # utworów na zapytanie
@@ -51,12 +54,13 @@ func _init() -> void:
 
 
 static func load_client_id() -> String:
-	var cfg := ConfigFile.new()
-	if cfg.load(CFG) == OK:
-		var v := str(cfg.get_value("jamendo", "client_id", "")).strip_edges()
-		if v != "":
-			return v
-	return str(ProjectSettings.get_setting(SETTING, "")).strip_edges()
+	for path in CFGS:
+		var cfg := ConfigFile.new()
+		if cfg.load(path) == OK:
+			var v := str(cfg.get_value("jamendo", "client_id", "")).strip_edges()
+			if v != "":
+				return v
+	return ""
 
 
 func configured() -> bool:
