@@ -676,7 +676,8 @@ func _physics_step(delta: float) -> void:
 	_update_esp(delta, grounded)
 	var g_ratio := _total_ratio(gear)
 	var axle_torque := 0.0
-	if _clutch_engaged or _clutch_slipping():
+	_update_engine_state()
+	if engine_running and (_clutch_engaged or _clutch_slipping()):
 		var t_engine := _engine_torque_at_clutch()
 		if t_engine > 0.0:
 			# Systemy odcinają tylko moment napędowy, hamowania silnikiem nie ruszają.
@@ -686,11 +687,11 @@ func _physics_step(delta: float) -> void:
 			t_engine *= (1.0 - 0.75 * damage["engine"]) * (0.0 if (is_wrecked or fuel <= 0.0) else 1.0)
 		axle_torque = t_engine * g_ratio * drivetrain_efficiency
 		_burn_fuel(maxf(t_engine, 0.0) * engine_rpm / RPM_PER_RAD_S, delta)
-	elif not electric:
+	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
 	var n_driven := 2.0 if _is_rwd() else 4.0
-	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if _clutch_engaged else 0.0
+	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if (_clutch_engaged and engine_running) else 0.0
 
 	# --- 4. opony i koła, w podkrokach ---
 	# Kierunki i prędkości w punktach styku są stałe w obrębie kroku.
@@ -1285,6 +1286,9 @@ func shift_down() -> void:
 
 
 func _update_engine_rpm(delta: float) -> void:
+	if not engine_running:
+		engine_rpm = move_toward(engine_rpm, 0.0, 1500.0 * delta)
+		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)
 		return
@@ -2062,6 +2066,19 @@ var _settle_t := 0.0
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
+## Silnik spalinowy pracuje. Pusty bak = silnik gaśnie (użytkownik: "brak
+## paliwa, silnik gaśnie"): obroty spadają do zera, napęd rozłączony, auto
+## się toczy; po zatankowaniu pracuje znowu. Elektryk nie gaśnie - bez
+## prądu tylko nie ma momentu.
+var engine_running := true
+
+
+func _update_engine_state() -> void:
+	var run := electric or fuel > 0.0
+	if run != engine_running:
+		engine_running = run
+		if not is_bot:
+			print("Silnik ", "pracuje" if run else "zgasł: brak paliwa")
 
 
 func _burn_fuel(power_w: float, delta: float) -> void:

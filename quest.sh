@@ -106,6 +106,7 @@ do_test() {
 	run_test stunt_shop_test ""          "stunt_shop_test"
 	run_test radio_test ""               "radio_test"
 	run_test hill_test ""                "wzniesienie|hill_test"
+	run_test fuel_test ""                "paliwo skończyło|fuel_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }

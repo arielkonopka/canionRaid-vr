@@ -1422,6 +1422,12 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   podejrzenie: pusty bak - 700 kW na pełnym gazie opróżnia 3,6 kWh
   w ~25 s (`fuel` liczony z chwilowej mocy). Pytanie do użytkownika
   w sekcji 9.
+- Użytkownik: "w benzynie i dieslu brak paliwa - silnik gaśnie".
+  `StuntCar.engine_running` (`_update_engine_state`): pusty bak - obroty
+  opadają do 0, napęd i bezwładność silnika rozłączone (auto się toczy),
+  dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
+  Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
+- Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 
