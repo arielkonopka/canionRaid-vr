@@ -29,3 +29,10 @@ Lista zgodna z `scripts/radio_stations.gd` (`RadioCatalog.credits_markdown()`).
 - "Contemplation" - Joth, CC0, https://opengameart.org/node/85636
 - "Calm Ambient 1 (Synthwave 4k)" - The Cynic Project, CC0, https://opengameart.org/node/97098 (cynicmusic.com / pixelsphere.org)
 - "Chill Jungle Ambient" - Tausdei, CC-BY-3.0, https://opengameart.org/node/123092
+
+## Stacja "Jamendo online" (opcjonalna)
+
+Utwory pobierane na bieżąco z [Jamendo](https://www.jamendo.com) przez ich
+API, tylko do odtwarzania (bez zapisu na dysk). Wykonawca, tytuł, licencja
+i link do strony utworu są wyświetlane na tablecie podczas odtwarzania.
+Użycie API jest darmowe tylko niekomercyjnie.
