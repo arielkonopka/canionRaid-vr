@@ -63,8 +63,15 @@ signal landed(impact_speed: float)
 signal wrecked
 
 const RPM_PER_RAD_S := 60.0 / TAU
-## Podkroki opon na krok fizyki. Boty mają 2 (taniej na Queście).
+## Podkroki opon na krok fizyki. Boty mają 2 (taniej na Queście), dalej
+## od gracza 1 (BotLod MID).
 var TIRE_SUBSTEPS := 6
+## Uproszczony napęd botów (BotDriveModel, inbox boty-naped-i-poziomy,
+## decyzja użytkownika: oszukiwać tylko u botów, na napędzie, nie na
+## oponach): bez skrzyni, sprzęgła i zmian biegów - przełożenie równoważne.
+## Tylko boty (is_bot) i nie elektryk (ten i tak ma jeden bieg).
+var simple_drive := false
+var _bdrive: BotDriveModel
 
 ## Zestawy nastaw zawieszenia. Zmieniają się razem: sztywniejsza sprężyna
 ## wymaga mocniejszego tłumika, inaczej auto podskakuje jak piłka.
@@ -482,6 +489,7 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	var e: Dictionary = ENGINE_TYPES[type_name]
 	engine_type = type_name
 	engine_power_kw = power_kw
+	_bdrive = null           # napęd bota przeliczy się z nowej krzywej
 	var p_w := power_kw * 1000.0
 	electric = e.get("electric", false)
 	idle_rpm = e["idle"]
@@ -518,8 +526,9 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 		while rpm <= redline_rpm:
 			curve.append(Vector2(rpm, p_w / (rpm / RPM_PER_RAD_S)))
 			rpm += 1000.0
-		# Rekuperacja jako "hamowanie silnikiem": stały moment, część maksymalnego.
-		engine_brake_a = t_max * e["regen"]
+		# Rekuperacja jako "hamowanie silnikiem": stały moment, część
+		# maksymalnego - siła z opcji menu (regen_level, użytkownik 2026-11-09).
+		engine_brake_a = t_max * float(REGEN_LEVELS.get(regen_level, e["regen"]))
 		engine_brake_b = 0.0
 	else:
 		# Skala z najwyższej mocy na kształcie (próbkowanym co 50 obr.).
@@ -677,6 +686,8 @@ func _physics_step(delta: float) -> void:
 	speed = linear_velocity.dot(fwd)
 
 	_update_steering(delta)
+	if simple_drive and is_bot and not electric and _bdrive == null:
+		_bdrive = BotDriveModel.from_car(torque_curve, gear_ratios, final_drive, idle_rpm)
 	_update_gearbox(delta)
 
 	# --- 1. kontakt i ugięcie ---
@@ -720,7 +731,8 @@ func _physics_step(delta: float) -> void:
 			# bez paliwa (prądu) też nie.
 			t_engine *= (1.0 - 0.75 * damage["engine"]) * (0.0 if (is_wrecked or fuel <= 0.0) else 1.0)
 		axle_torque = t_engine * g_ratio * drivetrain_efficiency
-		_burn_fuel(maxf(t_engine, 0.0) * engine_rpm / RPM_PER_RAD_S, delta)
+		# Elektryk: ujemny moment (rekuperacja) ładuje baterię.
+		_burn_fuel((t_engine if electric else maxf(t_engine, 0.0)) * engine_rpm / RPM_PER_RAD_S, delta)
 	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
@@ -850,8 +862,16 @@ func _physics_step(delta: float) -> void:
 		_max_fall_speed = maxf(_max_fall_speed, -linear_velocity.y)
 	else:
 		if wheels_on_ground == 0 and airtime > 0.25:
-			landed.emit(_max_fall_speed)
-			_damage_landing(_max_fall_speed)
+			# Prędkość uderzenia prostopadle do nawierzchni (to czuje
+			# zawieszenie), nie pionowa: lądowanie na zboczu zgodnym z torem
+			# lotu jest miękkie nawet przy 400 km/h (wielkie skocznie,
+			# 2026-11-09). Na płaskim to to samo co prędkość opadania.
+			var v_n := 0.0
+			for w in wheels:
+				if w.contact:
+					v_n = maxf(v_n, -linear_velocity.dot(w.normal))
+			landed.emit(v_n)
+			_damage_landing(v_n)
 		airtime = 0.0
 		_max_fall_speed = 0.0
 	wheels_on_ground = grounded
@@ -1139,6 +1159,9 @@ func _traction_cap(w: Wheel, dir: float) -> float:
 ## ograniczona przez to, na co pozwala przyczepność: |r| ≤ μ·g/v.
 ## Znak: dodatni = obrót w prawo, zgodnie z kierunkiem skrętu.
 func _update_esp(delta: float, grounded: int) -> void:
+	# ESP zostaje też w uproszczonym napędzie bota: bez niego bot 250-350 kW
+	# z tyłu obracał się przy pełnym gazie (bot_rage_test, 2026-11-09), choć
+	# spec. BotDriveModel zakładała, że "bot sam prowadzi tor".
 	for i in range(4):
 		_esp_brake[i] = 0.0
 	esp_active = false
@@ -1240,6 +1263,8 @@ func _update_steering(delta: float) -> void:
 func _total_ratio(g: int) -> float:
 	if g == 0:
 		return 0.0
+	if _bdrive and g == 1:
+		return _bdrive.ratio(_driven_omega())
 	if g < 0:
 		return -reverse_ratio * final_drive
 	return gear_ratios[g - 1] * final_drive
@@ -1301,6 +1326,9 @@ func _clutch_slipping() -> bool:
 func _engine_torque_at_clutch() -> float:
 	if gear == 0 or _shift_timer > 0.0:
 		return 0.0
+	if _bdrive and gear == 1:
+		return _bdrive.engine_torque(_drive_pedal(), _driven_omega(), _total_ratio(1),
+				engine_brake_a, engine_brake_b)
 	var pedal := _drive_pedal()
 	if engine_rpm >= redline_rpm:
 		pedal = 0.0    # ogranicznik obrotów
@@ -1326,6 +1354,20 @@ func _curve_torque(rpm: float) -> float:
 
 func _update_gearbox(delta: float) -> void:
 	_shift_cooldown = maxf(_shift_cooldown - delta, 0.0)
+	if _bdrive and gear >= 1 and _shift_timer <= 0.0:
+		# Uproszczony napęd bota: jeden "bieg" z przełożeniem równoważnym,
+		# sprzęgło zawsze zamknięte. Wsteczny (wychodzenie z utknięcia) -
+		# zwykłą logiką niżej.
+		gear = 1
+		_clutch_engaged = true
+		# Hamulec na postoju = wsteczny (automat) - jak u pełnego modelu.
+		if absf(speed) < 0.5 and brake > 0.5 and throttle < 0.05:
+			_reverse_hold += delta
+			if _reverse_hold > 0.35:
+				_shift_to(-1)
+		else:
+			_reverse_hold = 0.0
+		return
 	if _shift_timer > 0.0:
 		_shift_timer -= delta
 		if _shift_timer <= 0.0:
@@ -1414,6 +1456,9 @@ func shift_down() -> void:
 func _update_engine_rpm(delta: float) -> void:
 	if not engine_running:
 		engine_rpm = move_toward(engine_rpm, 0.0, 3000.0 * delta)
+		return
+	if _bdrive and gear == 1:
+		engine_rpm = _bdrive.rpm(_driven_omega(), _total_ratio(1))
 		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)
@@ -2194,6 +2239,15 @@ var _settle_t := 0.0
 # --------------------------------------------------------------------------
 ## Energia pełnego baku [kWh "na kołach"].
 @export var tank_kwh: float = 7.5
+## Rekuperacja elektryka (opcja menu, użytkownik 2026-11-09: "rekuperator
+## przy hamowaniu silnikiem jako opcja"): moment hamowania silnikiem po
+## puszczeniu gazu jako część maksymalnego momentu; energia wraca do baterii
+## ze sprawnością REGEN_EFF (silnik + falownik + bateria).
+const REGEN_LEVELS := {"off": 0.0, "weak": 0.07, "normal": 0.15, "strong": 0.30}
+const REGEN_EFF := 0.7
+var regen_level := "normal"
+## Bak domyślny (wąwóz, ~25 km); tryb Autostrada x4 (~100 km).
+const TANK_KWH_DEFAULT := 7.5
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
@@ -2216,7 +2270,9 @@ func _burn_fuel(power_w: float, delta: float) -> void:
 	if is_bot:
 		return
 	var kw := power_w / 1000.0 + (0.0 if electric else idle_kw)
-	fuel = maxf(fuel - kw * delta / 3600.0 / tank_kwh, 0.0)
+	if kw < 0.0:
+		kw *= REGEN_EFF              # odzysk energii (tylko elektryk)
+	fuel = clampf(fuel - kw * delta / 3600.0 / tank_kwh, 0.0, 1.0)
 
 
 ## Zasięg na pozostałym paliwie przy spokojnej jeździe [km].

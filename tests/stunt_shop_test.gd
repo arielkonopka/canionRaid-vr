@@ -54,7 +54,12 @@ func _test_plain_jump() -> void:
 	_check(r.size() == 1 and r[0]["kind"] == "jump", "zwykły skok wykryty")
 	if r.size() == 1:
 		_check(bool(r[0]["clean"]) and int(r[0]["flips"]) == 0, "czysty skok bez obrotów")
-		_check(int(r[0]["points"]) > 0, "punkty za czas w powietrzu")
+		_check(int(r[0]["points"]) == 0, "lot 1,2 s bez punktów za czas (próg 2 s)")
+	var long := _run([[0.5, Vector3.ZERO, 0.0, 4], [2.5, Vector3.ZERO, 0.0, 0], [0.5, Vector3.ZERO, 0.0, 4]])
+	_check(long.size() == 1 and int(long[0]["points"]) >= 100, "lot 2,5 s daje punkty (%s)" % str(long))
+	# Skala użytkownika (2026-11-09): 2-10 s 1, potem co 5 s do 30, co 2 s do 40, co 1 s.
+	for c in [[1.9, 0], [2.0, 1], [9.9, 1], [10.0, 1], [15.0, 2], [30.0, 5], [32.0, 6], [40.0, 10], [43.0, 13]]:
+		_check(ST.air_units(c[0]) == c[1], "air_units(%.1f) = %d (jest %d)" % [c[0], c[1], ST.air_units(c[0])])
 	var hop := _run([[0.5, Vector3.ZERO, 0.0, 4], [0.2, Vector3.ZERO, 0.0, 0], [0.5, Vector3.ZERO, 0.0, 4]])
 	_check(hop.is_empty(), "podskok < MIN_AIR to nie skok")
 

@@ -23,6 +23,14 @@ const KEEP_BEHIND := 1
 @export var start_height: float = 40.0
 ## Wąwóz z łupku zamiast toru na filarach (bez przerw, ściany z kolizją).
 @export var canyon: bool = true
+## Tryb Autostrada (docs/AUTOSTRADA.md): kawałki z HighwayGenerator, każdy
+## we własnym układzie (węzeł w miejscu końca poprzedniego, wierzchołki
+## < ~2 km) i w grupie WorldOrigin.GROUP - scena jazdy przesuwa świat.
+## Próbki oddawane na zewnątrz mają "pos" w układzie EndlessTrack (pozycja
+## kawałka + lokalna), więc boty, HUD i scena jazdy działają bez zmian.
+@export var autostrada: bool = false
+var plan: HighwayPlan
+var _hgen: HighwayGenerator
 
 var rng := RandomNumberGenerator.new()
 var _chunks: Array[StuntTrack] = []
@@ -33,12 +41,19 @@ var _checkpoints: Array[float] = []    # dystans bram punktów kontrolnych
 
 func _ready() -> void:
 	rng.seed = seed_value if seed_value != 0 else int(Time.get_ticks_usec())
+	if autostrada:
+		var sv := rng.randi()
+		plan = HighwayPlan.new(sv)
+		_hgen = HighwayGenerator.new(plan, sv)
 	for i in range(1 + AHEAD):
 		_add_section()
 
 
 func _add_section() -> void:
 	Perf.mark("chunk_build")
+	if autostrada:
+		_add_highway_chunk()
+		return
 	var start := {}
 	if _chunks.is_empty():
 		var h0 := 6.0 if canyon else start_height
@@ -68,6 +83,42 @@ func _add_section() -> void:
 	add_child(chunk)                        # _ready kawałka buduje geometrię
 	_chunks.append(chunk)
 	_checkpoints.append(float(start["dist"]))
+
+
+func _add_highway_chunk() -> void:
+	var start: Dictionary = HighwayGenerator.first_state() if _chunks.is_empty() else _chunks[-1].end_state()
+	# end_state() daje pozycję w układzie świata (to_global) - po przesunięciu
+	# świata też poprawną; localize robi z niej położenie węzła kawałka.
+	var loc := HighwayGenerator.localize(start)
+	_sections += 1
+	var chunk := StuntTrack.new()
+	chunk.name = "Hwy%d" % _sections
+	chunk.position = to_local(loc["origin"]) if is_inside_tree() else loc["origin"]
+	chunk.segments.assign(_hgen.next_chunk(loc["state"]))
+	chunk.section_index = _sections
+	chunk.highway = true
+	chunk.canyon = false
+	chunk.scenery = false
+	chunk.hwy_plan = plan
+	chunk.start_state = loc["state"]
+	chunk.build_lines = false
+	chunk.road_material = road_material
+	chunk.pillar_material = pillar_material
+	chunk.slice_build = _sections > 1 + AHEAD
+	chunk.add_to_group(WorldOrigin.GROUP)
+	add_child(chunk)
+	_chunks.append(chunk)
+	_checkpoints.append(float(loc["state"]["dist"]))
+
+
+## Próbka kawałka `c` z pozycją w układzie EndlessTrack (kawałki autostrady
+## stoją poza zerem; w wąwozie wszystkie w zerze - bez kopii).
+func _g(c: StuntTrack, s: Dictionary) -> Dictionary:
+	if s.is_empty() or c.position == Vector3.ZERO:
+		return s
+	var o := s.duplicate()
+	o["pos"] = (s["pos"] as Vector3) + c.position
+	return o
 
 
 ## Wołane przez scenę jazdy z dystansem auta: dobudowuje trasę przed autem
@@ -124,7 +175,8 @@ func checkpoint_before(dist: float) -> float:
 # --------------------------------------------------------------------------
 
 func nearest_sample(world_pos: Vector3) -> Dictionary:
-	return _nearest(world_pos)[1]
+	var r := _nearest(world_pos)
+	return _g(r[0], r[1]) if r[0] else r[1]
 
 
 ## [kawałek, próbka] najbliższe pozycji: bieżący kawałek i sąsiedzi - auto
@@ -150,7 +202,10 @@ func lateral_offset(world_pos: Vector3) -> Dictionary:
 	if r[1].is_empty():
 		return {"offset": 0.0, "on_track": false}
 	# Ta sama próbka - bez drugiego szukania w kawałku.
-	return (r[0] as StuntTrack).lateral_offset(world_pos, r[1])
+	var lo := (r[0] as StuntTrack).lateral_offset(world_pos, r[1])
+	if lo.has("sample"):
+		lo["sample"] = _g(r[0], lo["sample"])
+	return lo
 
 
 ## Czy na dystansie `dist` jest odcinek autostrady (w wczytanych kawałkach).
@@ -202,6 +257,11 @@ func next_station(dist: float) -> Dictionary:
 	return {}
 
 
+## Dystans początku najstarszego wczytanego kawałka (wcześniejsze są usunięte).
+func loaded_start() -> float:
+	return _chunks[0].dist_range().x if not _chunks.is_empty() else 0.0
+
+
 ## Trasa bez końca nie ma mety.
 func finish_distance() -> float:
 	return INF
@@ -218,5 +278,9 @@ func samples_from(dist: float, length: float) -> Array:
 		var r := c.dist_range()
 		if r.y < dist or r.x > dist + length:
 			continue
-		out.append_array(c.samples_from(dist, length))
+		if c.position == Vector3.ZERO:
+			out.append_array(c.samples_from(dist, length))
+		else:
+			for smp in c.samples_from(dist, length):
+				out.append(_g(c, smp))
 	return out

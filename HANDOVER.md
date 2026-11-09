@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 5 (popołudnie: wytrzymałość, opływowość, moc z menu w trasie, diagnostyka wypadków, plan trybu Autostrada)
+Ostatnia aktualizacja: 2026-11-09, sesja 6 (wieczór: wielka skocznia, Autostrada etap 1, rekuperacja, nowe boty, tekstury poza repo)
 
 ---
 
@@ -454,6 +454,18 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
+- **Menu pauzy = menu główne ustawień** (użytkownik 2026-11-09): w pauzie
+  te same grupy opcji co na ekranie tytułowym; radio, wspomagania,
+  sterowanie, wygląd, szał botów działają od razu; zmiana samochodu /
+  nadwozia / trasy **resetuje jazdę, ale najpierw ostrzeżenie** (A: zacznij
+  od nowa, B: cofnij zmiany). **Ustawienia radia w ustawieniach gry**
+  (grupa "Radio": radio przy starcie, stacja, głośność, Jamendo online),
+  wspólne z menu pauzy. Do zrobienia (sekcja 8).
+- **Rekuperacja elektryka** (użytkownik 2026-11-09): opcja menu
+  "Rekuperacja" wył./słaba/normalna/mocna (`StuntCar.REGEN_LEVELS` 0 /
+  0,07 / 0,15 / 0,30 maks. momentu), energia wraca do baterii ze
+  sprawnością 0,7. `regen_test`: 100 km/h, 6 s bez gazu - 0,03 / 0,07 /
+  0,12 / 0,20 g, odzysk 0 / 20 / 41 / 73 Wh.
 - **Opływowość nadwozia** (użytkownik 2026-11-09: "130 kW ledwo ponad
   150", "w najwyższej opcji naprawdę ponad 300 km/h", "dodatkowy czynnik
   oporu powietrza"): opcja menu "Opływowość" (`StuntCar.AERO`,
@@ -462,6 +474,31 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   (`tests/topspeed_test.gd`, jazda w -Z): 130 kW 213/229/232/264 km/h;
   350 kW ~282 wszędzie (ogranicza 6. bieg na odcince); 700 kW
   378/393/393/398 km/h, 0-300 17-19 s.
+- **Skocznie: dwa rodzaje** (użytkownik 2026-11-09: "żeby dało się skakać
+  na maksymalnych prędkościach, do 400 km/h"; wybór z pytania): krótkie
+  w wąwozie jak dotąd (projektowane na prędkość ze znaku; dużo szybciej =
+  dobicie zawieszenia na rampie ~3-4 g albo lot nosem w dół), a na
+  odcinkach autostrady **wielka skocznia do 400 km/h**
+  (`TrackGenerator._big_jump`): próg 3,5° z łagodnym wejściem 77 m
+  (≤ 1 g dociążenia przy 400 km/h), za nim stół 170 m na wysokości progu.
+  Uderzenie przy lądowaniu na wysokości progu = v·sin θ niezależnie od
+  długości lotu, więc 3,5° to granica, przy której 400 km/h (6,8 m/s)
+  mieści się pod progiem uszkodzeń 7,5 m/s. Lot: 189 km/h 0,5 s, 400 km/h
+  ~1,4 s i ~150 m. Znak meta `sign` "SKOCZNIA DO 400 km/h", `big_jump`,
+  `v_sign` 0 (boty i autopilot jej nie celują).
+- **Twarde lądowanie liczone prostopadle do nawierzchni** (prędkość wzdłuż
+  normalnych kół w chwili dotknięcia), nie pionowo - lądowanie na zboczu
+  zgodnym z lotem jest miękkie.
+- **Lot to nie upadek** (użytkownik: "gra uznaje, że samochód gdzieś zawisł
+  i wybucha - dajmy mu chociaż upaść"): reguła "> 6 m nad jezdnią" nie
+  działa, gdy żadne koło nie dotyka, auto jest nad drogą i nie z boku
+  (limit 10 s w powietrzu).
+- **Punkty** (2026-11-09): uderzenie spokojnego bota **bez mandatu**,
+  sprowokowany pościg płaci jak każdy (uszkodzenia, obrót, wybuch, unik).
+  **Za lot** zakończony lądowaniem na kołach (`StuntTracker.air_units`,
+  jednostka 100 pkt): < 2 s nic, 2-10 s 1, od 10 do 30 s +1 co 5 s, od 30
+  do 40 s +1 co 2 s, dalej +1 co sekundę (zastąpiło 60 pkt/s). Salta,
+  beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
 - **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
@@ -477,6 +514,23 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     miasta, **tylko gdy gracz ich nie widzi**.
   - **Skocznie rzadko, jako atrakcja** (objazd ze skocznią / rampa obok
     drogi, którą można ominąć) - głównie zwykła jazda.
+  - Specyfikacja i moduły z chmury: `docs/AUTOSTRADA.md`,
+    `scripts/highway_plan.gd`, `highway_generator.gd`,
+    `highway_scenery.gd`, `traffic_zone.gd`, `world_origin.gd` (testy
+    `highway_plan_test`, `highway_gen_test`, `world_origin_test` w zestawie).
+  - Odpowiedzi na pytania spec. pkt 11 (użytkownik 2026-11-09):
+    **ruch** - przy mieście (5 km) 3-5 aut/km, **między miastami rzadki
+    ruch ~0,5-1 auta/km** (nie pusto); **stopniowanie ograniczeń przed
+    miastem 140 → 70 → 50 → 30**; **stacje paliw rzadziej, co ~20 km**
+    (paliwo ma być wyzwaniem), warsztat w każdym mieście; nasyp jezdni
+    1 m (propozycja chmury, przyjęta domyślnie).
+  - Zgoda na pobranie (2026-11-09): tekstury z `docs/MEDIA_AUTOSTRADA.md`
+    (ambientCG/Poly Haven, CC0) **poza gitem - w repo tylko skrypt**
+    `tools/fetch_highway_media.py textures` -> `textures/cc0/` (użytkownik:
+    "niech w repo będzie skrypt pobierający te tekstury"; chmura wcześniej
+    zrobiła wyjątek `!/textures/cc0/` - cofnięty). Z eksportu APK wyłączone
+    (`exclude_filter textures/cc0/*`), dopóki gra ich nie używa, modele aut GGBotNet "PSX Style Cars"
+    i Quaternius "Realistic Car Pack" (CC0, do repo w `models/`).
   - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
     ma, a pomagają ocenić prędkość).
 - **Klucze API Jamendo** (użytkownik 2026-11-09, "będzie potrzebne
@@ -528,6 +582,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Nie edytuj `quest.sh` w miejscu, gdy działa** (`./quest.sh test` trwa
+  ~25 min): bash czyta skrypt na bieżąco, a zapis z obcięciem pliku
+  (python `open('w')`, edytor) przesuwa bajty - po powrocie z funkcji bash
+  czyta od starego przesunięcia i może wykonać przypadkowy fragment.
+  `sed -i` jest bezpieczne (nowy plik, bash trzyma stary i-węzeł).
+
+- **Headless: `MultiMesh.get_instance_transform` zwraca zawsze
+  `Transform3D()`** (atrapa renderera nie trzyma danych instancji) -
+  objaw: test widzi wszystkie instancje w (0,0,0) ("budynek na jezdni").
+  `HighwayScenery` w headless zapisuje kopię w meta `xforms`.
+- **`global_position` w `SceneTree._initialize` testu** - węzły jeszcze
+  nie w drzewie: "Condition !is_inside_tree()". Używać `position`
+  (rodzic root w zerze).
 
 - **Opcja rozdzielczości w menu nic nie zmienia / "działa dopiero po
   restarcie", a VrApi pokazuje `SF=0.50`** → dynamiczna rozdzielczość
@@ -1560,17 +1628,63 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   przegląd modelu opon, specyfikacja trybu Autostrada, szukanie
   multimediów (pomysł użytkownika).
 
+### 2026-11-09, sesja 6 (wieczór, użytkownik jeździ na kablu)
+
+- **Skocznie**: dwa rodzaje (sekcja 2) - wielka skocznia do 400 km/h na
+  autostradzie (`TrackGenerator._big_jump`, próg 3,5°, stół 170 m),
+  lądowanie liczone prostopadle do nawierzchni, lot nad jezdnią nie jest
+  upadkiem (gra wysadzała auto w długim locie).
+- **Punkty**: bez mandatu za stłuczki, punkty za lot wg skali użytkownika.
+- **Autostrada etap 1** (sekcja 8, pkt 000), moduły z chmury uruchomione
+  i poprawione (headless MultiMesh, `global_position` w `_initialize`).
+- **Rekuperacja** elektryka w menu z odzyskiem energii.
+- **Modele aut CC0** w `models/` (GGBotNet, Quaternius - ręcznie
+  pobrany), tekstury CC0 poza repo (skrypt).
+- **"Trasa się skończyła"** (wąwóz, po skoku): dystans po locie skakał
+  2330 -> 1139 m (auto przypisane do wcześniejszego fragmentu), potem
+  odrodzenie na usuniętym kawałku. Poprawka: `jumped_back` (> 300 m
+  wstecz nie jest bezpieczną pozycją), odrodzenie >= `loaded_start()`.
+- **Nowe boty z chmury**: `BotDriveModel` (z ESP - bez niego boty się
+  obracały), `BotLod` (budżet 8), `_curve_speed` 0,7 g; `FeudDirector`
+  (waśnie) - test OK, wpięcie czeka.
+- Log z Questa: pojawienie się bota = ~170 ms klatki (budowa StuntCar) -
+  w kolejce pula botów.
+- Testy: pełny zestaw `./quest.sh test` OK (w tym nowe: durability,
+  topspeed (poza zestawem), regen, highway_plan/gen, world_origin,
+  bot_drive, feud, endless autostrada).
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
-000. **Tryb Autostrada** (ustalenia w sekcji 2, 2026-11-09). Plan
-   etapami: (1) tryb w menu + generator odcinków samej autostrady
-   (2+2 pasy, łagodne łuki, bez skoczni) i słupki co 100 m / km;
-   (2) strefy scenerii co 50±10 km (równiny/pola/łąki/pustynia, góry,
-   morze, wąwóz) - teren i obiekty z MultiMesh (`scenery.gd`);
-   (3) miasta 1 km / 5 km z zabudową i strefą 30, ruch 3-5 aut/km
-   z znikaniem poza wzrokiem; (4) rzadkie objazdy ze skocznią.
+000. **Tryb Autostrada** (ustalenia w sekcji 2, spec. `docs/AUTOSTRADA.md`).
+   **Etap 1 zrobiony (2026-11-09)**: menu "Trasa" (Wąwóz / Autostrada),
+   `EndlessTrack.autostrada` - kawałki z `HighwayGenerator`, każdy we
+   własnym układzie (`localize`, węzeł w końcu poprzedniego, w grupie
+   `WorldOrigin.GROUP`); `EndlessTrack._g` dodaje pozycję kawałka do
+   "pos" próbek oddawanych na zewnątrz (boty, HUD, xr_main bez zmian);
+   `xr_main._check_origin_shift` na początku kroku (auto, XROrigin,
+   boty, auta z naprzeciwka, wybuchy, deszcz, menu w powietrzu w grupie;
+   poprawki `_ws_xf`, `_chase_xf`, `_cine_*`); log "ŚWIAT: przesunięty".
+   `StuntTrack.hwy_plan` -> `HighwayScenery.build` (słupki, obiekty
+   biomów, zabudowa miast z kolizją pierwszego rzędu, `Perf
+   "hwy_scenery"`), tablice z wymyśloną nazwą miasta
+   (`HighwayPlan.city_name`) na wjeździe i przekreślone na wyjeździe.
+   Stacje co 20 km (`HighwayPlan.stations_between`, offset 12,5 km, nie
+   przy miastach i skoczniach), **warsztat w każdym mieście** 300 m za
+   początkiem zabudowy (`workshops_between`), **bak ~100 km** w tym trybie
+   (`tank_kwh` x4; użytkownik: "żeby można było pominąć stację").
+   W miejscach objazdów (`jumps_between`, ~1/30 km) na razie wielka
+   skocznia na jezdni głównej (`TrackGenerator._big_jump` wraca do
+   wysokości wyjścia). Test: `endless_test -- 180 petrol 777 400
+   autostrada` - 16,2 km, 7 przesunięć świata, bez upadków (zderzenia
+   z botami, autopilot ich nie omija). Autopilot testu: wzmocnienie
+   kierownicy maleje z prędkością (przy 220 km/h stałe rozbujało go) i
+   w trybie Autostrada trzyma ograniczenia.
+   Dalej: etap 2 (biomy: teren w shaderze, horyzont, `world_wrap`
+   w shaderach - jezdnia ma dystans w UV.y jako float32!), etap 3
+   (ruch `TrafficZone`, auta z epoki), etap 4 (objazdy). Pomiar na
+   Queście (`hwy_scenery`, PERF+) przed paczkami modeli.
 00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
    2026-11-09)** - stan dochodzenia:
    - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -

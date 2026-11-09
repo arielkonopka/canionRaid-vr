@@ -53,15 +53,15 @@ func _process(_d: float) -> bool:
 	main.score_end_attack(b, false, 0.4, "ambush")
 	var gain: int = main.score.points - p3
 	_check("unik zasadzki (premia)", gain > 0, "+%d pkt" % gain)
-	# Mandat: uderzenie spokojnego bota, pościg bez punktów.
+	# Uderzenie spokojnego bota: bez mandatu, pościg płaci (2026-11-09).
 	var c := StuntCar.new()
 	root.add_child(c)
 	var p4: int = main.score.points
 	main.score_chase_open(c, "player_hit")
-	_check("mandat", main.score.points < p4, "%d pkt" % main.score.points)
+	_check("bez mandatu", main.score.points == p4, "%d pkt" % main.score.points)
 	var p5: int = main.score.points
 	main.score_end_attack(c, false, 0.5, "ram")
-	_check("pościg z mandatem bez punktów", main.score.points == p5, "%d pkt" % main.score.points)
+	_check("sprowokowany pościg płaci za unik", main.score.points > p5, "%d pkt" % main.score.points)
 	# Napisy i kolumna przy mapce.
 	var shown := 0
 	for l in main._popups:

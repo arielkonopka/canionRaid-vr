@@ -2,7 +2,7 @@ extends SceneTree
 ## Test trasy bez końca: autopilot jedzie, aż skończą się dźwigi (3) albo
 ## minie limit czasu. Zna znaki z prędkością skoku (przed rampą pełny gaz)
 ## i zwalnia przed łukami według przyczepności nawierzchni.
-##   godot --headless --xr-mode off -s res://tests/endless_test.gd -- [kW] [napęd] [ziarno] [limit s] </dev/null
+##   godot --headless --xr-mode off -s res://tests/endless_test.gd -- [kW] [napęd] [ziarno] [limit s] [endless|canyon] [km/h na skoczniach] </dev/null
 ## Wypisuje każdy upadek (gdzie, przy jakiej prędkości wybicia) i wynik.
 
 var main
@@ -14,25 +14,51 @@ var limit := 240.0
 var seed_v := 777
 var last_cranes := -1
 var last_bots := 0
+## 6. argument: prędkość wjazdu na wielkie skocznie autostrady [km/h] (długie loty -
+## reguła upadku nie może zabierać życia w powietrzu, 2026-11-09).
+var jump_override := 0.0
+var _air := 0.0
+var _air_v := 0.0
 
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	var gs = root.get_node("GameSettings")
 	gs.persist = false
-	gs.track_mode = args[4] if args.size() > 4 else "endless"   # endless / canyon
+	gs.track_mode = args[4] if args.size() > 4 else "endless"   # endless / canyon / autostrada
 	gs.cranes = 3
 	gs.engine_power = int(args[0]) if args.size() > 0 else 180
 	gs.engine_type = args[1] if args.size() > 1 else "petrol"
+	# "hub" = elektryk z silnikami w kołach (4x4), "awd" = 4x4 z dyferencjałem.
+	if gs.engine_type == "hub":
+		gs.engine_type = "electric"
+		gs.motor_layout = "hub"
+	elif args.size() > 6:
+		gs.drive_layout = args[6]
 	seed_v = int(args[2]) if args.size() > 2 else 777
 	limit = float(args[3]) if args.size() > 3 else 240.0
+	jump_override = float(args[5]) if args.size() > 5 else 0.0
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 
 
 func _physics_process(delta: float) -> bool:
+	if car and car.airtime > 0.0:
+		if _air == 0.0:
+			_air_v = car.speed * 3.6
+		_air = car.airtime
+	elif _air > 0.5:
+		print("  lot %.1f s, wybicie %.0f km/h, %.2f km" % [_air, _air_v, main._last_safe_dist / 1000.0])
+		_air = 0.0
+	else:
+		_air = 0.0
 	frame += 1
 	main.set_physics_process(false)
+	# Krok sceny jest wyłączony (autopilot steruje sam) - przesuwanie świata
+	# trybu Autostrada trzeba wołać tutaj.
+	if frame > 3:
+		main._check_origin_shift()
+		main._watch_incident(delta)
 	if frame == 1:
 		return false
 	if frame == 2:
@@ -46,6 +72,7 @@ func _physics_process(delta: float) -> bool:
 		var et := EndlessTrack.new()
 		et.seed_value = seed_v
 		et.canyon = root.get_node("GameSettings").track_mode == "canyon"
+		et.autostrada = root.get_node("GameSettings").track_mode == "autostrada"
 		et.road_material = trk.road_material
 		et.pillar_material = trk.pillar_material
 		trk.queue_free()
@@ -93,12 +120,20 @@ func _physics_process(delta: float) -> bool:
 	var here := float(s["dist"])
 	var fwd: Vector3 = -car.global_basis.z
 	var head_err := fwd.signed_angle_to(s["fwd"], car.global_basis.y)
-	var steer: float = clampf(-info["offset"] * 0.25 - head_err * 2.5, -1, 1)
+	# Wzmocnienie maleje z prędkością - przy 220 km/h na autostradzie stałe
+	# wzmocnienie rozbujało regulator (wychylenie z pasa rosło do pełnego skrętu).
+	var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
+	var steer: float = clampf((-info["offset"] * 0.25 - head_err * 2.5) * gain, -1, 1)
 	var kmh: float = car.speed * 3.6
+	if OS.has_environment("DBG_D") and absf(here - float(OS.get_environment("DBG_D"))) < 150.0 and frame % 15 == 0:
+		print("  dbg d=%.0f off %.2f head %.3f steer %.2f %3.0f km/h krzywizna %.4f szer %.1f poz %s próbka %s" % [here, info["offset"], head_err, steer, kmh, float(s.get("curve", 0.0)), float(s["width"]), str(car.global_position.snapped(Vector3.ONE * 0.1)), str((s["pos"] as Vector3).snapped(Vector3.ONE * 0.1))])
 
 	# Prędkość: łuki (pozioma krzywizna, przyczepność nawierzchni) i skoki.
 	var ahead: Array = trk.samples_from(here, 250.0)
 	var target := 230.0
+	if trk.autostrada:
+		# Autostrada: trzymaj się ograniczeń (+10%) - miasta 30, dojazdy 70/50.
+		target = main.current_limit * 1.1
 	var jump_v := 0.0
 	var in_runup := false
 	for i in range(0, ahead.size() - 15, 5):
@@ -127,10 +162,14 @@ func _physics_process(delta: float) -> bool:
 	if behind >= 0.0:
 		var runup_samples: Array = trk.samples_from(behind, 1.0)
 		var vs := 0.0
+		var big := false
 		for rs in runup_samples:
 			if rs["meta"].has("v_sign"):
 				vs = rs["meta"]["v_sign"] * 3.6
-		if vs > 0.0:
+				big = rs["meta"].get("big_jump", false)
+		if big and jump_override > 0.0:
+			target = jump_override           # wielka skocznia autostrady
+		elif vs > 0.0:
 			target = vs * 1.10
 	car.throttle = 1.0 if kmh < target else 0.0
 	car.brake = clampf((kmh - target - 2.0) * 0.15, 0.0, 1.0)

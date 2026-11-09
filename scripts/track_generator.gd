@@ -587,7 +587,8 @@ static func _highway_section(index: int, start: Dictionary, rng: RandomNumberGen
 	for m in range(5):
 		_maybe_slippery_zone(state, d, rng)
 		if m == jump_at:
-			_guarded(out, state, d, rng, func(o: Array, s: Dictionary) -> void: _jump(o, s, d, rng), lift)
+			# Wielka skocznia (do 400 km/h) zamiast krótkiej z wąwozu.
+			_big_jump(out, state)
 			_highway_level(out, state, HIGHWAY_HEIGHT)
 			_push(out, state, {"len": 20.0, "pitch": 0.0, "limit": LIMIT_HIGHWAY})
 			continue
@@ -621,6 +622,54 @@ static func _highway_section(index: int, start: Dictionary, rng: RandomNumberGen
 	_highway_level(out, state, 8.0)
 	_push(out, state, {"len": 30.0, "pitch": 0.0})
 	return out
+
+
+## Wielka skocznia autostrady (użytkownik 2026-11-09: "skakać na
+## maksymalnych prędkościach, do 400 km/h"; wybór: dwa rodzaje skoczni -
+## krótkie w wąwozie, wielkie na autostradzie). Fizyka: przy lądowaniu na
+## wysokości progu prędkość uderzenia prostopadle do jezdni = v·sin(kąt
+## progu) niezależnie od długości lotu; żeby przy 400 km/h zostać pod
+## progiem uszkodzeń (StuntCar.damage_landing_speed 7,5 m/s), próg ma
+## BIG_JUMP_DEG 3,5° (111 m/s · sin 3,5° = 6,8 m/s). Za progiem płaski
+## stół na wysokości progu, dłuższy niż lot przy 400 km/h
+## (R = v²·sin 2θ / g ≈ 153 m) - każda prędkość ląduje na stole.
+## Wejście na próg łagodne: dociążenie v²·θ/L ≤ 1 g przy 400 km/h (L ≈ 77 m).
+## Wolniej niż ~90 km/h auto przejeżdża przez próg bez lotu.
+const BIG_JUMP_DEG := 3.5
+const BIG_JUMP_VMAX := 400.0 / 3.6
+const BIG_JUMP_TABLE := 170.0
+
+
+static func _big_jump(out: Array, state: Dictionary, meta := {}) -> void:
+	var th := deg_to_rad(BIG_JUMP_DEG)
+	var l_in := ceilf(BIG_JUMP_VMAX * BIG_JUMP_VMAX * th / G)
+	var base_y: float = (state["pos"] as Vector3).y
+	var m := {"sign": "SKOCZNIA DO 400 km/h", "v_sign": 0.0,
+			"jump_kind": "WIELKA SKOCZNIA", "big_jump": true}
+	m.merge(meta)
+	_push(out, state, {"len": 120.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0, "surface": "dry",
+			"limit": LIMIT_HIGHWAY, "meta": m})
+	_push(out, state, {"len": l_in, "pitch": BIG_JUMP_DEG, "surface": "dry"})
+	# Krótki grzbiet: za nim tor lotu odrywa się od jezdni (v² > g·L/θ).
+	_push(out, state, {"len": 4.0, "pitch": 0.0, "surface": "dry"})
+	_push(out, state, {"len": BIG_JUMP_TABLE, "pitch": 0.0, "surface": "dry"})
+	# Łagodny zjazd ze stołu do wysokości sprzed skoczni (bez drugiego
+	# wybicia przy 400 km/h): dwa odcinki po 90 m, nachylenie narasta
+	# i maleje liniowo, spadek ≈ 90 m · p.
+	# Nachylenie dopasowane próbnie (siecznymi), żeby jezdnia wróciła
+	# dokładnie na base_y - kawałki autostrady muszą zaczynać się na ROAD_Y.
+	var dy: float = (state["pos"] as Vector3).y - base_y
+	var p := rad_to_deg(atan(dy / 90.0))
+	for _it in range(6):
+		var trial := state.duplicate()
+		var smp := StuntTrack.sample_segments([{"len": 90.0, "pitch": -p, "surface": "dry"},
+				{"len": 90.0, "pitch": 0.0, "surface": "dry"}], trial, 0.5)
+		var got: float = (state["pos"] as Vector3).y - (smp[-1]["end_state"]["pos"] as Vector3).y
+		if absf(got - dy) < 1e-5 or absf(got) < 1e-9:
+			break
+		p *= dy / got
+	_push(out, state, {"len": 90.0, "pitch": -p, "surface": "dry"})
+	_push(out, state, {"len": 90.0, "pitch": 0.0, "surface": "dry"})
 
 
 ## Zmiana wysokości jezdni do `target` [m nad terenem]: rampa do 4°.
