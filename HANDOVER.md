@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 4 (noc: rozdzielczość działa od razu, kompresja tekstur skał, concept car przy 160%)
+Ostatnia aktualizacja: 2026-11-09, sesja 5 (popołudnie: wytrzymałość, opływowość, moc z menu w trasie, diagnostyka wypadków, plan trybu Autostrada)
 
 ---
 
@@ -454,6 +454,16 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
+- **Opływowość nadwozia** (użytkownik 2026-11-09: "130 kW ledwo ponad
+  150", "w najwyższej opcji naprawdę ponad 300 km/h", "dodatkowy czynnik
+  oporu powietrza"): opcja menu "Opływowość" (`StuntCar.AERO`,
+  `set_aero`): sedan z epoki Cd 0,36 × 2,1 m² (domyślnie), współczesna
+  0,29 × 2,0, sportowa 0,30 × 1,85, rekordowa 0,22 × 1,75. Pomiar
+  (`tests/topspeed_test.gd`, jazda w -Z): 130 kW 213/229/232/264 km/h;
+  350 kW ~282 wszędzie (ogranicza 6. bieg na odcince); 700 kW
+  378/393/393/398 km/h, 0-300 17-19 s.
+- **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
+  panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
 - **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
@@ -469,6 +479,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     drogi, którą można ominąć) - głównie zwykła jazda.
   - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
     ma, a pomagają ocenić prędkość).
+- **Klucze API Jamendo** (użytkownik 2026-11-09, "będzie potrzebne
+  później" - stacja radia z Jamendo): `~/.config/canion-raid/jamendo.env`
+  (`JAMENDO_CLIENT_ID`, `JAMENDO_CLIENT_SECRET`, chmod 600). **Nigdy do
+  gita** ani do plików w repo; skrypty mają je czytać z tego pliku.
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
 - **Repozytorium git** (od 2026-11-08, prośba użytkownika):
@@ -926,12 +940,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   31... (`WORKSHOP_EVERY` = 10) prostą 170 m z `meta.workshop = próg`;
   `StuntTrack._build_workshop` stawia halę z napisami i żółtą linię
   postoju 95 m od początku prostej. `EndlessTrack.next_workshop(dist)`.
-  W grze start na `GameSettings.POWER_TIERS[0]` (90 kW) wybranego rodzaju
-  napędu (opcja "Moc" w menu działa tylko na trasie pokazowej);
-  przejazd przez linię postoju (`_check_workshop`, płaszczyzna jak meta)
+  **Start z mocą z menu** (decyzja użytkownika 2026-11-09; do tej pory
+  zawsze 90 kW - stąd "1000 kW ledwo wjeżdża pod górkę"): `restart_race`
+  bierze `effective_power(...)`, `_tier` = jej indeks w `POWER_TIERS`.
+  Przejazd przez linię postoju (`_check_workshop`, płaszczyzna jak meta)
   → stan `Race.WORKSHOP`: zegar stoi, auto hamuje, przed kierowcą lista:
-  benzyna/diesel/elektryk na następnym progu (z momentem z prawdziwej
-  krzywej) + "bez zmian". Drążek/strzałki + A/Enter (`workshop_choose`).
+  benzyna/diesel/elektryk na progu `max(próg z trasy, _tier + 1)`
+  (z momentem z prawdziwej krzywej) + "bez zmian"; na ostatnim progu
+  tylko "bez zmian". Silniki w kołach tylko z ostatniego progu albo gdy
+  elektryk już je miał. Drążek/strzałki + A/Enter (`workshop_choose`).
   Przy okazji `repair()` i +1 dźwig.
 - **Znaki przed garbami**: `_hill` dokłada 30 m prostej z `meta.warn`
   ("GARB maks. X km/h", `v_warn`), pomarańczowa tablica. Prędkość:
@@ -1522,6 +1539,26 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   pomija (log "RADIO: brak pliku").
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
+
+### 2026-11-09, sesja 5 (popołudnie, użytkownik jeździ w goglach na kablu)
+
+- Nowe opcje: Wytrzymałość x1-x10, Opływowość (sekcja 2). Testy:
+  `durability_test` (w zestawie), `topspeed_test`, `coast_test`
+  (puszczony gaz 0,10-0,12 g - w normie), `ramp_entry_test`
+  (diagnostyka skoczni).
+- Log: "PERF tempo gry" co 5 s i "INCYDENT" przy > 1,5 g / > 60°.
+  Z logu gogli: tempo 95-100%, silnik uszkodzony 46-92% po wypadkach
+  - przyczyna "wolnego" auta (razem ze startem zawsze z 90 kW).
+- ESP: wykrywanie ślizgu osi z poślizgu łącznego, odcinanie napędu
+  z kąta znoszenia tylnych opon, spadek od razu (niestabilność 700 kW
+  przy 240 km/h - sekcja 8, pkt 00).
+- Scalone PR #28 i #29 z chmury; **sprzęgło z #28 cofnięte** (hill_test:
+  180 kW na 35% utykało na 13 km/h). Moc z menu w trasie bez końca
+  i poprawki niespójności menu (inbox z chmury).
+- Klucze Jamendo zapisane poza repo (sekcja 2).
+- Do chmury (outbox `2026-11-09-niestabilnosc-i-autostrada.md`):
+  przegląd modelu opon, specyfikacja trybu Autostrada, szukanie
+  multimediów (pomysł użytkownika).
 
 ## 8. Kolejka zadań
 

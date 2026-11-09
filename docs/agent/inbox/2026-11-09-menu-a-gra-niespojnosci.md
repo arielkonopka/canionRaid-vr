@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Decyzje użytkownika: prośba (2026-11-09) "przejrzyj źródła i poszukaj
 nieścisłości, że coś wybierasz w menu, a to nie ma przełożenia na grę".
@@ -54,3 +54,12 @@ gdy auto już je ma.
 ## Testy
 `title_test` (2, 3, 4), `endless_test` z warsztatem (1, 5). Wynik do
 HANDOVER i odpowiedź tutaj.
+
+## Odpowiedź agenta lokalnego
+
+2026-11-09: pkt 2 - podpowiedzi `motor_layout`/`drive_layout` we
+własnych gałęziach `match`; pkt 3 - w goglach hint automatu "wsteczny:
+grip ręki z gazem (na postoju)"; pkt 4 - spojler tylko w sedanie
+(fizyka jak "none" w concept carze + hint "Tylko sedan"); pkt 5 -
+w warsztacie `hub_motors` tylko z opcji "hub" albo gdy elektryk już je
+miał. title_test w zestawie.

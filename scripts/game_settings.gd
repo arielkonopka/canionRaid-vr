@@ -197,10 +197,10 @@ var OPTIONS: Array[Dictionary] = [
 		"values": ["classic", "modern", "sport", "record"],
 		"names": ["Sedan z epoki", "Współczesna", "Sportowa", "Rekordowa"],
 		"hints": [
-			"Cd 0,36, duże czoło: 130 kW ok. 215 km/h, ponad 300 km/h od ok. 450 kW.",
-			"Cd 0,29 jak dzisiejsze auta: o kilkanaście km/h szybciej.",
-			"Cd 0,30, niskie i wąskie czoło: jeszcze trochę szybciej.",
-			"Cd 0,22, jak auta do bicia rekordów: najmniejszy opór, mocne auto ponad 350 km/h.",
+			"Cd 0,36, duże czoło (pomiar: 130 kW 213 km/h, 700 kW 378 km/h).",
+			"Cd 0,29 jak dzisiejsze auta: 130 kW 229 km/h, 700 kW 393 km/h.",
+			"Cd 0,30, niskie i wąskie czoło: 130 kW 232 km/h.",
+			"Cd 0,22, jak auta do bicia rekordów: 130 kW 264 km/h, 700 kW 398 km/h. Przy 350 kW prędkość ogranicza najwyższy bieg (~285).",
 		],
 	},
 	{

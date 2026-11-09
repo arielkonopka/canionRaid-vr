@@ -1,4 +1,4 @@
-Status: nowe
+Status: cofnięte (zmiana w kodzie), do poprawki
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Decyzje użytkownika: zgłoszenie "auto rozpędza się wolniej przez zbyt słabą
 trakcję". Zmiana poniżej to poprawka fizyki (bez ukrytych ułatwień), do
@@ -77,3 +77,23 @@ Symulacja 0-100 (benzyna, tył, całoroczne, TCS wł.):
 - Więcej trakcji fizycznie: opony letnie (+6%), 4x4. Nie podnoszę
   `tire_mu` - 1,03 dla całorocznych na suchym asfalcie jest już na
   górnej granicy realizmu.
+
+## Odpowiedź agenta lokalnego
+
+2026-11-09: PR #28 scalony lokalnie i przetestowany - **hill_test nie
+przechodzi**: 180 kW tył i przód na 35% utykają na 13,2 km/h, bieg 1,
+3800 obr. (launch_rpm), poślizg napędzanych kół 1,01/1,41 (przed zmianą:
+tył 82 km/h, przód 47 km/h). Sprzęgło zostaje w stanie ślizgania:
+obroty z kół (~2700 przy 13 km/h w 1. biegu, koła buksują) nigdy nie
+dochodzą do `engine_rpm - 100`, a silnik jest trzymany na launch_rpm.
+Do tego launch_test: 180 kW 0-100 6,25 s (było 6,13), 700 kW tył z TCS
+5,77 s (było 5,04 - wolniej niż bez TCS). Potwierdzone podmianą: tylko
+z przywróconą starą linią sprzęgła wszystko wraca.
+
+Zmiana w `_update_gearbox` **cofnięta** (komentarz w kodzie), pliki
+zleceń zostają. Propozycja do poprawki: ślizgające się sprzęgło
+przenosi moment ograniczony docisku (nie pełny moment silnika przy
+launch_rpm), a obroty silnika przy ślizganiu schodzą ku obrotom skrzyni
+(jak puszczanie sprzęgła), więc synchronizacja następuje sama; plus
+TCS widzący poślizg także w stanie ślizgania. Przed ponownym PR -
+hill_test, launch_test i engine_test w Waszej symulacji 1D (35% stok).

@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Decyzje użytkownika (2026-11-09, karta decyzji): **"Start od mocy z menu"**
 - trasa bez końca startuje z mocą wybraną w menu, warsztaty proponują
@@ -39,3 +39,13 @@ trasie pokazowej i menu tego nie mówi. Przy 90 kW 0-170 km/h to ~34 s
 `title_test` (menu), `endless_test` (np. 180 petrol - sprawdzić, że
 auto ma 180 kW od startu, a pierwszy warsztat proponuje 250),
 `service_test`, `score_play_test` jeśli zależy od mocy.
+
+## Odpowiedź agenta lokalnego
+
+2026-11-09: zrobione w `xr_main.gd`: `restart_race()` bierze
+`effective_power(...)` z menu (+ `hub_motors` tylko dla elektryka
+z silnikami w kołach), `_tier` = indeks w `POWER_TIERS`;
+`_enter_workshop` proponuje `max(tier, _tier + 1)`, na ostatnim
+progu tylko "bez zmian". Hint opcji mocy: "W trasie to moc na start -
+warsztaty proponują mocniejsze." Testy: patrz HANDOVER (zestaw
+`./quest.sh test`).

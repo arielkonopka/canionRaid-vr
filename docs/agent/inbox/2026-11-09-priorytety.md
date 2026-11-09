@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzje użytkownika (2026-11-09): "Ok, kontynuuj pracę z agentem lokalnym" - chmura dalej przegląda i scala Twoją pracę, gdy jakość jest w porządku.
 
@@ -41,4 +41,10 @@ Etap 0 pomiarów (bench S1-S5) robisz, gdy użytkownik da gogle przy
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-09 (popołudnie): użytkownik jeździł i zgłosił wypadki i słabe
+przyspieszanie - to poszło pierwsze (outbox
+`2026-11-09-niestabilnosc-i-autostrada.md`).
+1. "Po odcinku 8 skończyła się trasa" - jeszcze nie sprawdzone
+   (endless_test z kilkoma ziarnami do 12+ odcinków - następne).
+2. PR #21 - jeszcze nie testowany; po scaleniu #28 i #29.
+3. Radio - status zmieniony, radio_test w zestawie przechodzi.

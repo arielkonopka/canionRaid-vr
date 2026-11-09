@@ -769,10 +769,16 @@ func restart_race() -> void:
 	var gs := get_node_or_null("/root/GameSettings")
 	cranes_left = (gs.cranes if gs and gs.cranes > 0 else -1) if _endless else -1
 	_max_dist = 0.0
-	# Trasa bez końca: start na najsłabszym silniku wybranego rodzaju.
+	# Trasa bez końca: start z mocą wybraną w menu (decyzja użytkownika
+	# 2026-11-09, inbox moc-z-menu-w-trasie; wcześniej zawsze 90 kW, więc
+	# "1000 kW" z menu ledwo wjeżdżało pod górkę). Warsztaty proponują
+	# progi powyżej. Silnik ustawił już GameSettings.apply_to_car - tu
+	# tylko próg, od którego liczą warsztaty.
 	if _endless and gs:
-		_tier = 0
-		car.apply_engine(gs.engine_type, gs.POWER_TIERS[0])
+		var kw: int = gs.effective_power(gs.engine_type, gs.motor_layout == "hub", gs.engine_power)
+		_tier = maxi(gs.POWER_TIERS.find(kw), 0)
+		car.hub_motors = gs.engine_type == "electric" and gs.motor_layout == "hub"
+		car.apply_engine(gs.engine_type, kw)
 	_next_ws = {}
 	_ws_done_stop = -INF
 	_last_section = 1
@@ -822,13 +828,17 @@ func _enter_workshop(tier: int) -> void:
 	_next_ws = {}
 	var gs := get_node_or_null("/root/GameSettings")
 	var tiers: Array = gs.POWER_TIERS if gs else [90, 130, 180, 250, 350]
+	# Próg z trasy, ale nigdy nie słabszy ani równy obecnemu (start z mocą
+	# z menu). Ostatni próg osiągnięty - tylko "bez zmian".
+	tier = maxi(tier, _tier + 1)
 	var kw: int = tiers[mini(tier, tiers.size() - 1)]
 	# Opcje: trzy rodzaje napędu na nowym progu mocy + bez zmian.
 	# Moment liczony na prawdziwej krzywej silnika (tymczasowe auto).
 	_ws_options.clear()
 	var probe := StuntCar.new()
 	var hub_only: bool = gs != null and kw >= gs.HUB_ONLY_KW
-	for t in (["electric"] if hub_only else ["petrol", "diesel", "electric"]):
+	var types: Array = [] if tier >= tiers.size() else (["electric"] if hub_only else ["petrol", "diesel", "electric"])
+	for t in types:
 		probe.apply_engine(t, kw)
 		var name_pl: String = StuntCar.ENGINE_TYPES[t]["label"]
 		var opt := {"type": t, "kw": kw, "tier": tier,
@@ -873,8 +883,10 @@ func workshop_choose(i: int) -> void:
 		return
 	var opt: Dictionary = _ws_options[clampi(i, 0, _ws_options.size() - 1)]
 	if opt["type"] != "":
-		if opt.get("hub", false):
-			car.hub_motors = true
+		# Silniki w kołach tylko z ostatniego progu albo gdy elektryk już je
+		# miał (inbox menu-a-gra-niespojnosci pkt 5: benzyna z ukrytym "hub"
+		# z menu dostawała w warsztacie 4x4 w kołach).
+		car.hub_motors = opt.get("hub", false) or (opt["type"] == "electric" and car.engine_type == "electric" and car.hub_motors)
 		car.apply_engine(opt["type"], opt["kw"])
 		_tier = opt["tier"]
 	car.repair()

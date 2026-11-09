@@ -239,8 +239,6 @@ const TIRE_COMPOUNDS := {
 @export var downshift_rpm: float = 2600.0
 ## Poniżej tych obrotów (liczonych z kół) sprzęgło się ślizga, inaczej silnik by zgasł.
 @export var clutch_engage_rpm: float = 1300.0
-## Różnica obrotów silnika i skrzyni, przy której ślizgające się sprzęgło się zamyka.
-const CLUTCH_SYNC_RPM := 100.0
 ## Dyferencjał LSD: moment blokady [Nm na rad/s różnicy] i jego limit.
 @export var lsd_stiffness: float = 25.0
 @export var lsd_max_torque: float = 500.0
@@ -833,7 +831,9 @@ func _physics_step(delta: float) -> void:
 	# --- 6. opór powietrza ---
 	var v2 := linear_velocity.length_squared()
 	if v2 > 0.01:
-		var sp: Dictionary = SPOILERS[spoiler]
+		# Spojler tylko w sedanie - concept car go nie ma (bez niewidzialnego
+		# skrzydła; inbox menu-a-gra-niespojnosci pkt 4).
+		var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" else "none"]
 		apply_central_force(-linear_velocity.normalized() * v2 * (aero_drag + 0.5 * AIR_RHO * sp["cda"]))
 		if sp["cla"] > 0.0:
 			# Docisk z prędkości wzdłuż auta, nad tylną osią (spojler na klapie).
@@ -1336,20 +1336,11 @@ func _update_gearbox(delta: float) -> void:
 
 	var wheel_rpm := _wheel_rpm()
 	# Elektryk nie ma sprzęgła: silnik jest zawsze sprzężony z kołami.
-	# Sprzęgło tarciowe zamyka się dopiero, gdy obroty silnika i wałka
-	# skrzyni się zrównają - wcześniej się ślizga i przenosi moment silnika
-	# z obrotów, na których kierowca go trzyma (launch_rpm). Dawniej
-	# zamykało się już przy clutch_engage_rpm liczonych z kół: silnik
-	# skakał z ~3800 na 1300 obr. i auto ruszało z ~63% momentu zamiast
-	# ~96% (słabe ruszanie przy małej mocy, wyglądające na brak trakcji).
-	if gear == 0:
-		_clutch_engaged = false
-	elif electric:
-		_clutch_engaged = true
-	elif wheel_rpm < clutch_engage_rpm:
-		_clutch_engaged = false        # inaczej silnik by zgasł
-	elif not _clutch_engaged:
-		_clutch_engaged = wheel_rpm >= engine_rpm - CLUTCH_SYNC_RPM
+	# PR #28 (sprzęgło zamyka się po zrównaniu obrotów) cofnięty 2026-11-09:
+	# pod górę 35% auto utykało na ~13 km/h ze sprzęgłem ślizgającym się
+	# przy launch_rpm i buksującymi kołami (hill_test) - szczegóły
+	# w inbox/2026-11-09-trakcja-i-sprzeglo.md.
+	_clutch_engaged = gear != 0 and (electric or wheel_rpm >= clutch_engage_rpm)
 
 	if dedicated_reverse:
 		# Wsteczny tylko w miejscu - w ruchu skrzynia by się rozsypała.
