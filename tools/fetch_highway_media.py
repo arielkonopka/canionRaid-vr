@@ -91,7 +91,34 @@ TEXTURES = [
     ("asphalt_worn", "acg", "Road013A", "spękany asfalt: drogi lokalne, wyjazdy z wąwozu"),
     ("field_soil", "acg", "Ground109", "pole orne (biom pola)"),
     ("snow", "acg", "Snow015", "topniejący śnieg z trawą (góry, opcja)"),
+    # Braki ambientCG uzupełnione z Poly Haven (CC0).
+    ("brick_red", "ph", "brick_wall_001", "czerwona cegła (elewacje, stare hale)"),
+    ("wood_planks", "ph", "brown_planks_03", "spłowiałe deski: płoty, stodoły, szopy"),
+    ("plaster_house", "ph", "beige_wall_001", "malowany tynk domu (okna rysuje facade.gdshader)"),
 ]
+
+# Zamienniki (użytkownik 2026-11-09: "tam, gdzie nie udało się pobrać, bierz
+# zamienniki"): gdy pozycja się nie pobierze (zmieniony ID, 404), skrypt
+# próbuje tej. Wszystkie CC0, ID widziane w API 2026-11-09.
+FALLBACKS = {
+    "asphalt": ("ph", "aerial_asphalt_01"),
+    "asphalt_worn": ("acg", "Road012B"),
+    "canyon_rock": ("acg", "Rock063"),
+    "canyon_rock_alt": ("ph", "dark_rock_02"),
+    "mountain_rock": ("acg", "Rock051"),
+    "moss": ("acg", "Rock064"),
+    "gravel": ("acg", "Ground081"),
+    "concrete": ("acg", "Concrete034"),
+    "concrete_rough": ("acg", "Concrete048"),
+    "roof_tiles": ("acg", "RoofingTiles012A"),
+    "roof_slate": ("acg", "RoofingTiles003"),
+    "corrugated_steel": ("acg", "CorrugatedSteel007A"),
+    "field_soil": ("acg", "Ground106"),
+    "snow": ("acg", "Snow014"),
+    "brick_red": ("ph", "brick_wall_006"),
+    "wood_planks": ("ph", "dark_planks"),
+    "plaster_house": ("ph", "blue_plaster_wall"),
+}
 
 # ---------------------------------------------------------------------------
 # Paczki modeli (CC0). Kenney: zip ze strony (link szukany na stronie).
@@ -183,7 +210,14 @@ def textures(force: bool) -> int:
         print(f"pobieram: {name} ({src} {asset})")
         try:
             out.mkdir(parents=True, exist_ok=True)
-            (fetch_acg if src == "acg" else fetch_ph)(asset, out)
+            try:
+                (fetch_acg if src == "acg" else fetch_ph)(asset, out)
+            except Exception as e:
+                if name not in FALLBACKS:
+                    raise
+                src, asset = FALLBACKS[name]
+                print(f"    nie wyszło ({e}) - zamiennik: {src} {asset}")
+                (fetch_acg if src == "acg" else fetch_ph)(asset, out)
             (out / "SOURCE.txt").write_text(f"{src} {asset} CC0\n", encoding="utf-8")
             size = sum(p.stat().st_size for p in out.glob("*.jpg"))
             print(f"    -> {out.relative_to(ROOT)} ({size // 1024} KB)")
@@ -314,7 +348,13 @@ def list_all() -> int:
 
 def credits() -> int:
     lines = ["## Tekstury, modele i dźwięki (tools/fetch_highway_media.py)", ""]
-    tex = [(n, s, a) for n, s, a, _u in TEXTURES if (TEX_OUT / n / "albedo.jpg").exists()]
+    tex = []
+    for n, s, a, _u in TEXTURES:
+        src_file = TEX_OUT / n / "SOURCE.txt"
+        if (TEX_OUT / n / "albedo.jpg").exists():
+            if src_file.exists():      # zamiennik mógł zastąpić pozycję z listy
+                s, a = src_file.read_text(encoding="utf-8").split()[:2]
+            tex.append((n, s, a))
     if tex:
         lines.append("### Tekstury (CC0)")
         lines.append("")
