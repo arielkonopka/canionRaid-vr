@@ -40,3 +40,10 @@ Lista zgodna z `scripts/radio_stations.gd` (`RadioCatalog.credits_markdown()`).
 - "Tempest" - Psykick, CC-BY-3.0, https://ccmixter.org/files/Psykick/53063
 - "Shiva" - chandubaba, CC-BY-3.0, https://ccmixter.org/files/chandubaba/52311
 - "psytrance for a game" - Kris Klavenes (klavo85), CC-BY-4.0, https://opengameart.org/content/psytrance-for-a-game-by-kris-klavenes
+
+## Stacja "Jamendo online" (opcjonalna)
+
+Utwory pobierane na bieżąco z [Jamendo](https://www.jamendo.com) przez ich
+API, tylko do odtwarzania (bez zapisu na dysk). Wykonawca, tytuł, licencja
+i link do strony utworu są wyświetlane na tablecie podczas odtwarzania.
+Użycie API jest darmowe tylko niekomercyjnie.

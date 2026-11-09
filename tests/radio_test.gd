@@ -9,6 +9,7 @@ extends SceneTree
 const RC := preload("res://scripts/radio_catalog.gd")
 const CR := preload("res://scripts/car_radio.gd")
 const RS := preload("res://scripts/radio_stations.gd")
+const JS := preload("res://scripts/jamendo_source.gd")
 
 var fails := 0
 
@@ -21,6 +22,8 @@ func _initialize() -> void:
 	_test_credits()
 	_test_real_list()
 	_test_player()
+	_test_jamendo_parse()
+	_test_online_station()
 	print("radio_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails > 0 else 0)
 
@@ -149,3 +152,67 @@ func _test_player() -> void:
 	r2.queue_free()
 	var w := CR._make_static()
 	_check(w.data.size() == int(CR.RATE * 0.5) * 2 and CR._make_static() == w, "szum eteru generowany raz")
+
+
+const JAMENDO_JSON := """{"headers": {"status": "success"}, "results": [
+ {"name": "Neon Road", "artist_name": "Ktoś", "audio": "https://prod-1.storage.jamendo.com/?trackid=1&format=mp32",
+  "shareurl": "https://www.jamendo.com/track/1", "license_ccurl": "http://creativecommons.org/licenses/by-nc-sa/3.0/"},
+ {"name": "Bez dźwięku", "artist_name": "X", "audio": "", "shareurl": "https://www.jamendo.com/track/2"},
+ {"name": "Bez licencji", "artist_name": "Y", "audio": "https://a/3", "shareurl": "https://www.jamendo.com/track/3"}
+]}"""
+
+
+func _test_jamendo_parse() -> void:
+	_check(JS.license_from_url("http://creativecommons.org/licenses/by-nc-sa/3.0/") == "CC-BY-NC-SA-3.0", "licencja z adresu CC")
+	_check(JS.license_from_url("https://creativecommons.org/licenses/by/4.0/") == "CC-BY-4.0", "licencja CC-BY z adresu")
+	_check(JS.license_from_url("") == "CC (Jamendo)", "brak adresu licencji")
+	var url := JS.build_query_url("abc", ["synthwave", "rock"], 100, 50)
+	_check(url.begins_with("https://api.jamendo.com/v3.0/tracks/?") and url.contains("client_id=abc")
+		and url.contains("fuzzytags=synthwave+rock") and url.contains("offset=100")
+		and url.contains("audioformat=mp32"), "adres zapytania: " + url)
+	var t := JS.parse_tracks(JAMENDO_JSON)
+	_check(t.size() == 2, "utwór bez adresu MP3 pominięty (%d)" % t.size())
+	_check(t[0]["artist"] == "Ktoś" and t[0]["license"] == "CC-BY-NC-SA-3.0"
+		and t[0]["source"] == "https://www.jamendo.com/track/1", "pola utworu")
+	_check(JS.parse_tracks("to nie json").is_empty() and JS.parse_tracks("[]").is_empty(), "zła odpowiedź = pusta lista")
+	var np := JS.now_playing_text(t[0])
+	_check(np.begins_with("Jamendo online\n") and np.contains("Ktoś - Neon Road")
+		and np.contains("https://www.jamendo.com/track/1"), "napis z linkiem (wymóg API)")
+
+
+func _test_online_station() -> void:
+	var texts: Array = []
+	var r = CR.new()
+	r.catalog = RC.new(_data(), 7)
+	var j = JS.new()
+	j.client_id = ""
+	r.jamendo = j
+	root.add_child(r)
+	r.now_playing.connect(func(t): texts.append(t))
+	r.set_online(true)
+	_check(r.station_total() == 3, "bez klucza brak stacji online")
+	j.client_id = "test"
+	j._busy = "list"                 # test bez sieci: prefetch nic nie wysyła
+	_check(r.station_total() == 4, "z kluczem stacja online na końcu")
+	r.set_power(true)
+	r._process(1.0)
+	r.next_station(-1)
+	r._process(1.0)
+	_check(r.is_online_station() and r.station_name() == "Jamendo online", "przełączenie na stację online")
+	_check(texts.back() == "Jamendo online\nłączenie...", "czekanie na utwór: %s" % [texts.back()])
+	var info: Dictionary = JS.parse_tracks(JAMENDO_JSON)[0]
+	j._ready_item = {"stream": CR._make_static(), "info": info}
+	j.track_ready.emit()
+	_check(String(texts.back()).contains("Ktoś - Neon Road"), "gotowy utwór gra: %s" % [texts.back()])
+	_check(not j.has_ready(), "utwór zabrany z zapasu")
+	r.skip()
+	r._process(1.0)
+	j.failed.emit("brak sieci")
+	_check(r.station == 0 and not r.is_online_station(), "brak sieci: powrót na stację offline")
+	r.next_station(-1)
+	r._process(1.0)
+	_check(r.is_online_station(), "znów online")
+	r.set_online(false)
+	_check(r.station == 0 and r.station_total() == 3, "wyłączenie opcji: stacja offline, 3 stacje")
+	r.set_power(false)
+	r.queue_free()
