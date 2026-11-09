@@ -11,7 +11,8 @@ class_name HighwayPlan
 ##     BIOME_BLEND metrów;
 ##   - miasta: co 25 km małe (~1 km zabudowy), co 100 km duże (~5 km),
 ##     strefa 30 km/h, przed nią stopniowanie 70 / 50;
-##   - ruch: 3-5 aut/km do TRAFFIC_RADIUS od krawędzi miasta;
+##   - ruch: 3-5 aut/km do TRAFFIC_RADIUS od krawędzi miasta, dalej rzadki
+##     0,5-1 auta/km (rośnie z dystansem);
 ##   - objazdy ze skocznią: rzadko, nigdy w mieście ani przy nim;
 ##   - słupki: hektometrowe co 100 m, kilometrowe co 1 km.
 ##
@@ -260,17 +261,36 @@ func limit_changes(d0: float, d1: float) -> Array:
 # Ruch
 # --------------------------------------------------------------------------
 
-## Gęstość ruchu [aut/km na naszej jezdni] na dystansie d; 0 poza strefami
-## miast. Druga jezdnia (z naprzeciwka) - tyle samo, liczy TrafficZone.
+## Ruch między miastami (użytkownik 2026-11-09: "rzadki ruch ~0,5-1 auta/km",
+## nie pusto): rośnie z dystansem od startu (wizja, filar 11 - coraz
+## trudniej) od BASE_TRAFFIC_MIN do BASE_TRAFFIC_MAX na BASE_TRAFFIC_RAMP m.
+const BASE_TRAFFIC_MIN := 0.5
+const BASE_TRAFFIC_MAX := 1.0
+const BASE_TRAFFIC_RAMP := 200000.0
+
+
+## Gęstość ruchu [aut/km na jednej jezdni] na dystansie d: przy mieście
+## (do TRAFFIC_RADIUS od zabudowy) gęstość miasta 3-5/km, dalej rzadki ruch
+## 0,5-1/km. Druga jezdnia (z naprzeciwka) - tyle samo, liczy TrafficZone.
 func traffic_density(d: float) -> float:
+	if in_city_zone(d):
+		return float(nearest_city(d)["city"]["density"])
+	return base_traffic(d)
+
+
+func base_traffic(d: float) -> float:
+	return lerpf(BASE_TRAFFIC_MIN, BASE_TRAFFIC_MAX, clampf(d / BASE_TRAFFIC_RAMP, 0.0, 1.0))
+
+
+## Czy d jest w strefie gęstego ruchu wokół miasta (do TRAFFIC_RADIUS od zabudowy).
+func in_city_zone(d: float) -> bool:
 	var nc := nearest_city(d)
-	if nc["city"].is_empty() or float(nc["gap"]) > TRAFFIC_RADIUS:
-		return 0.0
-	return float(nc["city"]["density"])
+	return not nc["city"].is_empty() and float(nc["gap"]) <= TRAFFIC_RADIUS
 
 
+## Zgodność wstecz (nazwa z pierwszej wersji): strefa miasta.
 func in_traffic_zone(d: float) -> bool:
-	return traffic_density(d) > 0.0
+	return in_city_zone(d)
 
 
 # --------------------------------------------------------------------------

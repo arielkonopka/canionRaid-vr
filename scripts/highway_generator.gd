@@ -57,6 +57,20 @@ func _init(p: HighwayPlan, seed_v := 1) -> void:
 	rng.seed = hash([seed_v, "highway_gen"])
 
 
+## Środek pasu `lane` [m w prawo od osi NASZEJ jezdni]: lane 0 = prawy
+## (wolny), 1 = lewy (szybki). `oncoming` = pas jezdni z naprzeciwka (jej
+## oś w -(width + median), lustrzanie: jej prawy pas jest dalej od pasa
+## rozdziału). Pas awaryjny (SHOULDER_R) zostaje wolny - dzisiejszy wzór
+## (w - 1) / 3 z trzech pasów kładłby auta na nim (spec, docs/AUTOSTRADA.md).
+static func lane_center(lane: int, oncoming := false, width := WIDTH,
+		median := TrackGenerator.HIGHWAY_MEDIAN) -> float:
+	var from_left := SHOULDER_L + LANE_W * (float(LANES - 1 - clampi(lane, 0, LANES - 1)) + 0.5)
+	var x := -width * 0.5 + from_left            # nasza jezdnia: lewa krawędź + ...
+	if oncoming:
+		return -(width + median) - x             # lustro względem osi drugiej jezdni
+	return x
+
+
 ## Stan startu pierwszego kawałka (w układzie kawałka).
 static func first_state() -> Dictionary:
 	return {"pos": Vector3(0.0, ROAD_Y, 0.0), "yaw": 0.0, "pitch": 0.0, "bank": 0.0,
