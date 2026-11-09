@@ -1460,8 +1460,35 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   - Tylny napęd 700 kW 1200 kg ~5 s do 100 to granica przyczepności tyłu
     (~0,6 g), nie błąd.
 - `engine_test` tankuje przed każdym przejazdem (po zmianie "silnik
-  gaśnie" diesel stał z obrotami 0). Uwaga: 700 kW 4x4 i 1000 kW
-  wypalają bak w 25 s pełnego gazu (pytanie o zużycie w sekcji 9).
+  gaśnie" diesel stał z obrotami 0).
+- **Zasięg 20-30 km** (użytkownik 2026-11-09, wcześniej 10-15 km):
+  `tank_kwh` 3,6 -> 7,5 (~25 km spokojnej jazdy; 700 kW na pełnym gazie
+  wypalało 3,6 kWh w ~25 s).
+- **Lądowanie z gazem** (użytkownik: "przy lądowaniu wcisnę gaz - auto
+  się obraca, może i dobrze, ale sprawdź"). `tests/landing_test.gd`:
+  w locie koła rozkręcały się do ~2x prędkości auta; bez TCS tylny
+  napęd po lądowaniu na gazie obraca się o 180° (fizyka - zostaje).
+  TCS działa teraz też w locie (`_tcs_air`: poślizg koła względem
+  prędkości auta, jak czujniki obrotów w prawdziwym TCS) - z TCS
+  kurs po lądowaniu trzymany.
+- **Napęd na przód** (użytkownik: "w opcjach jest tył, nie ma przodu"):
+  `drive_layout = "fwd"`, `_is_fwd()`, `_is_driven(w)`; LSD przedni.
+  Sedan ma rozkład 50/50 - przy FWD przód odciążony przy ruszaniu
+  (0-100 8,2 s, 35% podjazd ledwo), więc `apply_engine` przesuwa środek
+  masy o `FWD_FRONT_SHIFT` (0,1 rozstawu) do przodu = ~60/40 jak auto
+  z silnikiem z przodu. Ustawiać `drive_layout` przed `apply_engine`
+  (GameSettings.apply_to_car tak robi). Teraz 180 kW: 0-100 6,9 s,
+  0,93 g w zakręcie. Testy: launch, hill, grip, engine z FWD.
+  (Przy okazji sprawdzone: przenoszenie ciężaru przy przyspieszaniu jest
+  realistyczne; pozorne "za duże" było odczytem obciążeń przed osiadaniem
+  auta po `place()`.)
+- Zgaśnięty silnik: obroty opadają 3000 obr./min na s (było 1500 -
+  przy większym baku fuel_test łapał jeszcze ~350 obr.).
+- **Pliki na gogle**: `./quest.sh push PLIK... [-- KATALOG]` (domyślnie
+  `/sdcard/Download/`, działa po Wi-Fi) i `./quest.sh pull`. MTP
+  (Dolphin): gogle wystawiają przez USB tylko adb, dopóki użytkownik nie
+  zatwierdzi w goglach "Zezwolić na dostęp do danych"; `adb shell svc usb
+  setFunctions mtp,adb` nie działa (Quest wymaga zgody w goglach).
 - Radio w goglach (użytkownik): "radio poprawia komfort jazdy",
   głośność względem silnika w porządku, wszystkie stacje pasują.
   Użytkownik lubi do auta **psytrance** - 4. stacja "Psy Wąwóz"
@@ -1603,8 +1630,8 @@ Propozycje (do uzgodnienia):
 ## 9. Otwarte pytania do użytkownika
 
 - (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
-  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? Czy zużycie ma
-  mniej zależeć od mocy (teraz 700 kW do dechy = ~2 km na baku)?
+  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? (Zużycie:
+  ustalono zasięg 20-30 km, sekcja 7.)
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.

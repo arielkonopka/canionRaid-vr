@@ -224,7 +224,7 @@ const TIRE_COMPOUNDS := {
 ## Dyferencjał LSD: moment blokady [Nm na rad/s różnicy] i jego limit.
 @export var lsd_stiffness: float = 25.0
 @export var lsd_max_torque: float = 500.0
-## Układ napędu: "rwd" (tył) albo "awd" (4x4). W 4x4 centralny dyferencjał
+## Układ napędu: "rwd" (tył), "fwd" (przód) albo "awd" (4x4). W 4x4 centralny dyferencjał
 ## planetarny dzieli moment AWD_FRONT_SHARE na przód, reszta na tył,
 ## sprzęgło wiskotyczne między osiami (moment z różnicy ich prędkości)
 ## i LSD na obu osiach.
@@ -526,6 +526,11 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	_extra_mass = e["extra_mass"]
 	_apply_mass()
 	com_offset = _base_com + Vector3(0.0, e["com_y"], 0.0) + _model_com
+	# Przedni napęd = silnik nad przednią osią: rozkład ~60/40 zamiast 50/50
+	# (bez tego przód odciążony przy ruszaniu miał ~40% docisku i auto
+	# ledwo ruszało pod górę). Ustawiać drive_layout przed apply_engine.
+	if _is_fwd():
+		com_offset.z -= FWD_FRONT_SHIFT * _wheelbase
 	center_of_mass = com_offset
 	engine_rpm = idle_rpm
 	gear = 1
@@ -701,7 +706,7 @@ func _physics_step(delta: float) -> void:
 	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
-	var n_driven := 2.0 if _is_rwd() else 4.0
+	var n_driven := 2.0 if (_is_rwd() or _is_fwd()) else 4.0
 	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if (_clutch_engaged and engine_running) else 0.0
 
 	# --- 4. opony i koła, w podkrokach ---
@@ -731,9 +736,9 @@ func _physics_step(delta: float) -> void:
 				-lsd_max_torque, lsd_max_torque)
 		# 4x4: podział 40/60 i wiskoza między osiami (przenosi moment z osi
 		# szybszej na wolniejszą).
-		var t_front := 0.0
-		var t_rear := axle_torque
-		if not _is_rwd() and not _hub():
+		var t_front := axle_torque if _is_fwd() else 0.0
+		var t_rear := 0.0 if _is_fwd() else axle_torque
+		if drive_layout == "awd" and not _hub():
 			# Limit sprzęgła rośnie z momentem napędu: stałe 900 Nm przy
 			# ~9700 Nm na osiach (700 kW na 1. biegu) nic nie dawało - przy
 			# ruszaniu buksował odciążony przód, a dociśnięty tył się nudził
@@ -763,10 +768,12 @@ func _physics_step(delta: float) -> void:
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
 				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else 1.0)
 				inertia_w += reflected
+			elif not _is_driven(w):
+				pass
 			elif not w.front:
 				t_drive = t_rear * 0.5 + (-lsd if w.left else lsd)
 				inertia_w += reflected
-			elif not _is_rwd():
+			else:
 				t_drive = t_front * 0.5 + (-lsd_f if w.left else lsd_f)
 				inertia_w += reflected
 			var t_roll := -rolling_resistance_coef * w.load * wheel_radius * clampf(w.omega * 2.0, -1.0, 1.0)
@@ -1053,8 +1060,11 @@ func _update_tcs(delta: float) -> void:
 	if _hub():
 		for i in range(4):
 			var t_w := 1.0
-			if req > 1.0 and wheels[i].contact:
-				t_w = clampf(_traction_cap(wheels[i], dir) / (req * 0.25), 0.05, 1.0)
+			if req > 1.0:
+				if wheels[i].contact:
+					t_w = clampf(_traction_cap(wheels[i], dir) / (req * 0.25), 0.05, 1.0)
+				else:
+					t_w = _tcs_air(wheels[i], dir)
 				if t_w < 0.98:
 					tcs_active = true
 			_hub_tcs[i] = t_w if t_w < _hub_tcs[i] else move_toward(_hub_tcs[i], t_w, tcs_response * delta)
@@ -1065,17 +1075,34 @@ func _update_tcs(delta: float) -> void:
 		var cap := 0.0
 		var any := false
 		for i in range(4):
-			if wheels[i].front and _is_rwd():
+			if not _is_driven(wheels[i]):
 				continue
 			if wheels[i].contact:
 				any = true
 				cap += _traction_cap(wheels[i], dir)
 		if any:
 			target = clampf(cap / req, 0.05, 1.0)
-			tcs_active = target < 0.98
+		else:
+			# W locie (skok): TCS widzi czujnikami obrotów, że koła kręcą się
+			# szybciej niż jedzie auto, i obcina moment - bez tego koła
+			# rozkręcały się w powietrzu do ~2x prędkości auta, a po lądowaniu
+			# na gazie poślizg zabierał oponom przyczepność boczną
+			# (użytkownik 2026-11-09: "przy lądowaniu wcisnę gaz - auto się
+			# obraca"). Bez TCS zostaje pełna fizyka.
+			for i in range(4):
+				if _is_driven(wheels[i]):
+					target = minf(target, _tcs_air(wheels[i], dir))
+		tcs_active = target < 0.98
 	# W dół od razu (nadmiar momentu w jednej klatce to już buksowanie),
 	# w górę z szybkością tcs_response.
 	_tcs_factor = target if target < _tcs_factor else move_toward(_tcs_factor, target, tcs_response * delta)
+
+
+## TCS w locie: mnożnik momentu z poślizgu koła względem prędkości auta.
+func _tcs_air(w: Wheel, dir: float) -> float:
+	var v := maxf(absf(speed), 3.0)
+	var slip := (w.omega * dir * wheel_radius - absf(speed)) / v
+	return clampf(1.0 - (slip - tcs_target_slip) * 6.0, 0.05, 1.0)
 
 
 ## Moment, jaki koło przeniesie na drogę przy docelowym poślizgu TCS
@@ -1192,7 +1219,21 @@ func _hub() -> bool:
 
 
 func _is_rwd() -> bool:
-	return drive_layout != "awd" and not _hub()
+	return drive_layout == "rwd" and not _hub()
+
+
+## Napęd na przód (użytkownik 2026-11-09: "w opcjach jest tył, nie ma przodu").
+## Środek masy przesunięty o tyle rozstawów osi do przodu (50/50 -> 60/40).
+const FWD_FRONT_SHIFT := 0.1
+func _is_fwd() -> bool:
+	return drive_layout == "fwd" and not _hub()
+
+
+## Koło dostaje moment silnika.
+func _is_driven(w: Wheel) -> bool:
+	if _hub() or drive_layout == "awd":
+		return true
+	return w.front == _is_fwd()
 
 
 ## Prędkość kątowa "wału" z kół napędzanych: tył - średnia tylnych; 4x4 -
@@ -1203,6 +1244,8 @@ func _driven_omega() -> float:
 	if _is_rwd():
 		return rear
 	var front := (wheels[0].omega + wheels[1].omega) * 0.5
+	if _is_fwd():
+		return front
 	var share := 0.5 if _hub() else AWD_FRONT_SHARE
 	return front * share + rear * (1.0 - share)
 
@@ -1329,7 +1372,7 @@ func shift_down() -> void:
 
 func _update_engine_rpm(delta: float) -> void:
 	if not engine_running:
-		engine_rpm = move_toward(engine_rpm, 0.0, 1500.0 * delta)
+		engine_rpm = move_toward(engine_rpm, 0.0, 3000.0 * delta)
 		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)
@@ -2099,12 +2142,13 @@ var _settle_t := 0.0
 # --------------------------------------------------------------------------
 # Paliwo (bateria w elektryku). Zużycie z mocy, którą silnik faktycznie
 # oddaje, plus wolne obroty (spalinowe). Pojemność dobrana tak, żeby przy
-# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~12 km
-# (użytkownik 2026-11-08: zasięg ~10-15 km zamiast 150 km - stacje co
-# 5 odcinków, ~4-5 km, mają znaczenie, a walka z botami kosztuje paliwo).
+# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~25 km.
+# Użytkownik 2026-11-08: ~10-15 km (stacje co 5 odcinków mają znaczenie);
+# 2026-11-09 zmienione na 20-30 km - przy 3,6 kWh 700 kW na pełnym gazie
+# wypalało bak w ~25 s (~2 km). Pełny gaz mocnego auta dalej pali szybko.
 # --------------------------------------------------------------------------
 ## Energia pełnego baku [kWh "na kołach"].
-@export var tank_kwh: float = 3.6
+@export var tank_kwh: float = 7.5
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1

@@ -9,7 +9,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/launch_test.gd </dev/null
 const START := Vector3(-300.0, 0.75, 600.0)
 var main; var car; var cur := -1; var t := 0.0
-var runs := [["rwd",180,1200.0,true],["rwd",180,1200.0,false],["awd",700,2500.0,true],["awd",700,2500.0,false],["rwd",700,1200.0,true],["rwd",700,1200.0,false]]
+var runs := [["rwd",180,1200.0,true],["rwd",180,1200.0,false],["fwd",180,1200.0,true],["fwd",180,1200.0,false],["fwd",350,1200.0,true],["awd",700,2500.0,true],["awd",700,2500.0,false],["rwd",700,1200.0,true],["rwd",700,1200.0,false]]
 var fails := 0
 var t50 := -1.0; var t100 := -1.0; var ks := 0.0; var n := 0; var tf := 0.0
 func _initialize() -> void:

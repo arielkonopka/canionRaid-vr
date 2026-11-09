@@ -27,7 +27,7 @@ var esp_enabled: bool = true
 var steer_assist: bool = true
 var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
-## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
+## Układ napędu: "rwd" tył, "fwd" przód, "awd" 4x4 (StuntCar.drive_layout).
 var drive_layout: String = "rwd"
 ## Model auta gracza: "concept" (Khronos Car Concept, CC BY 4.0) albo
 ## "sedan" (własny z lat 70., z wgnieceniami). Boty zawsze sedany.
@@ -199,10 +199,11 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "drive_layout", "group": "car", "label": "Napędzane koła",
-		"values": ["rwd", "awd"],
-		"names": ["Tył", "4x4"],
+		"values": ["rwd", "fwd", "awd"],
+		"names": ["Tył", "Przód", "4x4"],
 		"hints": [
 			"Klasycznie, tylne koła z szperą - tył ucieka przy gazie w zakręcie.",
+			"Przednie koła ciągną: stabilnie, przy gazie w zakręcie auto wynosi przodem na zewnątrz; mocne auto buksuje przy ruszaniu (ciężar przechodzi na tył).",
 			"Wszystkie koła: 40% przód, 60% tył, wiskoza między osiami. Ciężej o poślizg.",
 		],
 	},

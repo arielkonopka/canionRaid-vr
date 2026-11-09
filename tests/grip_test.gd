@@ -35,7 +35,7 @@ func _initialize() -> void:
 	var ground: Node = main.get_node("Ground")
 	ground.set_meta("grip", StuntTrack.SURFACES["dry"]["grip"])
 	ground.set_meta("surface", "dry")
-	for cfg in [["all_season", 1200.0, "rwd", 180], ["all_season", 2500.0, "awd", 700],
+	for cfg in [["all_season", 1200.0, "rwd", 180], ["all_season", 1200.0, "fwd", 180], ["all_season", 2500.0, "awd", 700],
 			["summer", 1200.0, "rwd", 180], ["summer", 2500.0, "awd", 700]]:
 		runs.append(cfg + ["lat"])
 		runs.append(cfg + ["brake"])

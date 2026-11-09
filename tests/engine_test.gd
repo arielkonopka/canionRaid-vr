@@ -33,6 +33,8 @@ func _initialize() -> void:
 			continue
 		for p in POWERS:
 			runs.append([e, p, "rwd"])
+			if p == 180:
+				runs.append([e, p, "fwd"])
 			if p >= 350:
 				runs.append([e, p, "awd"])
 				if e == "electric":
@@ -52,7 +54,7 @@ func _physics_process(delta: float) -> bool:
 		cur += 1
 		if cur >= runs.size():
 			return true
-		car.drive_layout = "rwd" if runs[cur][2] == "rwd" else "awd"
+		car.drive_layout = runs[cur][2] if runs[cur][2] != "hub" else "awd"
 		car.hub_motors = runs[cur][2] == "hub"
 		car.apply_engine(runs[cur][0], runs[cur][1])
 		car.automatic = true
