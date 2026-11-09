@@ -105,6 +105,7 @@ do_test() {
 	run_test score_play_test ""          "score_play_test"
 	run_test stunt_shop_test ""          "stunt_shop_test"
 	run_test radio_test ""               "radio_test"
+	run_test hill_test ""                "wzniesienie|hill_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }

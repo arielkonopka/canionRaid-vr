@@ -1414,6 +1414,14 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   się na pobranie 15 utworów z listy (`tools/fetch_radio.py`) - czeka
   na `sudo apt install ffmpeg` (brak w systemie). Radio nie jest jeszcze
   wpięte w grę (tablet, przyciski).
+- Zgłoszenie: "auto praktycznie nie jest w stanie ruszyć pod górę"
+  (gogle: benzyna 1000->700 kW, 4x4, automat, 2500 kg, TCS). Nowy
+  `tests/hill_test.gd` (w `./quest.sh test`): pochylnia 15% i 35%, cztery
+  konfiguracje - wszystkie wjeżdżają (700 kW: 186 / 141 km/h po 12 s;
+  diesel 90 kW: 81 / 52). Log z gogli nadpisany, przyczyna niepotwierdzona;
+  podejrzenie: pusty bak - 700 kW na pełnym gazie opróżnia 3,6 kWh
+  w ~25 s (`fuel` liczony z chwilowej mocy). Pytanie do użytkownika
+  w sekcji 9.
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 
@@ -1545,6 +1553,9 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
+- (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
+  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? Czy zużycie ma
+  mniej zależeć od mocy (teraz 700 kW do dechy = ~2 km na baku)?
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.
