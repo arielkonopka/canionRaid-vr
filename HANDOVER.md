@@ -1441,9 +1441,10 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
   Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
 - Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
-- Do odsłuchu w goglach: głośność radia względem silnika (`VOLUME_DB`
-  -8 dB, w pauzie 9 stopni), brzmienie szyny "Radio", czytelność
-  napisu nad radiem.
+- Radio w goglach (użytkownik): "radio poprawia komfort jazdy",
+  głośność względem silnika w porządku, wszystkie stacje pasują.
+  Użytkownik lubi do auta **psytrance** - kandydat na 4. stację
+  (utwory tylko CC0/CC-BY/CC-BY-SA, lista do akceptacji przed pobraniem).
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 
