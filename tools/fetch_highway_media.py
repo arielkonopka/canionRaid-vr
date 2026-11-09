@@ -13,7 +13,8 @@ użytkownika. Chmura nie pobiera (brak dostępu do tych serwerów).
     dodatkowo: --force (pobierz od nowa)
 
 Gdzie trafia:
-  textures/highway/<nazwa>/{albedo,normal,roughness}.jpg   (textures/ w .gitignore)
+  textures/cc0/<nazwa>/{albedo,normal,roughness}.jpg      (W REPO - CC0, zgoda
+                                                          użytkownika 2026-11-09)
   build/media/models/<paczka>/...                          (do ustalenia, co idzie do repo)
   audio/ambient/<nazwa>.ogg                                (Ogg Vorbis 96 kb/s, -20 LUFS)
 
@@ -39,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INCOMING = ROOT / "build" / "media_in"
-TEX_OUT = ROOT / "textures" / "highway"
+TEX_OUT = ROOT / "textures" / "cc0"
 MODEL_OUT = ROOT / "build" / "media" / "models"
 SOUND_OUT = ROOT / "audio" / "ambient"
 KEY_FILE = Path.home() / ".config" / "canion-raid" / "freesound.env"
@@ -74,6 +75,22 @@ TEXTURES = [
     ("dry_ground", "acg", "Ground110", "sucha ziemia ze żwirem (pola po żniwach, góry)"),
     ("aerial_beach", "ph", "aerial_beach_01", "plaża z lotu ptaka - teren daleko (opcja)"),
     ("aerial_grass_rock", "ph", "aerial_grass_rock", "trawa ze skałą - góry, teren daleko (opcja)"),
+    # --- wąwóz, tunele, estakady, miasto (wątek "Usuń pozostałości dróg na
+    # estakadach", 2026-11-09; ID sprawdzone w API ambientCG i Poly Haven).
+    # Skały i mech zastępują tekstury z freepbr.com (licencja niepotwierdzona,
+    # tylko lokalnie).
+    ("canyon_rock", "ph", "cliff_side", "ściany wąwozu: warstwowy osad (zamiast cavern-walls)"),
+    ("canyon_rock_alt", "acg", "Rock063", "ściany wąwozu, zapas: skała warstwowa"),
+    ("mountain_rock", "acg", "Rock058", "góry nad tunelami (zamiast ocean-rock)"),
+    ("moss", "acg", "Moss002", "mech na zboczach w cieniu (zamiast derived/moss)"),
+    ("gravel", "acg", "Gravel043", "pobocze ze żwiru, dno wąwozu pod estakadą"),
+    ("concrete_rough", "acg", "Concrete047A", "okładzina tunelu, filary estakad"),
+    ("roof_tiles", "acg", "RoofingTiles013A", "dachówka ceramiczna (domy)"),
+    ("roof_slate", "acg", "RoofingTiles001", "dach z łupku (starsze kamienice)"),
+    ("corrugated_steel", "acg", "CorrugatedSteel009", "blacha falista: warsztat, stacja, garaże"),
+    ("asphalt_worn", "acg", "Road013A", "spękany asfalt: drogi lokalne, wyjazdy z wąwozu"),
+    ("field_soil", "acg", "Ground109", "pole orne (biom pola)"),
+    ("snow", "acg", "Snow015", "topniejący śnieg z trawą (góry, opcja)"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -296,7 +313,7 @@ def list_all() -> int:
 
 
 def credits() -> int:
-    lines = ["## Tryb Autostrada", ""]
+    lines = ["## Tekstury, modele i dźwięki (tools/fetch_highway_media.py)", ""]
     tex = [(n, s, a) for n, s, a, _u in TEXTURES if (TEX_OUT / n / "albedo.jpg").exists()]
     if tex:
         lines.append("### Tekstury (CC0)")
