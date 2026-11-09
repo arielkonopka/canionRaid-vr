@@ -27,8 +27,8 @@ Androida (gotowy dodatek "WebRadio" to C#/.NET + ffmpeg, tylko desktop).
   electronic, funk), pobieranie MP3 do pamięci przez `HTTPRequest`
   (`use_threads`), `AudioStreamMP3.load_from_buffer`, jeden utwór na
   zapas. Nic na dysk (warunek API Jamendo: zakaz cache offline).
-  Klucz `client_id`: `user://radio.cfg` (`[jamendo] client_id="..."`)
-  albo ustawienie projektu `canionraid/radio/jamendo_client_id`.
+  Klucz `client_id`: `user://radio.cfg` albo `res://radio_secrets.cfg`
+  (w .gitignore; `[jamendo] client_id="..."`).
 - `CarRadio`: stacja online jako ostatnia na liście, tylko gdy
   `set_online(true)` i jest klucz. Czekanie = szum eteru i "łączenie...";
   brak sieci = komunikat i powrót na pierwszą stację offline. Nowe:
@@ -49,11 +49,13 @@ Androida (gotowy dodatek "WebRadio" to C#/.NET + ffmpeg, tylko desktop).
    (Jamendo): wł./wył.", domyślnie wyłączona -> `radio.set_online(on)`.
 3. Eksport Androida: `permissions/internet=true` w `export_presets.cfg`
    (teraz brak - bez tego na Queście zawsze "brak sieci").
-4. Klucz: użytkownik zakłada darmową aplikację na
-   https://devportal.jamendo.com i podaje `client_id`. Do ustalenia
-   z użytkownikiem, czy wpisać go do `project.godot` (repo publiczne -
-   klucz będzie jawny, Jamendo może go wyłączyć) czy tylko do
-   `user://radio.cfg` na goglach.
+4. Klucz: **nie do repo** (decyzja użytkownika 2026-11-09). Użytkownik
+   zakłada aplikację na https://devportal.jamendo.com i wpisuje
+   `client_id` do `radio_secrets.cfg` w katalogu projektu (w .gitignore,
+   format w nagłówku `jamendo_source.gd`). `include_filter` w
+   `export_presets.cfg` już go dołącza do APK (`all_resources` pomija
+   .cfg) - sprawdź, czy brak pliku nie psuje eksportu. Uwaga: kto rozpakuje APK,
+   zobaczy klucz - przy darmowej grze to akceptowalne.
 5. Na Queście: czas od wejścia na stację do muzyki, płynność przy
    pobieraniu (wątek HTTPRequest), pamięć (MP3 VBR ~5-10 MB na utwór,
    dwa naraz). Tablet: czy link do utworu jest czytelny.
