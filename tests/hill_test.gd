@@ -31,6 +31,7 @@ func _initialize() -> void:
 			["petrol", 700, "awd", 2500.0, true],
 			["petrol", 180, "rwd", 1200.0, true],
 			["diesel", 90, "rwd", 1200.0, true],
+			["petrol", 180, "fwd", 1200.0, true],
 			["electric", 1000, "hub", 2500.0, true]]:
 		for g in GRADES:
 			runs.append(cfg + [g])
@@ -75,7 +76,7 @@ func _physics_process(delta: float) -> bool:
 			return true
 		var r: Array = runs[cur]
 		var xf := _make_ramp(r[5])
-		car.drive_layout = "rwd" if r[2] == "rwd" else "awd"
+		car.drive_layout = r[2] if r[2] != "hub" else "awd"
 		car.hub_motors = r[2] == "hub"
 		car.apply_engine(r[0], r[1])
 		car.set_body_mass(r[3])
