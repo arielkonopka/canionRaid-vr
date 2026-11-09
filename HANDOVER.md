@@ -1441,6 +1441,27 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
   Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
 - Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
+- **Przyczepność** (użytkownik: "w prawdziwych autach jest lepsza,
+  zwłaszcza na suchym", "przy ruszaniu też"). Pomiary (`grip_test`,
+  `launch_test`, oba w `./quest.sh test`): w zakręcie było dobrze
+  (0,93-0,98 g), hamowanie i ruszanie za słabe. Naprawione:
+  - ABS z wyprzedzeniem (`_tire_peak_force`): moment ograniczony do
+    siły szczytowej opony x promień, korekta odchyłką poślizgu.
+    Stary cykl "spuść/dołóż" oscylował (poślizg 0..0,64), auto z ABS
+    hamowało dłużej niż z zablokowanymi kołami. 100-0: 51-55 m -> 40,5 m
+    (całoroczne), 38 m (letnie).
+  - Hamulce skalowane masą (`_brake_scale`): 2500 kg miało hamulce
+    auta 1150 kg.
+  - TCS z wyprzedzeniem (`_traction_cap`): stary regulator
+    proporcjonalny trzymał poślizg 0,2-0,3 (za szczytem 0,11).
+  - Sprzęgło międzyosiowe 4x4: limit `CENTER_COUPLING_SHARE` (35%)
+    momentu na osiach zamiast stałych 900 Nm (przy 9700 Nm na 1. biegu
+    buksował odciążony przód). 4x4 700 kW 2500 kg 0-100: 3,86 -> 3,56 s.
+  - Tylny napęd 700 kW 1200 kg ~5 s do 100 to granica przyczepności tyłu
+    (~0,6 g), nie błąd.
+- `engine_test` tankuje przed każdym przejazdem (po zmianie "silnik
+  gaśnie" diesel stał z obrotami 0). Uwaga: 700 kW 4x4 i 1000 kW
+  wypalają bak w 25 s pełnego gazu (pytanie o zużycie w sekcji 9).
 - Radio w goglach (użytkownik): "radio poprawia komfort jazdy",
   głośność względem silnika w porządku, wszystkie stacje pasują.
   Użytkownik lubi do auta **psytrance** - 4. stacja "Psy Wąwóz"

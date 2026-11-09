@@ -108,6 +108,8 @@ do_test() {
 	run_test hill_test ""                "wzniesienie|hill_test"
 	run_test fuel_test ""                "paliwo skończyło|fuel_test"
 	run_test pause_test ""               "pause_test|radio:"
+	run_test grip_test ""                "przeciążenie|hamowanie|grip_test"
+	run_test launch_test ""              "0-50|launch_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }

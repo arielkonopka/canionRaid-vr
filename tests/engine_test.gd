@@ -62,6 +62,7 @@ func _physics_process(delta: float) -> bool:
 		# Bez naprawy uszkodzenia silnika z poprzednich przejazdów się
 		# sumowały (objaw: kolejne auta coraz wolniejsze, ostatnie stoi).
 		car.repair()
+		car.fuel = 1.0         # bak pusty po kilku przejazdach - silnik gasł (fuel_test)
 		t = 0.0
 		t100 = -1.0
 		t200 = -1.0
