@@ -64,7 +64,10 @@ Symulacja 0-100 (benzyna, tył, całoroczne, TCS wł.):
 5. Odsłuch / jazda: przy ruszaniu obroty trzymają się ~3800 do ~37 km/h
    w 1. biegu (benzyna; diesel 2000 obr.), potem płynnie rosną - bez
    spadku do 1300.
-6. Wynik do HANDOVER (sekcja skrzyni i wyniki testów) + odpowiedź tutaj.
+6. `launch_test` i `grip_test` (nowy TCS z wyprzedzeniem liczy `req`
+   z `_engine_torque_at_clutch()`; przy dłuższym ślizganiu sprzęgła
+   moment jest wyższy - sprawdzić, czy TCS nadal trzyma poślizg ~0,10).
+7. Wynik do HANDOVER (sekcja skrzyni i wyniki testów) + odpowiedź tutaj.
 
 ## Na później (nie w tym PR)
 
