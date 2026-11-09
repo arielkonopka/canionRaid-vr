@@ -49,6 +49,17 @@ Decyzje użytkownika (2026-11-09):
    w szale muszą dogonić gracza - przy 350 kW 0-100 wychodzi szybciej niż
    dziś, więc raczej łatwiej).
 
+5. **Test na goglach z użytkownikiem** (prośba użytkownika: "chętnie
+   pościgam się z samochodami"): po wpięciu zbuduj na Questa i poproś
+   użytkownika o jazdę z botami w szale - zderzenia, taranowanie, pit,
+   skoki z botami blisko. Pytania do niego: czy boty przy zderzeniach
+   i skokach zachowują się tak samo jak przed zmianą, czy coś "skacze"
+   na granicy 120 m / 320 m (przełączanie poziomów), czy boty nadążają.
+   Pomiary PERF+ i jego wrażenia do `outbox/`.
+
+Pełny opis projektu z liczbami (to, co widział użytkownik):
+`docs/design/uproszczony-naped-botow.md`.
+
 Kolejny krok po stronie chmury (osobno): grupy botów i furia między botami
 (`feud_director.gd`) - projekt w wątku, czeka na decyzję użytkownika.
 
