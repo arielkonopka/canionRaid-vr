@@ -576,6 +576,68 @@ func player_compliant() -> bool:
 	return absf(car.speed) * 3.6 <= current_limit + 5.0
 
 
+## Pula botów: zbudowanie StuntCar (siatka sedana z wgnieceniami) kosztuje
+## ~170 ms jednej klatki na Queście (log 2026-11-09, `boty_mgr` maks 171 ms)
+## - szarpnięcie przy każdym nowym bocie. Auta budowane raz (BOT_POOL_WARM
+## na starcie jazdy, w czasie wczytywania), usuwany bot wraca do puli:
+## naprawiony, ukryty, wyłączony z fizyki (PROCESS_MODE_DISABLED zdejmuje
+## ciało z przestrzeni fizyki).
+const BOT_POOL_WARM := 6
+var _bot_pool: Array[StuntCar] = []
+
+
+func _new_bot_car() -> StuntCar:
+	var bot := StuntCar.new()
+	bot.name = "Bot%d_%d" % [Time.get_ticks_msec(), _bot_pool.size() + _bots.size()]
+	bot.is_bot = true
+	bot.TIRE_SUBSTEPS = 2
+	bot.simple_drive = true            # BotDriveModel (inbox boty-naped-i-poziomy)
+	bot.ray_probe = true
+	add_child(bot)
+	bot.add_to_group(WorldOrigin.GROUP)
+	# Zdalnie sterowane auta mają mocny silnik (250 kW) - w szale muszą
+	# realnie dogonić gracza (przy 130 kW zostawały w tyle).
+	bot.apply_engine("petrol", 250)
+	return bot
+
+
+func _warm_bot_pool() -> void:
+	while _bot_pool.size() + _bots.size() < BOT_POOL_WARM:
+		var b := _new_bot_car()
+		_park_bot(b)
+		_bot_pool.append(b)
+
+
+func _take_bot() -> StuntCar:
+	var b: StuntCar = _bot_pool.pop_back() if not _bot_pool.is_empty() else _new_bot_car()
+	b.process_mode = Node.PROCESS_MODE_INHERIT
+	b.visible = true
+	b.freeze = false
+	b.repair()
+	b.fuel = 1.0
+	b.TIRE_SUBSTEPS = 2
+	return b
+
+
+func _park_bot(b: StuntCar) -> void:
+	b.visible = false
+	b.linear_velocity = Vector3.ZERO
+	b.angular_velocity = Vector3.ZERO
+	b.process_mode = Node.PROCESS_MODE_DISABLED
+	b.global_position = Vector3(0.0, -500.0, 0.0)
+
+
+## Bot znika (za graczem, wybuch, restart odcinka): kierowca usunięty, auto
+## do puli.
+func _retire_bot(b: StuntCar) -> void:
+	var drv := b.get_node_or_null("Driver")
+	if drv:
+		b.remove_child(drv)
+		drv.queue_free()
+	_park_bot(b)
+	_bot_pool.append(b)
+
+
 ## Poziomy szczegółowości botów (BotLod, ~4 Hz): NEAR pełne opony
 ## (2 podkroki) i sterowanie co krok, MID 1 podkrok i sterowanie co 4. krok,
 ## RAIL szyna. Budżet aut z fizyką BOT_PHYS_BUDGET (NEAR zawsze ma fizykę).
@@ -636,7 +698,7 @@ func _update_bots(delta: float) -> void:
 				boom.add_to_group(WorldOrigin.GROUP)
 				boom.global_position = b.global_position
 			_bots.erase(b)
-			b.queue_free()
+			_retire_bot(b)
 			Perf.mark("bot_free")
 
 
@@ -675,17 +737,7 @@ func _spawn_bot(d: float) -> void:
 	var lane_w := (float(smp[0]["width"]) - 1.0) / 3.0
 	var lim := float(smp[0]["limit"])
 	Perf.mark("bot_spawn")
-	var bot := StuntCar.new()
-	bot.name = "Bot%d" % Time.get_ticks_msec()
-	bot.is_bot = true
-	bot.TIRE_SUBSTEPS = 2
-	bot.simple_drive = true            # BotDriveModel (inbox boty-naped-i-poziomy)
-	bot.ray_probe = true
-	add_child(bot)
-	bot.add_to_group(WorldOrigin.GROUP)
-	# Zdalnie sterowane auta mają mocny silnik (250 kW) - w szale muszą
-	# realnie dogonić gracza (przy 130 kW zostawały w tyle).
-	bot.apply_engine("petrol", 250)
+	var bot := _take_bot()
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		var keys: Array = gs.PAINTS.keys()
@@ -851,6 +903,8 @@ func restart_race() -> void:
 		_tier = maxi(gs.POWER_TIERS.find(kw), 0)
 		car.hub_motors = gs.engine_type == "electric" and gs.motor_layout == "hub"
 		car.apply_engine(gs.engine_type, kw)
+	if _endless:
+		_warm_bot_pool()
 	_next_ws = {}
 	_ws_done_stop = -INF
 	_last_section = 1
@@ -1629,7 +1683,7 @@ func _restart_section() -> void:
 	car.place(_safe_pose(d))
 	_fallen_time = 0.0
 	for b in _bots:
-		b.queue_free()
+		_retire_bot(b)
 	_bots.clear()
 	for o in _oncoming:
 		(o["car"] as Node).queue_free()
