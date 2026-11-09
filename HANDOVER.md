@@ -454,6 +454,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
+- **Menu pauzy = menu główne ustawień** (użytkownik 2026-11-09): w pauzie
+  te same grupy opcji co na ekranie tytułowym; radio, wspomagania,
+  sterowanie, wygląd, szał botów działają od razu; zmiana samochodu /
+  nadwozia / trasy **resetuje jazdę, ale najpierw ostrzeżenie** (A: zacznij
+  od nowa, B: cofnij zmiany). **Ustawienia radia w ustawieniach gry**
+  (grupa "Radio": radio przy starcie, stacja, głośność, Jamendo online),
+  wspólne z menu pauzy. Do zrobienia (sekcja 8).
 - **Rekuperacja elektryka** (użytkownik 2026-11-09): opcja menu
   "Rekuperacja" wył./słaba/normalna/mocna (`StuntCar.REGEN_LEVELS` 0 /
   0,07 / 0,15 / 0,30 maks. momentu), energia wraca do baterii ze
@@ -518,7 +525,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     (paliwo ma być wyzwaniem), warsztat w każdym mieście; nasyp jezdni
     1 m (propozycja chmury, przyjęta domyślnie).
   - Zgoda na pobranie (2026-11-09): tekstury z `docs/MEDIA_AUTOSTRADA.md`
-    (ambientCG, CC0, nie do gita), modele aut GGBotNet "PSX Style Cars"
+    (ambientCG/Poly Haven, CC0) **poza gitem - w repo tylko skrypt**
+    `tools/fetch_highway_media.py textures` -> `textures/cc0/` (użytkownik:
+    "niech w repo będzie skrypt pobierający te tekstury"; chmura wcześniej
+    zrobiła wyjątek `!/textures/cc0/` - cofnięty). Z eksportu APK wyłączone
+    (`exclude_filter textures/cc0/*`), dopóki gra ich nie używa, modele aut GGBotNet "PSX Style Cars"
     i Quaternius "Realistic Car Pack" (CC0, do repo w `models/`).
   - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
     ma, a pomagają ocenić prędkość).

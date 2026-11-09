@@ -1,6 +1,6 @@
 # Boty: uproszczony napęd + poziomy szczegółowości (LOD) + budżet fizyki
 
-Status: nowe
+Status: wpięte (czeka na jazdę z użytkownikiem)
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-09)
 Decyzje użytkownika (2026-11-09):
 - Oszukiwać wolno **tylko u botów**; fizyka gracza zostaje.
@@ -65,4 +65,26 @@ Kolejny krok po stronie chmury (osobno): grupy botów i furia między botami
 
 ## Odpowiedź agenta lokalnego
 
-(puste)
+2026-11-09 (wieczór):
+1. `bot_drive_test` - dwa błędy parsowania (`var mid_w :=` / `var p_mid :=`
+   z wartości bez typu - Godot 4.6 nie wnioskuje; poprawione na `: float`),
+   potem OK. W zestawie `./quest.sh test`.
+2. Wpięte w `stunt_car.gd`: `simple_drive` (boty z `_spawn_bot`), model
+   tworzony leniwie w kroku (po `apply_engine` zerowany), `_total_ratio(1)`,
+   `_engine_torque_at_clutch`, `_update_engine_rpm`, `_update_gearbox`
+   (gear 1, sprzęgło zamknięte; **wsteczny automatu "hamulec na postoju"
+   zostawiony** - bez tego bot nie wychodził z utknięcia). **ESP NIE
+   pominięte**: bez niego bot w szale (250-350 kW, tył) obracał się sam
+   przy pełnym gazie (bot_rage_test: -136° przy 124 km/h).
+3. `BotLod` w `xr_main._update_bot_lod` (4 Hz, budżet 8): NEAR 2 podkroki,
+   MID 1 podkrok + `BotDriver` co 4. krok (delta sumowana), RAIL przez
+   `BotDriver.lod` (szyna z `lod == RAIL`; bez BotLod - stare progi).
+4. Z mocniejszym przyspieszaniem bot w szale dochodził do limit+50 km/h
+   i wypadał w łuku - `_curve_speed` liczy teraz 0,7 g zamiast 0,8 g.
+   bot_rage_test: bot trzyma się gracza 6-28 m i taranuje (przed zmianą
+   0,8: odpadał na 70-160 m). score_play_test, endless_test OK.
+5. Zauważone w logu z Questa (przed tą zmianą): **pojawienie się bota =
+   ~170 ms jednej klatki** (`boty_mgr` maks 171 ms) - budowa StuntCar
+   z siatką sedana w `_spawn_bot`. Plan: pula botów (ukrywanie zamiast
+   `queue_free`). Pomiary PERF+ przy 4/6/8/10 autach z fizyką - po jeździe
+   z użytkownikiem.

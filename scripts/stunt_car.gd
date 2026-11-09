@@ -63,8 +63,15 @@ signal landed(impact_speed: float)
 signal wrecked
 
 const RPM_PER_RAD_S := 60.0 / TAU
-## Podkroki opon na krok fizyki. Boty mają 2 (taniej na Queście).
+## Podkroki opon na krok fizyki. Boty mają 2 (taniej na Queście), dalej
+## od gracza 1 (BotLod MID).
 var TIRE_SUBSTEPS := 6
+## Uproszczony napęd botów (BotDriveModel, inbox boty-naped-i-poziomy,
+## decyzja użytkownika: oszukiwać tylko u botów, na napędzie, nie na
+## oponach): bez skrzyni, sprzęgła i zmian biegów - przełożenie równoważne.
+## Tylko boty (is_bot) i nie elektryk (ten i tak ma jeden bieg).
+var simple_drive := false
+var _bdrive: BotDriveModel
 
 ## Zestawy nastaw zawieszenia. Zmieniają się razem: sztywniejsza sprężyna
 ## wymaga mocniejszego tłumika, inaczej auto podskakuje jak piłka.
@@ -482,6 +489,7 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	var e: Dictionary = ENGINE_TYPES[type_name]
 	engine_type = type_name
 	engine_power_kw = power_kw
+	_bdrive = null           # napęd bota przeliczy się z nowej krzywej
 	var p_w := power_kw * 1000.0
 	electric = e.get("electric", false)
 	idle_rpm = e["idle"]
@@ -678,6 +686,8 @@ func _physics_step(delta: float) -> void:
 	speed = linear_velocity.dot(fwd)
 
 	_update_steering(delta)
+	if simple_drive and is_bot and not electric and _bdrive == null:
+		_bdrive = BotDriveModel.from_car(torque_curve, gear_ratios, final_drive, idle_rpm)
 	_update_gearbox(delta)
 
 	# --- 1. kontakt i ugięcie ---
@@ -1149,6 +1159,9 @@ func _traction_cap(w: Wheel, dir: float) -> float:
 ## ograniczona przez to, na co pozwala przyczepność: |r| ≤ μ·g/v.
 ## Znak: dodatni = obrót w prawo, zgodnie z kierunkiem skrętu.
 func _update_esp(delta: float, grounded: int) -> void:
+	# ESP zostaje też w uproszczonym napędzie bota: bez niego bot 250-350 kW
+	# z tyłu obracał się przy pełnym gazie (bot_rage_test, 2026-11-09), choć
+	# spec. BotDriveModel zakładała, że "bot sam prowadzi tor".
 	for i in range(4):
 		_esp_brake[i] = 0.0
 	esp_active = false
@@ -1250,6 +1263,8 @@ func _update_steering(delta: float) -> void:
 func _total_ratio(g: int) -> float:
 	if g == 0:
 		return 0.0
+	if _bdrive and g == 1:
+		return _bdrive.ratio(_driven_omega())
 	if g < 0:
 		return -reverse_ratio * final_drive
 	return gear_ratios[g - 1] * final_drive
@@ -1311,6 +1326,9 @@ func _clutch_slipping() -> bool:
 func _engine_torque_at_clutch() -> float:
 	if gear == 0 or _shift_timer > 0.0:
 		return 0.0
+	if _bdrive and gear == 1:
+		return _bdrive.engine_torque(_drive_pedal(), _driven_omega(), _total_ratio(1),
+				engine_brake_a, engine_brake_b)
 	var pedal := _drive_pedal()
 	if engine_rpm >= redline_rpm:
 		pedal = 0.0    # ogranicznik obrotów
@@ -1336,6 +1354,20 @@ func _curve_torque(rpm: float) -> float:
 
 func _update_gearbox(delta: float) -> void:
 	_shift_cooldown = maxf(_shift_cooldown - delta, 0.0)
+	if _bdrive and gear >= 1 and _shift_timer <= 0.0:
+		# Uproszczony napęd bota: jeden "bieg" z przełożeniem równoważnym,
+		# sprzęgło zawsze zamknięte. Wsteczny (wychodzenie z utknięcia) -
+		# zwykłą logiką niżej.
+		gear = 1
+		_clutch_engaged = true
+		# Hamulec na postoju = wsteczny (automat) - jak u pełnego modelu.
+		if absf(speed) < 0.5 and brake > 0.5 and throttle < 0.05:
+			_reverse_hold += delta
+			if _reverse_hold > 0.35:
+				_shift_to(-1)
+		else:
+			_reverse_hold = 0.0
+		return
 	if _shift_timer > 0.0:
 		_shift_timer -= delta
 		if _shift_timer <= 0.0:
@@ -1424,6 +1456,9 @@ func shift_down() -> void:
 func _update_engine_rpm(delta: float) -> void:
 	if not engine_running:
 		engine_rpm = move_toward(engine_rpm, 0.0, 3000.0 * delta)
+		return
+	if _bdrive and gear == 1:
+		engine_rpm = _bdrive.rpm(_driven_omega(), _total_ratio(1))
 		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)

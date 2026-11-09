@@ -57,6 +57,11 @@ var _prev_ahead := 0.0
 const LOD_FAR := 380.0
 const LOD_NEAR := 320.0
 var on_rail := false
+## Poziom szczegółowości z xr_main (BotLod.NEAR/MID/RAIL). -1 = bez BotLod
+## (testy) - wtedy jak dawniej: szyna z progów LOD_FAR / LOD_NEAR.
+var lod := -1
+var _mid_acc := 0.0
+var _mid_n := 0
 var _rail_v := 0.0
 var _rail_acc := 0.0                   # szyna liczona 30 razy na sekundę, nie 240
 var _lane_off := 0.0
@@ -98,6 +103,14 @@ func _drive_step(delta: float) -> void:
 		return
 	if _update_rail(delta):
 		return
+	if lod == BotLod.MID:
+		# Dalej od gracza sterowanie ~30 Hz, wejścia trzymane między krokami.
+		_mid_acc += delta
+		_mid_n += 1
+		if _mid_n % BotLod.MID_STEER_EVERY != 0:
+			return
+		delta = _mid_acc
+	_mid_acc = 0.0
 	_window_timer -= delta
 	if _window_timer <= 0.0:
 		_window_timer = 0.15
@@ -294,7 +307,9 @@ func _curve_speed() -> float:
 		if ang > 0.01:
 			var span := float(a1["dist"]) - float(a0["dist"])
 			var grip: float = StuntTrack.SURFACES[a0["surface"]]["grip"]
-			var vc := sqrt(0.8 * grip * 9.8 * span / ang)
+			# 0,7 g (było 0,8): z BotDriveModel bot przyspiesza mocniej i przy 0,8 g
+			# obracał się w łuku przy pełnym gazie (bot_rage_test 2026-11-09).
+			var vc := sqrt(0.7 * grip * 9.8 * span / ang)
 			target = minf(target, sqrt(vc * vc + 2.0 * 6.0 * maxf(k, 0.0)) * 3.6)
 	return target
 
@@ -305,8 +320,12 @@ func _update_rail(delta: float) -> bool:
 	if main == null:
 		return false
 	var gap := absf(dist - float(main._last_safe_dist))
+	# Z BotLod: szyna, gdy poziom RAIL (dystans albo budżet fizyki); bez
+	# BotLod - progi LOD_FAR / LOD_NEAR jak dawniej.
+	var want_rail := (lod == BotLod.RAIL) if lod >= 0 else gap >= LOD_FAR
+	var want_phys := (lod != BotLod.RAIL) if lod >= 0 else gap < LOD_NEAR
 	if not on_rail:
-		if rage > 0.0 or gap < LOD_FAR or car.wheels_on_ground < 4:
+		if rage > 0.0 or not want_rail or car.wheels_on_ground < 4:
 			return false
 		on_rail = true
 		_rail_v = maxf(car.speed, 5.0)
@@ -316,7 +335,7 @@ func _update_rail(delta: float) -> bool:
 			return false
 		_lane_off = (car.global_position - track.to_global(smp[0]["pos"])).dot(smp[0]["right"])
 		car.freeze = true
-	elif gap < LOD_NEAR or rage > 0.0:
+	elif want_phys or rage > 0.0:
 		# Z powrotem fizyka, z prędkością, jaką miał na szynie.
 		on_rail = false
 		car.freeze = false

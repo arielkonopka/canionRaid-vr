@@ -576,7 +576,36 @@ func player_compliant() -> bool:
 	return absf(car.speed) * 3.6 <= current_limit + 5.0
 
 
+## Poziomy szczegółowości botów (BotLod, ~4 Hz): NEAR pełne opony
+## (2 podkroki) i sterowanie co krok, MID 1 podkrok i sterowanie co 4. krok,
+## RAIL szyna. Budżet aut z fizyką BOT_PHYS_BUDGET (NEAR zawsze ma fizykę).
+const BOT_PHYS_BUDGET := 8
+var _lod_t := 0.0
+var _lod_prev := PackedInt32Array()
+func _update_bot_lod(delta: float) -> void:
+	_lod_t -= delta
+	if _lod_t > 0.0 or _bots.is_empty():
+		return
+	_lod_t = 0.25
+	var dists := PackedFloat32Array()
+	var raging := []
+	for b in _bots:
+		var drv: BotDriver = b.get_node("Driver")
+		dists.append(absf(drv.dist - _last_safe_dist))
+		raging.append(drv.rage > 0.0)
+	if _lod_prev.size() != _bots.size():
+		_lod_prev = PackedInt32Array()
+	var lv := BotLod.assign(dists, raging, _lod_prev, BOT_PHYS_BUDGET)
+	_lod_prev = lv
+	for i in range(_bots.size()):
+		var b: StuntCar = _bots[i]
+		var drv: BotDriver = b.get_node("Driver")
+		drv.lod = lv[i]
+		b.TIRE_SUBSTEPS = 2 if lv[i] == BotLod.NEAR else 1
+
+
 func _update_bots(delta: float) -> void:
+	_update_bot_lod(delta)
 	_bot_timer -= delta
 	if _bot_timer <= 0.0 and race_state == Race.RACING:
 		var limit := bot_limit(_last_section) if _endless else 2
@@ -650,6 +679,7 @@ func _spawn_bot(d: float) -> void:
 	bot.name = "Bot%d" % Time.get_ticks_msec()
 	bot.is_bot = true
 	bot.TIRE_SUBSTEPS = 2
+	bot.simple_drive = true            # BotDriveModel (inbox boty-naped-i-poziomy)
 	bot.ray_probe = true
 	add_child(bot)
 	bot.add_to_group(WorldOrigin.GROUP)

@@ -168,3 +168,13 @@ Chmura nie może ich pobrać (proxy blokuje ambientCG i Poly Haven), więc:
 
 Braki: czerwona cegła (przyciemnić `Bricks105` w shaderze), elewacja
 mieszkalna z oknami (okna w `facade.gdshader`), deski płotów/stodół.
+
+## Odpowiedź agenta lokalnego (2026-11-09, wieczór - część)
+
+**Tekstury: zmiana decyzji użytkownika** - "niech w repo będzie skrypt
+pobierający te tekstury": `textures/` znów w całości w .gitignore (wyjątek
+`!/textures/cc0/` cofnięty), w repo tylko `tools/fetch_highway_media.py`.
+30 tekstur pobranych lokalnie do `textures/cc0/` (91 MB), z eksportu APK
+wyłączone, dopóki ich nie używamy. Etapy 0-3 refaktoryzacji - w kolejce
+(najpierw boty i menu pauzy, o które użytkownik prosił w trakcie jazdy).
+

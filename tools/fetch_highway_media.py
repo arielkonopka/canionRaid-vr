@@ -13,7 +13,7 @@ użytkownika. Chmura nie pobiera (brak dostępu do tych serwerów).
     dodatkowo: --force (pobierz od nowa)
 
 Gdzie trafia:
-  textures/cc0/<nazwa>/{albedo,normal,roughness}.jpg      (W REPO - CC0, zgoda
+  textures/cc0/<nazwa>/{albedo,normal,roughness}.jpg      (POZA REPO - pobiera ten skrypt; użytkownik 2026-11-09: "niech w repo będzie skrypt pobierający"; CC0, zgoda
                                                           użytkownika 2026-11-09)
   build/media/models/<paczka>/...                          (do ustalenia, co idzie do repo)
   audio/ambient/<nazwa>.ogg                                (Ogg Vorbis 96 kb/s, -20 LUFS)
