@@ -81,10 +81,17 @@ niepotwierdzona, tylko lokalnie).
 | asphalt_worn | [Road013A](https://ambientcg.com/view?id=Road013A) | spękany asfalt dróg lokalnych |
 | field_soil | [Ground109](https://ambientcg.com/view?id=Ground109) | pole orne |
 | snow | [Snow015](https://ambientcg.com/view?id=Snow015) | śnieg w górach (opcja) |
+| brick_red | [brick_wall_001](https://polyhaven.com/a/brick_wall_001) (Poly Haven) | czerwona cegła |
+| wood_planks | [brown_planks_03](https://polyhaven.com/a/brown_planks_03) (Poly Haven) | deski: płoty, stodoły, szopy |
+| plaster_house | [beige_wall_001](https://polyhaven.com/a/beige_wall_001) (Poly Haven) | tynk domu |
 
-Dalej brak: czerwonej cegły (przyciemnić Bricks105 w shaderze), elewacji
-mieszkalnej z oknami (okna w `facade.gdshader`), desek na płoty i stodoły
-(najbliżej Planks040 - podłogowe). Woda morska - bez tekstury: jest
+**Zamienniki** (użytkownik: "tam, gdzie nie udało się pobrać, bierz
+zamienniki"): `FALLBACKS` w skrypcie - gdy pozycja się nie pobierze,
+skrypt sam bierze zastępczą (też CC0), a `--credits` podpisuje to, co
+faktycznie pobrano (`SOURCE.txt`).
+
+Elewacji mieszkalnej **z oknami** nie ma w żadnym z serwisów - okna rysuje
+`facade.gdshader` na tynku (`plaster_house`, `plaster*`). Woda morska - bez tekstury: jest
 proceduralny `ocean.gdshader`. Skały gór - te same co w wąwozie.
 
 Braki: **pole uprawne / ściernisko** (w API nie znalazłem; zastępczo
