@@ -413,6 +413,7 @@ static func _tunnel(out: Array, state: Dictionary, d: Dictionary, rng: RandomNum
 		# rozwidlenie ze skalną wyspą), każda połowa wjeżdża do osobno
 		# wierconej rury; za górą nitki znów się łączą.
 		var w: float = state.get("width", 9.0)
+		_island_warning(out, state)
 		_push(out, state, {"len": 45.0, "width": w * 2.0 + ISLAND_W, "bank": 0.0, "pitch": 0.0,
 				"meta": {"island": {"start": 45.0, "len": length, "w": ISLAND_W}}})
 		_push(out, state, {"len": length, "pitch": 0.0, "bank": 0.0, "curve": curve,
@@ -435,10 +436,21 @@ static func _split(out: Array, state: Dictionary, d: Dictionary, rng: RandomNumb
 	var w: float = state.get("width", 9.0)
 	var wide := w * 2.0 + ISLAND_W
 	var hold := rng.randf_range(100.0, 180.0)
+	_island_warning(out, state)
 	_push(out, state, {"len": 45.0, "width": wide, "bank": 0.0, "pitch": 0.0,
 			"meta": {"island": {"start": 45.0, "len": hold, "w": ISLAND_W}}})
 	_push(out, state, {"len": hold, "width": wide})
 	_push(out, state, {"len": 45.0, "width": w})
+
+
+## Prosta przed rozwidleniem z trójkątem ostrzegawczym A-30 (użytkownik
+## 2026-11-09: "120 m wcześniej stoi trójkąt ostrzegawczy"). Znak z
+## meta.road_sign stoi 8 m za początkiem kawałka, czoło wysepki 45 m za
+## jego końcem: 8 + ISLAND_WARN_DIST = len + 45.
+const ISLAND_WARN_DIST := 120.0
+static func _island_warning(out: Array, state: Dictionary) -> void:
+	_push(out, state, {"len": ISLAND_WARN_DIST + 8.0 - 45.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0,
+			"meta": {"road_sign": "danger"}})
 
 
 ## Zjazd do stacji paliw albo warsztatu (użytkownik: "wymaga zjechania
