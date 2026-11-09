@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-08, sesja 3 (cd.: strażnik wysokości jezdni - droga pod trawą / pod morzem; wątek w chmurze)
+Ostatnia aktualizacja: 2026-11-09, sesja 4 (noc: rozdzielczość działa od razu, kompresja tekstur skał, concept car przy 160%)
 
 ---
 
@@ -184,10 +184,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - **Maksimum ostrości, jakie da sprzęt** (użytkownik): rozdzielczość
     domyślnie 160% (opcja 100-180%), foweacja w menu (domyślnie słaba),
     bez dynamicznej rozdzielczości Meta, anizotropia 16x - **na Queście
-    ~8 kl./s i gogle "prawie się zagotowały"**. Wrócone: 130%, foweacja
-    średnia, anizotropia 4x, dynamiczna rozdzielczość Meta włączona.
-    Użytkownikowi 160% podobało się wizualnie - cel: odzyskać je
-    optymalizacjami. Prawdziwego "4K jak monitor" się nie da (~25 px/°).
+    ~8 kl./s i gogle "prawie się zagotowały"**. Foweacja średnia,
+    anizotropia 4x. Użytkownikowi 160% podobało się wizualnie - cel:
+    odzyskać je optymalizacjami. Prawdziwego "4K jak monitor" się nie
+    da (~25 px/°). Od 2026-11-09 domyślnie 110% (uczciwy pomiar, sekcja 5).
+  - **Zmiana rozdzielczości ma działać od razu, bez restartu aplikacji**
+    (użytkownik, 2026-11-09) - działa, pod warunkiem wyłączonej
+    dynamicznej rozdzielczości Meta (sekcja 3, pułapki).
   - **README ma opisywać obecną grę** (był jeszcze o torze na słupach).
   - **Autostrada zamiast wąwozu** (użytkownik, wybory z pytania): co
     kilka odcinków cały odcinek, wąwóz otwiera się i zamyka na jej
@@ -474,7 +477,45 @@ Projekt-wzór: **`~/dev/asteroids-vr`** - inny projekt użytkownika na
 Questa 3 w Godocie 4.6, z działającym eksportem. Stamtąd pochodzą
 wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
+- **adb przez Wi-Fi** (od 2026-11-08, użytkownik chciał bez kabla):
+  `./quest.sh wifi` raz z kablem - czyta IP gogli (`wlan0`), `adb tcpip
+  5555`, łączy (kilka prób, adb w goglach się restartuje), zapisuje adres
+  w `build/.quest_wifi`. Potem `wait_device` sam robi `adb connect`
+  i wybiera urządzenie przez `ANDROID_SERIAL` (kabel i Wi-Fi to te same
+  gogle widziane dwa razy). Ważne do restartu gogli - potem znowu `wifi`
+  z kablem. Gogle: 192.168.2.192 (sieć domowa użytkownika). Log w tle:
+  `adb -s 192.168.2.192:5555 logcat -v time godot:V '*:S'`.
+- **Pułapka: serwer adb na PC sam się wyłączał** ("daemon not running")
+  - zabijał go eksport Godota (`shutdown_adb_on_exit`, wyłączone
+  2026-11-09, sekcja pułapek). Jeśli wróci, gogle często wracają do
+  "unauthorized" - użytkownik musi znów zatwierdzić debugowanie
+  w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
+
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Opcja rozdzielczości w menu nic nie zmienia / "działa dopiero po
+  restarcie", a VrApi pokazuje `SF=0.50`** → dynamiczna rozdzielczość
+  Meta (wtyczka vendors) nadpisuje mnożnik. Wyłączona w `project.godot`
+  (`openxr/extensions/meta/dynamic_resolution=false`). Nie włączaj -
+  fałszuje też pomiary wydajności.
+- **Skały kosztują pół klatki GPU** → tekstury z `textures/` miały import
+  `compress/mode=0` (bez kompresji VRAM) i `mipmaps/generate=false`;
+  auto-wykrywanie "3D" działa tylko w edytorze, którego nie otwieramy.
+  Teraz `compress/mode=2`, mipmapy, mapy normalnych z
+  `compress/normal_map=1` (tylko RG - `rock.gdshader` odtwarza Z
+  w `nrm_tap`). Pliki `.import` w `textures/` są lokalne (katalog poza
+  repo) - po ponownym rozpakowaniu tekstur ustaw to od nowa. Każdą nową
+  teksturę 3D importuj z kompresją VRAM i mipmapami.
+- **Demon adb pada po każdym `./quest.sh build`, gogle wracają do
+  "unauthorized"** → eksport Godota na Androida woła przy wyjściu
+  `adb kill-server`. Wyłączone w ustawieniach edytora:
+  `export/android/shutdown_adb_on_exit = false`
+  (`~/.config/godot/editor_settings-4.6.tres`). Po tej zmianie adb
+  przeżywa build.
+- **Gra na goglach w ogóle nie startuje (pomiar daje GPU 0 ms), logcat:
+  "TrackingService: Notifying idle due to no 6dof tracking"** → gogle
+  leżą w ciemnym pokoju, bez śledzenia aplikacja VR nie rusza. Pomiary
+  tylko przy zapalonym świetle.
 
 - **Godot z CLI "nic nie wypisuje" i wisi** → bez runtime'u OpenXR
   zawiesza się przy wyjściu, a zabicie procesu gubi buforowane wyjście.
@@ -652,17 +693,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   ograniczenie + przekroczenie, łuki zawsze (`_curve_speed`). Bot w szale
   dostaje max(350 kW, moc gracza).
 - **Rozdzielczość i foweacja** (`GameSettings.apply_xr_quality`, opcja
-  `xr_resolution`): `OpenXRInterface.render_target_size_multiplier`
-  ustawiany z kodu (Godot nie ma na to ustawienia projektu) - działa także
-  po starcie sesji: log z Questa "XR: rozdzielczość 130%, obraz na oko
-  (2184, 2288)" (zalecane 1680×1760), przy 160% (2688, 2816). Foweacja
-  z opcji `xr_foveation` (0-3, dynamiczna), w projekcie poziom 1.
-  `openxr/extensions/meta/dynamic_resolution=false` - inaczej gogle pod
-  obciążeniem obniżają obraz po cichu. Anizotropia 16x w projekcie.
-  `SETTINGS_VERSION` 4 przestawia zapisane 130% na 160%. Zmiana w menu
-  stosuje się od razu. Gra wpisuje do logu co 5 s "PERF: kl./s, proces,
-  fizyka, boty" (`xr_main._log_perf`) - po tym dobierać domyślną
-  rozdzielczość (Quest 3 domyślnie 72 Hz).
+  `xr_resolution`, domyślnie **110%**): `OpenXRInterface.
+  render_target_size_multiplier` ustawiany z kodu **działa od razu**
+  (log gogli: `OpenXR_GPUMemTrace: Swapchain creation, width: 2688`
+  zaraz po zmianie; VrApi `SF=` śledzi opcję w ciągu ~1 s). Warunek:
+  `openxr/extensions/meta/dynamic_resolution=false` w `project.godot`
+  (ustawienie wtyczki godotopenxrvendors, rozszerzenie
+  `XR_META_recommended_layer_resolution`). Z nim gogle same wybierały
+  rozmiar obrazu (`SF=0.50` przy opcji 160%) - opcja z menu nie działała,
+  użytkownik widział zmianę "dopiero po restarcie", a wszystkie pomiary
+  wydajności sprzed 2026-11-09 były zawyżone (gogle rysowały w połowie
+  rozdzielczości). Uczciwe pomiary (S1, po kompresji tekstur): 100% -
+  GPU 10 ms, 72 kl./s; 130% - 15,8 ms, 53 kl./s. Foweacja z opcji
+  `xr_foveation` (0-3, dynamiczna). `SETTINGS_VERSION` 8 obcina zapisane
+  >110% do 110%. Gra wpisuje do logu co 5 s "PERF..." (`xr_main._log_perf`).
 - **Liczniki wydajności** (`scripts/perf.gd`, `Perf.add/dump`, linia
   "PERF+ ms/s" w logu co 5 s obok "PERF:"): auto_fiz/bot_fiz, auto_wyg/
   bot_wyg, dzwiek, bot_ster, boty_mgr, trasa, budowa_trasy, hud, deszcz.
@@ -1340,9 +1384,84 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   testem `track_height_test` (w `quest.sh test`). Kod napisany bez
   Godota - lokalny agent musi uruchomić testy i sprawdzić na goglach.
 
+### 2026-11-09, sesja 4 (noc, użytkownik śpi, pracowałem sam)
+- Zgłoszenie: "gra się wyłącza, gdy w trybie wyższej rozdzielczości
+  przełączyć nadwozie na concept car". Pomiar w goglach: sam ekran
+  tytułowy przy 160% miał 19 kl./s, GPU 100%, ~950 MB pamięci GPU -
+  przeładowanie modelu dobijało grę. Przy 100% przełączanie (co 3 s,
+  wielokrotnie) nie zamyka gry. Poprawki: ekran tytułowy bez cieni
+  słońca (jak scena jazdy), scena concept cara wczytywana raz
+  (`StuntCar._concept_scene`), tekstury skompresowane (niżej). Przy 160%
+  po poprawkach **nie sprawdzone w goglach** (gogle straciły śledzenie).
+- Zgłoszenie: "zmiana rozdzielczości działa dopiero po restarcie".
+  Przyczyna: dynamiczna rozdzielczość Meta - wyłączona; zmiana działa od
+  razu (sprawdzone logiem gogli). Domyślnie 110% (pomiar), migracja v8.
+- Główny zysk wydajności: kompresja VRAM i mipmapy tekstur skał
+  (S1 100%: GPU 22,6 → 10,0 ms; 130%: 32 → 15,8 ms).
+- adb przestał padać po buildzie (ustawienie edytora, sekcja 3).
+- `user://bench.cfg` jednorazowy (Bench kasuje go po wczytaniu - plik
+  zostawiony w goglach przełączał każde uruchomienie w tryb pomiaru);
+  w pomiarze czerwony napis "BENCH S1" nad mapką (uwagi z chmury).
+- Scalone z chmury: wnętrze sedana z epoki (PR #24), zrzuty obejrzane.
+- Rano (użytkownik): "nowe lusterko nie działa, stare tak, ale
+  nielogicznie umieszczone". Atrapa z nowego wnętrza ma teraz obraz:
+  `StuntCar.mirror_mount` (+ chromowana tafla "MirrorFace" bez sceny
+  jazdy), `xr_main._build_mirror` kładzie na niej szkło z kamery.
+  Concept car dalej ma osobną ramkę nad deską.
+- **Radio** (moduły z chmury: `car_radio.gd`, `radio_catalog.gd`,
+  `radio_stations.gd`): 15 utworów z OpenGameArt w 3 stacjach
+  (`audio/radio/`, 24 MB, **w repo** - decyzja użytkownika; licencje
+  CC0/CC-BY/CC-BY-SA sprawdzone na stronach 2026-11-09, podpisy w
+  `CREDITS.md`). `tools/fetch_radio.py` pobiera i konwertuje (ffmpeg);
+  OpenGameArt dopisuje do nazw plików numer wersji (`_0`, `_6`) -
+  wzorce mają `(_\d+)?`, podglądy (`audio_preview`) pomijane.
+  `CarRadio` tworzy odtwarzacze przy pierwszym użyciu (`_setup`).
+- **Menu pauzy** (`scripts/pause_menu.gd`, `PauseMenu extends
+  GazeFollow`): lewy przycisk menu w jeździe (PC: Esc) - **wcześniej
+  wracał od razu do ekranu tytułowego**, teraz pauza; wyjście do menu
+  głównego jest pozycją pauzy. Ustalone z użytkownikiem: radio sterowane
+  tylko z pauzy (wł./wył., stacja, głośność) - żaden przycisk w jeździe
+  się nie zmienił. Pauza = `get_tree().paused`; `PROCESS_MODE_ALWAYS`
+  mają menu, `CarRadio` i **XROrigin3D** (bez tego w pauzie zamarza
+  śledzenie głowy i kontrolerów). W pauzie A zatwierdza, drążek
+  góra/dół wybiera, w bok zmienia. "Co gra": napis nad radiem na desce
+  sedana (concept: pod mapką) i krótki napis w HUD przy zmianie utworu.
+  Test `tests/pause_test.gd`.
+- Zgłoszenie: "auto praktycznie nie jest w stanie ruszyć pod górę"
+  (gogle: benzyna 1000->700 kW, 4x4, automat, 2500 kg, TCS). Nowy
+  `tests/hill_test.gd` (w `./quest.sh test`): pochylnia 15% i 35%, cztery
+  konfiguracje - wszystkie wjeżdżają (700 kW: 186 / 141 km/h po 12 s;
+  diesel 90 kW: 81 / 52). Log z gogli nadpisany, przyczyna niepotwierdzona;
+  podejrzenie: pusty bak - 700 kW na pełnym gazie opróżnia 3,6 kWh
+  w ~25 s (`fuel` liczony z chwilowej mocy). Pytanie do użytkownika
+  w sekcji 9.
+- Użytkownik: "w benzynie i dieslu brak paliwa - silnik gaśnie".
+  `StuntCar.engine_running` (`_update_engine_state`): pusty bak - obroty
+  opadają do 0, napęd i bezwładność silnika rozłączone (auto się toczy),
+  dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
+  Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
+- Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
+- Do odsłuchu w goglach: głośność radia względem silnika (`VOLUME_DB`
+  -8 dB, w pauzie 9 stopni), brzmienie szyny "Radio", czytelność
+  napisu nad radiem.
+- Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
+  sport auto - przejazd 0:23,48.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+00. **Wydajność - stan 2026-11-09** (plan: `docs/PERF_PLAN.md`, inbox
+   `2026-11-08-plan-wydajnosci.md`). Pomiary sprzed tej daty są
+   nieważne (dynamiczna rozdzielczość Meta). Do zrobienia przy
+   zapalonym świetle (gogle muszą śledzić): seria
+   `tools/bench_quest.sh` S1-S5 przy 100/110/130%, A/B `rock_simple`,
+   `tunnel_lights`, `rain`, `mirror`; sprawdzić concept car przy 160%
+   (przełączanie w menu - wcześniej zamykało grę). Cel użytkownika:
+   160% płynnie. Pomysły na shader skał: mapowanie dwupłaszczyznowe
+   (biplanar, 2 odczyty zamiast 3), krótszy `normal_dist`, mech bez
+   mapy normalnych. Uwaga: ekran tytułowy przy 100% miał 29 ms GPU
+   jeszcze przed kompresją tekstur - po kompresji nie mierzony.
 
 0. **PILNE, odłożone na następną sesję (użytkownik, 2026-11-08):
    "po odcinku 8 skończyła mi się trasa"** - na goglach, na APK z sesji 3
@@ -1404,18 +1523,13 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    Komfort kokpitu, pozycja `seat`, czytelność menu, kamera związana
    z przechyłami auta (ewentualnie opcja "horyzont stały"), strojenie
    fizyki na wyczucie.
-3. **Kokpit wzorowany na nowoczesnym SUV-ie** (zdjęcie od użytkownika,
-   uwaga: auto z zewnątrz jest teraz sedanem z lat 70. - nowoczesne
-   wnętrze w starym nadwoziu to "restomod"; zapytaj, czy tak ma zostać,
-   czy wnętrze ma być z epoki. Teraz wnętrze jest proste, z epoki:
-   kanapy, cienka kierownica, tymczasowe zegary tekstowe.
-   bez logo producenta): kierownica, cyfrowe zegary za kierownicą,
-   wolnostojący tablet na środku deski, pozioma deska z nawiewami
-   w chromowanych ramkach, konsola środkowa z wybierakiem, boczki drzwi
-   z chromowanymi akcentami, ciemna skóra. Z prymitywów, własny styl.
-   - Na zegarach: prędkość, obroty, moc (chwilowa, kW), licznik
-     kilometrów (odometr).
-   - Na tablecie: radio.
+3. **Wnętrze sedana - z epoki (ustalone, 2026-11-08)**. Użytkownik
+   w wątku w chmurze: "kierownica jest strasznie siermiężna, czy może
+   bardziej wyglądać jak w fiacie 125?" - włoski sedan przełomu lat 60.
+   i 70., nie nowoczesny SUV. Zrobione w chmurze (PR #24, scalony,
+   `_build_interior` w `stunt_car.gd`; rendery i testy lokalnie OK
+   2026-11-09). Zostało: ocena w goglach (czy nic nie zasłania drogi,
+   czy klatka się trzyma). Na zegarach dalej: moc chwilowa, odometr.
 4. **Robot-kierowca w stylu art déco lat 20.** Gracz jest robotem.
    Dwa widoki do wyboru: z fotela kierowcy (widzi swoje metalowe ręce
    na kierownicy) albo z fotela pasażera (robot prowadzi obok).
@@ -1461,11 +1575,12 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
+- (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
+  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? Czy zużycie ma
+  mniej zależeć od mocy (teraz 700 kW do dechy = ~2 km na baku)?
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
-  Niepotwierdzone. Kokpit ma się wzorować na zdjęciu SUV-a.
+  Niepotwierdzone.
 - Czy ABS i ESP też przełączać w trakcie jazdy, i pod jakimi przyciskami?
-- Wnętrze: nowoczesne jak na zdjęciu SUV-a (restomod) czy z epoki,
-  pasujące do sedana z lat 70.?
 - Trasa generowana: skończona liczba odcinków czy bez końca? Trudność
   zależna od mocy wybranego auta czy stała?

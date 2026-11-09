@@ -676,7 +676,8 @@ func _physics_step(delta: float) -> void:
 	_update_esp(delta, grounded)
 	var g_ratio := _total_ratio(gear)
 	var axle_torque := 0.0
-	if _clutch_engaged or _clutch_slipping():
+	_update_engine_state()
+	if engine_running and (_clutch_engaged or _clutch_slipping()):
 		var t_engine := _engine_torque_at_clutch()
 		if t_engine > 0.0:
 			# Systemy odcinają tylko moment napędowy, hamowania silnikiem nie ruszają.
@@ -686,11 +687,11 @@ func _physics_step(delta: float) -> void:
 			t_engine *= (1.0 - 0.75 * damage["engine"]) * (0.0 if (is_wrecked or fuel <= 0.0) else 1.0)
 		axle_torque = t_engine * g_ratio * drivetrain_efficiency
 		_burn_fuel(maxf(t_engine, 0.0) * engine_rpm / RPM_PER_RAD_S, delta)
-	elif not electric:
+	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
 	var n_driven := 2.0 if _is_rwd() else 4.0
-	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if _clutch_engaged else 0.0
+	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if (_clutch_engaged and engine_running) else 0.0
 
 	# --- 4. opony i koła, w podkrokach ---
 	# Kierunki i prędkości w punktach styku są stałe w obrębie kroku.
@@ -1285,6 +1286,9 @@ func shift_down() -> void:
 
 
 func _update_engine_rpm(delta: float) -> void:
+	if not engine_running:
+		engine_rpm = move_toward(engine_rpm, 0.0, 1500.0 * delta)
+		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)
 		return
@@ -1523,47 +1527,8 @@ func _build_body() -> void:
 	_dent_finish()
 	_build_wipers(dark)
 
-	# --- wnętrze ---
-	_box_mesh("Floor", Vector3(1.66, 0.04, 2.10), Vector3(0.0, -0.43, 0.50), carpet)
-	# Podsufitka pod winylowym dachem - jasna, jak w sedanach z epoki.
-	_box_mesh("Headliner", Vector3(1.36, 0.02, 1.10), Vector3(0.0, 0.632, 0.55), headliner)
-	_box_mesh("Firewall", Vector3(1.66, 0.42, 0.04), Vector3(0.0, -0.22, -0.55), carpet)
-	_box_mesh("Dash", Vector3(1.62, 0.22, 0.38), Vector3(0.0, 0.05, -0.42), trim)
-	# Kanapy - przednia i tylna, jak w sedanach z epoki.
-	_box_mesh("BenchF", Vector3(1.45, 0.12, 0.52), Vector3(0.0, -0.33, 0.42), trim)
-	_box_mesh("BenchFBack", Vector3(1.45, 0.62, 0.12), Vector3(0.0, -0.02, 0.72), trim) \
-			.rotation = Vector3(deg_to_rad(14.0), 0.0, 0.0)
-	_box_mesh("BenchR", Vector3(1.45, 0.12, 0.45), Vector3(0.0, -0.30, 1.30), trim)
-	_box_mesh("BenchRBack", Vector3(1.45, 0.60, 0.12), Vector3(0.0, 0.0, 1.55), trim) \
-			.rotation = Vector3(deg_to_rad(20.0), 0.0, 0.0)
-
-	# Duża, cienka kierownica. Kolumna nachylona 25° od poziomu, oś
-	# kierownicy wskazuje na kierowcę; koło obraca się razem ze skrętem.
-	var column := Node3D.new()
-	column.name = "SteeringColumn"
-	column.position = Vector3(-0.38, 0.17, -0.12)
-	column.rotation = Vector3(deg_to_rad(65.0), 0.0, 0.0)
-	add_child(column)
-	_steering_wheel = Node3D.new()
-	_steering_wheel.name = "SteeringWheel"
-	column.add_child(_steering_wheel)
-	var rim_mesh := TorusMesh.new()
-	rim_mesh.inner_radius = 0.17
-	rim_mesh.outer_radius = 0.19
-	rim_mesh.rings = 24
-	rim_mesh.ring_segments = 8
-	rim_mesh.material = dark
-	var rim_mi := MeshInstance3D.new()
-	rim_mi.mesh = rim_mesh
-	_steering_wheel.add_child(rim_mi)
-	for ang in [0.0, PI * 0.5]:
-		var spoke := MeshInstance3D.new()
-		var sb := BoxMesh.new()
-		sb.size = Vector3(0.34, 0.015, 0.025)
-		sb.material = chrome
-		spoke.mesh = sb
-		spoke.rotation = Vector3(0.0, ang, 0.0)
-		_steering_wheel.add_child(spoke)
+	# --- wnętrze (sekcja "Wnętrze sedana" niżej) ---
+	_build_interior(trim, carpet, headliner, dark, chrome)
 
 	# --- koła: opona z zaokrąglonymi ściankami, kołpak z żebrami ---
 	var tire_mat := _mat(Color(0.06, 0.06, 0.065), 0.92)
@@ -1603,7 +1568,7 @@ func _build_body() -> void:
 	gauges = Gauges.new()
 	gauges.name = "Gauges"
 	add_child(gauges)
-	gauges.build(Vector3(-0.38, 0.235, -0.37), 30.0)
+	gauges.build(SEDAN_CLUSTER, 30.0)
 	gauges.set_rpm_range(redline_rpm + 800.0, redline_rpm)
 	# Pod tarczami: bieg i kontrolki systemów (ABS/TCS/ESP).
 	dash_label = Label3D.new()
@@ -1690,6 +1655,341 @@ func _box_mesh(n: String, size: Vector3, pos: Vector3, m: Material) -> MeshInsta
 	return mi
 
 
+# --------------------------------------------------------------------------
+# Wnętrze sedana
+# --------------------------------------------------------------------------
+#
+# Styl: włoski sedan z przełomu lat 60. i 70. (użytkownik 2026-11-08:
+# kierownica "strasznie siermiężna", ma być bardziej "jak w fiacie 125").
+# To inspiracja epoką, nie kopia konkretnego auta: duża kierownica
+# z cienkim czarnym wieńcem i dwiema nawierconymi szprychami z satynowego
+# metalu, chromowany pierścień klaksonu, piasta cofnięta ku kolumnie;
+# deska z miękkim czarnym wałkiem u góry i listwą pod drewno z chromem,
+# okrągłe zegary w osłonie, trzy małe zegary pomocnicze na środku,
+# okrągłe nawiewy, radio z gałkami, przełączniki dźwigienkowe; osobne
+# przednie fotele przeszyte w pionowe pasy, boczki drzwi z listwą,
+# podłokietnikiem i korbką szyby, dźwignia biegów w tunelu, pedały,
+# lusterko i osłony przeciwsłoneczne. Bez logo i znaków firmowych.
+#
+# Wydajność (Quest): nieruchoma część wnętrza to JEDNA siatka z jedną
+# powierzchnią na materiał (8), kierownica i kolumna po jednej siatce
+# (3 + 1). Wcześniej 10 osobnych pudeł = 10 wywołań rysowania, teraz ~12
+# przy dużo większej liczbie szczegółów. Siatka wnętrza nie rzuca cieni
+# (cień daje karoseria). Boty dostają wersję bez drobiazgów.
+
+## Dokłada prymityw do zbioru `parts` (materiał -> SurfaceTool).
+func _ip_add(parts: Dictionary, m: Material, mesh: Mesh, xf: Transform3D) -> void:
+	if not parts.has(m):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		parts[m] = st
+	(parts[m] as SurfaceTool).append_from(mesh, 0, xf)
+
+
+func _ip_box(parts: Dictionary, m: Material, size: Vector3, pos: Vector3, b := Basis()) -> void:
+	var bm := BoxMesh.new()
+	bm.size = size
+	_ip_add(parts, m, bm, Transform3D(b, pos))
+
+
+## Walec (albo stożek ścięty) wzdłuż osi Y bazy `b`.
+func _ip_cyl(parts: Dictionary, m: Material, r_top: float, r_bot: float, h: float,
+		pos: Vector3, b := Basis(), segs := 12) -> void:
+	var c := CylinderMesh.new()
+	c.top_radius = r_top
+	c.bottom_radius = r_bot
+	c.height = h
+	c.radial_segments = segs
+	c.rings = 1
+	_ip_add(parts, m, c, Transform3D(b, pos))
+
+
+## Pierścień wokół osi Y bazy `b`: `r` - promień osi rurki, `t` - promień rurki.
+func _ip_ring(parts: Dictionary, m: Material, r: float, t: float, pos: Vector3,
+		b := Basis(), segs := 24, sides := 6) -> void:
+	var tm := TorusMesh.new()
+	tm.inner_radius = r - t
+	tm.outer_radius = r + t
+	tm.rings = segs
+	tm.ring_segments = sides
+	_ip_add(parts, m, tm, Transform3D(b, pos))
+
+
+func _ip_ball(parts: Dictionary, m: Material, r: float, pos: Vector3) -> void:
+	var s := SphereMesh.new()
+	s.radius = r
+	s.height = r * 2.0
+	s.radial_segments = 10
+	s.rings = 5
+	_ip_add(parts, m, s, Transform3D(Basis(), pos))
+
+
+## Baza, której oś Y biegnie wzdłuż `dir`, a oś X możliwie blisko `side`
+## (`side` nie może być równoległy do `dir`).
+func _basis_along(dir: Vector3, side: Vector3) -> Basis:
+	var y := dir.normalized()
+	var z := side.cross(y).normalized()
+	return Basis(y.cross(z), y, z)
+
+
+## Płaskownik od `a` do `b`: szerokość `w` wzdłuż `side`, grubość `t`.
+func _ip_bar(parts: Dictionary, m: Material, a: Vector3, b: Vector3, w: float, t: float,
+		side := Vector3.RIGHT) -> void:
+	_ip_box(parts, m, Vector3(w, a.distance_to(b), t), (a + b) * 0.5, _basis_along(b - a, side))
+
+
+## Pręt (walec) od `a` do `b`.
+func _ip_rod(parts: Dictionary, m: Material, a: Vector3, b: Vector3, r: float,
+		side := Vector3.RIGHT, segs := 8) -> void:
+	_ip_cyl(parts, m, r, r, a.distance_to(b), (a + b) * 0.5, _basis_along(b - a, side), segs)
+
+
+## Scala zebrane prymitywy w jedną siatkę (powierzchnia na materiał).
+func _ip_commit(parts: Dictionary, n: String, parent: Node3D) -> MeshInstance3D:
+	var mesh := ArrayMesh.new()
+	for m in parts:
+		var st: SurfaceTool = parts[m]
+		st.set_material(m)
+		st.commit(mesh)
+	var mi := MeshInstance3D.new()
+	mi.name = n
+	mi.mesh = mesh
+	parent.add_child(mi)
+	return mi
+
+
+func _build_interior(trim: Material, carpet: Material, headliner: Material,
+		dark: Material, chrome: Material) -> void:
+	var detail := not is_bot
+	# Czarny, lekko błyszczący "bakelit" (wieniec, gałki, kolumna), satynowy
+	# metal (szprychy, ramki, pedały) i listwa pod orzech.
+	var bakelite := _mat(Color(0.025, 0.025, 0.028), 0.35)
+	var alu := _mat(Color(0.72, 0.72, 0.70), 0.38)
+	alu.metallic = 0.85
+	var wood := _mat(Color(0.33, 0.17, 0.08), 0.45)
+	_cockpit_mats.append(bakelite)
+	_cockpit_mats.append(alu)
+	_cockpit_mats.append(wood)
+	var along_x := Basis(Vector3.BACK, PI * 0.5)     # oś Y prymitywu -> X auta
+	var along_z := Basis(Vector3.RIGHT, PI * 0.5)    # oś Y prymitywu -> +Z (do kierowcy)
+	var p := {}
+
+	# Podłoga, tunel skrzyni, ściana grodziowa, podsufitka.
+	_ip_box(p, carpet, Vector3(1.66, 0.04, 2.10), Vector3(0.0, -0.43, 0.50))
+	_ip_box(p, carpet, Vector3(0.26, 0.10, 1.05), Vector3(0.0, -0.36, -0.02))
+	_ip_box(p, carpet, Vector3(1.66, 0.42, 0.04), Vector3(0.0, -0.22, -0.55))
+	_ip_box(p, headliner, Vector3(1.36, 0.02, 1.10), Vector3(0.0, 0.632, 0.55))
+
+	# Deska: ciemny korpus (przód na z = -0,25), miękki czarny wałek nad
+	# listwą pod drewno, pod listwą cienki chrom.
+	_ip_box(p, dark, Vector3(1.62, 0.20, 0.34), Vector3(0.0, 0.05, -0.42))
+	_ip_box(p, dark, Vector3(1.64, 0.03, 0.36), Vector3(0.0, 0.163, -0.43))
+	_ip_cyl(p, dark, 0.032, 0.032, 1.64, Vector3(0.0, 0.148, -0.25), along_x, 10)
+	_ip_box(p, wood, Vector3(1.56, 0.08, 0.012), Vector3(0.0, 0.07, -0.244))
+	_ip_box(p, chrome, Vector3(1.56, 0.006, 0.014), Vector3(0.0, 0.027, -0.243))
+	# Okrągłe nawiewy na końcach listwy: chromowana ramka, poziome kierownice.
+	for vx in [-0.72, 0.72]:
+		var vc := Vector3(vx, 0.07, -0.238)
+		_ip_cyl(p, bakelite, 0.034, 0.034, 0.008, vc, along_z, 16)
+		_ip_ring(p, chrome, 0.037, 0.004, vc + Vector3(0.0, 0.0, 0.003), along_z, 16, 4)
+		if detail:
+			for vy in [-0.015, 0.0, 0.015]:
+				_ip_box(p, alu, Vector3(0.056, 0.004, 0.006), vc + Vector3(0.0, vy, 0.005))
+	# Osłona zestawu zegarów (Gauges): daszek, boki i tył w układzie tarcz.
+	if detail:
+		var cl := Transform3D(Basis(Vector3.RIGHT, deg_to_rad(-30.0)), SEDAN_CLUSTER)
+		_ip_box(p, dark, Vector3(0.41, 0.016, 0.10), cl * Vector3(0.0, 0.098, 0.005), cl.basis)
+		for s in [-1.0, 1.0]:
+			_ip_box(p, dark, Vector3(0.02, 0.21, 0.09), cl * Vector3(s * 0.195, 0.0, -0.01), cl.basis)
+		_ip_box(p, dark, Vector3(0.41, 0.21, 0.04), cl * Vector3(0.0, -0.01, -0.075), cl.basis)
+		_ip_box(p, dark, Vector3(0.41, 0.04, 0.10), cl * Vector3(0.0, -0.11, -0.03), cl.basis)
+		_build_dash_details(p, bakelite, alu, chrome, dark, headliner, along_z)
+
+	# Przednie fotele osobno, środek przeszyty w pionowe pasy, wyższe boki.
+	for sx in [-0.38, 0.38]:
+		_ip_seat(p, trim, carpet, 0.52, Vector3(sx, -0.33, 0.42), 0.52,
+				Vector3(sx, -0.02, 0.72), 14.0, 0.62, detail)
+	_ip_seat(p, trim, carpet, 1.45, Vector3(0.0, -0.30, 1.30), 0.45,
+			Vector3(0.0, 0.0, 1.55), 20.0, 0.60, detail)
+
+	# Boczki drzwi (wewnętrzna ściana kabiny na x = ±0,83) i parapety okien
+	# (szyby boczne stoją cofnięte na x = ±0,72 - parapet zakrywa szczelinę).
+	for sx in [-1.0, 1.0]:
+		var xi: float = sx * 0.822
+		_ip_box(p, dark, Vector3(0.11, 0.02, 2.06), Vector3(sx * 0.775, 0.12, 0.50))
+		_ip_box(p, trim, Vector3(0.012, 0.46, 0.94), Vector3(xi, -0.15, -0.03))   # przednie
+		_ip_box(p, trim, Vector3(0.012, 0.46, 0.40), Vector3(xi, -0.15, 0.66))    # tylne, przed nadkolem
+		_ip_box(p, trim, Vector3(0.012, 0.14, 0.48), Vector3(xi, 0.01, 1.10))     # tylne, nad nadkolem
+		_ip_box(p, carpet, Vector3(0.014, 0.10, 1.34), Vector3(sx * 0.82, -0.33, 0.17))
+		_ip_box(p, chrome, Vector3(0.006, 0.006, 1.84), Vector3(sx * 0.815, 0.0, 0.42))
+		_ip_box(p, trim, Vector3(0.06, 0.05, 0.32), Vector3(sx * 0.79, -0.07, 0.06))  # podłokietnik
+		_ip_box(p, chrome, Vector3(0.012, 0.022, 0.10), Vector3(sx * 0.812, 0.03, -0.28))  # klamka
+		if detail:
+			# Korbka szyby.
+			var kc := Vector3(sx * 0.812, -0.16, -0.12)
+			var ke := kc + Vector3(-sx * 0.008, -0.05, 0.03)
+			_ip_cyl(p, alu, 0.016, 0.016, 0.012, kc, along_x, 10)
+			_ip_bar(p, alu, kc + Vector3(-sx * 0.008, 0.0, 0.0), ke, 0.010, 0.005, Vector3.FORWARD)
+			_ip_rod(p, bakelite, ke, ke + Vector3(-sx * 0.03, 0.0, 0.0), 0.007, Vector3.UP)
+
+	# Dźwignia biegów w tunelu: chromowany pręt, czarna gałka, mieszek.
+	var gb := Vector3(0.0, -0.30, -0.12)
+	var gt := Vector3(0.0, 0.0, -0.05)
+	_ip_ring(p, chrome, 0.05, 0.004, gb, Basis(), 16, 4)
+	_ip_cyl(p, bakelite, 0.018, 0.048, 0.07, gb + Vector3(0.0, 0.035, 0.0), Basis(), 10)
+	_ip_rod(p, chrome, gb, gt, 0.007)
+	_ip_ball(p, bakelite, 0.026, gt)
+
+	if detail:
+		# Pedały: sprzęgło, hamulec, gaz.
+		for px in [-0.50, -0.39, -0.27]:
+			var pad := Vector3(px, -0.30, -0.42)
+			_ip_bar(p, dark, Vector3(px, -0.02, -0.50), pad, 0.015, 0.012)
+			var gas: bool = px > -0.3
+			_ip_box(p, alu, Vector3(0.05 if gas else 0.07, 0.09 if gas else 0.06, 0.012),
+					pad + Vector3(0.0, -0.02, 0.006), Basis(Vector3.RIGHT, deg_to_rad(-25.0)))
+		# Lusterko wsteczne: obudowa tutaj, szkło z obrazem z kamery wstawia
+		# scena jazdy (xr_main._build_mirror) w `mirror_mount` - bez sceny
+		# (ekran tytułowy, zrzuty) chromowana tafla.
+		_ip_bar(p, dark, Vector3(0.0, 0.625, 0.01), Vector3(0.0, 0.59, -0.035), 0.012, 0.012)
+		var mb := Basis(Vector3.UP, -0.2) * Basis(Vector3.RIGHT, -0.1)
+		var mc := Vector3(0.0, 0.575, -0.045)
+		_ip_box(p, dark, Vector3(0.22, 0.06, 0.022), mc, mb)
+		mirror_mount = Transform3D(mb, mc + mb * Vector3(0.0, 0.0, 0.0115))
+		var face := MeshInstance3D.new()
+		face.name = "MirrorFace"
+		var fq := BoxMesh.new()
+		fq.size = MIRROR_GLASS_SIZE
+		fq.material = chrome
+		face.mesh = fq
+		face.transform = mirror_mount
+		add_child(face)
+		for sx in [-0.40, 0.40]:
+			_ip_box(p, headliner, Vector3(0.36, 0.012, 0.15), Vector3(sx, 0.615, 0.07),
+					Basis(Vector3.RIGHT, deg_to_rad(8.0)))
+
+	var interior := _ip_commit(p, "Interior", self)
+	interior.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_build_steering_wheel(bakelite, alu, chrome, detail)
+
+
+## Drobiazgi na desce: małe zegary, schowek, przełączniki, stacyjka, radio.
+func _build_dash_details(p: Dictionary, bakelite: Material, alu: Material, chrome: Material,
+		dark: Material, ivory: Material, along_z: Basis) -> void:
+	# Trzy małe zegary pomocnicze na listwie (np. temperatura, olej, zegarek):
+	# czarna tarcza, chromowana ramka, kreski i wskazówka. Tylko ozdoba.
+	for gx in [-0.11, -0.04, 0.03]:
+		var c := Vector3(gx, 0.07, -0.238)
+		_ip_cyl(p, bakelite, 0.026, 0.026, 0.006, c, along_z, 16)
+		_ip_ring(p, chrome, 0.0285, 0.0028, c + Vector3(0.0, 0.0, 0.002), along_z, 16, 4)
+		for k in range(5):
+			var tb := Basis(Vector3.BACK, deg_to_rad(120.0 - 60.0 * k))
+			_ip_box(p, ivory, Vector3(0.0015, 0.005, 0.001), c + tb * Vector3(0.0, 0.019, 0.0035), tb)
+		var nb := Basis(Vector3.BACK, 0.7 - gx * 9.0)
+		_ip_box(p, ivory, Vector3(0.002, 0.018, 0.0015), c + nb * Vector3(0.0, 0.007, 0.0045), nb)
+	# Schowek: obrys szczeliny na listwie i chromowany przycisk.
+	for gy in [0.04, 0.10]:
+		_ip_box(p, dark, Vector3(0.32, 0.003, 0.002), Vector3(0.46, gy, -0.2375))
+	for gx in [0.30, 0.62]:
+		_ip_box(p, dark, Vector3(0.003, 0.06, 0.002), Vector3(gx, 0.07, -0.2375))
+	_ip_cyl(p, chrome, 0.008, 0.008, 0.008, Vector3(0.46, 0.085, -0.236), along_z, 10)
+	# Przełączniki dźwigienkowe.
+	for k in range(4):
+		var tx := 0.12 + 0.035 * k
+		_ip_bar(p, alu, Vector3(tx, 0.065, -0.238), Vector3(tx, 0.072, -0.215), 0.006, 0.005)
+	# Stacyjka z prawej strony kolumny.
+	_ip_ring(p, chrome, 0.012, 0.003, Vector3(-0.15, 0.0, -0.248), along_z, 12, 4)
+	_ip_cyl(p, bakelite, 0.010, 0.010, 0.004, Vector3(-0.15, 0.0, -0.249), along_z, 10)
+	# Radio na środku pod listwą: panel, okienko skali, gałki, przyciski.
+	_ip_box(p, alu, Vector3(0.19, 0.045, 0.006), Vector3(0.10, -0.005, -0.247))
+	_ip_box(p, bakelite, Vector3(0.09, 0.018, 0.004), Vector3(0.10, 0.002, -0.2435))
+	_ip_box(p, ivory, Vector3(0.002, 0.014, 0.002), Vector3(0.09, 0.002, -0.241))
+	for kx in [0.025, 0.175]:
+		_ip_cyl(p, chrome, 0.009, 0.009, 0.016, Vector3(kx, -0.005, -0.241), along_z, 10)
+	for k in range(5):
+		_ip_box(p, bakelite, Vector3(0.012, 0.009, 0.008), Vector3(0.068 + 0.016 * k, -0.019, -0.243))
+
+
+## Fotel albo kanapa: siedzisko i oparcie (pochylone o `tilt_deg`), środek
+## z ciemniejszą wstawką przeszytą w pionowe pasy, wyższe boki.
+func _ip_seat(p: Dictionary, trim: Material, insert: Material, w: float, cush: Vector3,
+		depth: float, back: Vector3, tilt_deg: float, back_h: float, detail: bool) -> void:
+	var pw := w - 0.18
+	var n := maxi(int(round(pw / 0.07)), 2)
+	_ip_box(p, trim, Vector3(w, 0.12, depth), cush)
+	_ip_box(p, insert, Vector3(pw, 0.012, depth - 0.08), cush + Vector3(0.0, 0.064, 0.0))
+	var bb := Basis(Vector3.RIGHT, deg_to_rad(tilt_deg))
+	_ip_box(p, trim, Vector3(w, back_h, 0.12), back, bb)
+	_ip_box(p, insert, Vector3(pw, back_h - 0.14, 0.012), back + bb * Vector3(0.0, 0.02, -0.064), bb)
+	for s in [-1.0, 1.0]:
+		var bx: float = s * (w * 0.5 - 0.035)
+		_ip_box(p, trim, Vector3(0.07, 0.04, depth - 0.02), cush + Vector3(bx, 0.075, 0.0))
+		_ip_box(p, trim, Vector3(0.07, back_h - 0.04, 0.04), back + bb * Vector3(bx, 0.0, -0.075), bb)
+	if not detail:
+		return
+	for i in range(1, n):
+		var x := -pw * 0.5 + pw * i / n
+		_ip_box(p, trim, Vector3(0.012, 0.012, depth - 0.08), cush + Vector3(x, 0.07, 0.0))
+		_ip_box(p, trim, Vector3(0.012, back_h - 0.14, 0.012), back + bb * Vector3(x, 0.02, -0.07), bb)
+
+
+## Kierownica i kolumna. Kolumna nachylona 25° od poziomu, oś kierownicy
+## (lokalne +Y) wskazuje na kierowcę; w płaszczyźnie koła -Z to "godzina
+## 12", +X prawa strona kierowcy. Koło obraca się ze skrętem (14:1,
+## w `_process`), kolumna stoi.
+## Dwie szprychy lekko poniżej poziomu i brak górnej - przez górną połowę
+## koła widać zegary (stara kierownica w krzyż zasłaniała je szprychą).
+func _build_steering_wheel(bakelite: Material, alu: Material, chrome: Material, detail: bool) -> void:
+	var column := Node3D.new()
+	column.name = "SteeringColumn"
+	column.position = Vector3(-0.38, 0.17, -0.12)
+	column.rotation = Vector3(deg_to_rad(65.0), 0.0, 0.0)
+	add_child(column)
+	var cp := {}
+	# Osłona kolumny (wchodzi w deskę) i manetka kierunkowskazów z lewej.
+	_ip_cyl(cp, bakelite, 0.034, 0.030, 0.26, Vector3(0.0, -0.19, 0.0), Basis(), 12)
+	if detail:
+		var s0 := Vector3(-0.03, -0.085, 0.0)
+		var s1 := Vector3(-0.17, -0.07, -0.02)
+		_ip_rod(cp, bakelite, s0, s1, 0.005, Vector3.FORWARD, 6)
+		_ip_ball(cp, bakelite, 0.010, s1)
+	_ip_commit(cp, "ColumnMesh", column)
+
+	_steering_wheel = Node3D.new()
+	_steering_wheel.name = "SteeringWheel"
+	column.add_child(_steering_wheel)
+	var wp := {}
+	# Wieniec Ø 39 cm, cienki (Ø 20 mm), czarny i lekko błyszczący.
+	_ip_ring(wp, bakelite, 0.188, 0.010, Vector3.ZERO, Basis(), 40, 8)
+	# Piasta cofnięta 4,5 cm ku kolumnie ("głęboka" kierownica), miękka
+	# nakładka klaksonu, gładki chromowany środek bez znaku.
+	_ip_cyl(wp, bakelite, 0.045, 0.045, 0.03, Vector3(0.0, -0.045, 0.0), Basis(), 16)
+	_ip_cyl(wp, bakelite, 0.036, 0.043, 0.016, Vector3(0.0, -0.022, 0.0), Basis(), 16)
+	_ip_cyl(wp, chrome, 0.017, 0.017, 0.004, Vector3(0.0, -0.013, 0.0), Basis(), 16)
+	# Chromowany pierścień klaksonu oparty na szprychach.
+	_ip_ring(wp, chrome, 0.102, 0.0028, Vector3(0.0, -0.025, 0.0), Basis(), 32, 4)
+	var dip := deg_to_rad(15.0)
+	for s in [-1.0, 1.0]:
+		# Szprycha z satynowego metalu: szeroka przy piaście, węższa przy
+		# wieńcu, opada od wieńca do cofniętej piasty.
+		var d := Vector3(s * cos(dip), 0.0, sin(dip))
+		var side := Vector3.UP.cross(d)
+		var a := d * 0.042 + Vector3(0.0, -0.045, 0.0)
+		var m := d * 0.11 + Vector3(0.0, -0.024, 0.0)
+		var b := d * 0.183
+		_ip_bar(wp, alu, a, m, 0.046, 0.005, side)
+		_ip_bar(wp, alu, m, b, 0.026, 0.005, side)
+		if detail:
+			# Trzy nawiercone otwory (czarne krążki przez grubość szprychy).
+			for h in [[a, m, 0.3], [a, m, 0.6], [m, b, 0.4]]:
+				var h0: Vector3 = h[0]
+				var h1: Vector3 = h[1]
+				var nb := _basis_along(h1 - h0, side)
+				_ip_cyl(wp, bakelite, 0.0065, 0.0065, 0.006, h0.lerp(h1, h[2]),
+						Basis(nb.x, nb.z, -nb.y), 10)
+	_ip_commit(wp, "WheelMesh", _steering_wheel)
+
+
 func _make_tail_mat() -> StandardMaterial3D:
 	_tail_mat = _mat(Color(0.6, 0.05, 0.04), 0.3)
 	_tail_mat.emission_enabled = true
@@ -1766,6 +2066,19 @@ var _settle_t := 0.0
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
+## Silnik spalinowy pracuje. Pusty bak = silnik gaśnie (użytkownik: "brak
+## paliwa, silnik gaśnie"): obroty spadają do zera, napęd rozłączony, auto
+## się toczy; po zatankowaniu pracuje znowu. Elektryk nie gaśnie - bez
+## prądu tylko nie ma momentu.
+var engine_running := true
+
+
+func _update_engine_state() -> void:
+	var run := electric or fuel > 0.0
+	if run != engine_running:
+		engine_running = run
+		if not is_bot:
+			print("Silnik ", "pracuje" if run else "zgasł: brak paliwa")
 
 
 func _burn_fuel(power_w: float, delta: float) -> void:
@@ -2147,6 +2460,11 @@ const CONCEPT := {
 }
 @export var body_model: String = "sedan"
 var _concept: Node3D
+## Lusterko wsteczne sedana: położenie tafli (środek, przód = +Z, do
+## kierowcy) w układzie auta; zero, gdy auto nie ma wnętrza z lusterkiem.
+var mirror_mount := Transform3D()
+const MIRROR_GLASS_SIZE := Vector3(0.205, 0.048, 0.003)
+static var _concept_scene: PackedScene
 var _concept_steer: Node3D
 var _concept_steer_axis := Vector3.FORWARD
 var _concept_paint_mats: Array[BaseMaterial3D] = []
@@ -2237,7 +2555,12 @@ func set_body_model(kind: String) -> void:
 
 
 func _build_concept() -> void:
-	_concept = (load(CONCEPT["scene"]) as PackedScene).instantiate() as Node3D
+	# Scena wczytana raz na całą grę: przełączanie w menu (sedan <-> concept)
+	# nie czyta i nie importuje modelu od nowa przy każdym kroku (na Queście
+	# przełączenie przy 160% zamykało grę - GPU było już na 100%).
+	if _concept_scene == null:
+		_concept_scene = load(CONCEPT["scene"]) as PackedScene
+	_concept = _concept_scene.instantiate() as Node3D
 	_concept.name = "ConceptBody"
 	_concept.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, CONCEPT["model_y"], 0.0))
 	add_child(_concept)

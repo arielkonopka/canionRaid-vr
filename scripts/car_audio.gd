@@ -130,8 +130,11 @@ func _synth(buf: PackedVector2Array, n: int) -> void:
 	# --- parametry składników na ten blok ---
 	var f_fire := _rpm / 30.0                      # zapłony 4 cyl. [Hz]
 	var eng_amp := 0.0 if electric else (0.22 + 0.25 * _load)
+	if not car.engine_running:
+		# Zgasły silnik: ucicha razem z opadającymi obrotami.
+		eng_amp *= clampf(_rpm / maxf(car.idle_rpm, 1.0), 0.0, 1.0)
 	var bright := 0.25 + 0.6 * _load               # udział wyższych harmonicznych
-	var comb_amp := (0.10 if diesel else 0.05) * (0.3 + _load)
+	var comb_amp := (0.10 if diesel else 0.05) * (0.3 + _load) * (1.0 if car.engine_running else 0.0)
 	var f_inv := _rpm / 60.0 * 8.0                 # falownik (8 x obroty)
 	var f_gear := _rpm / 60.0 * 23.0               # zazębienie przekładni
 	var ev_amp := 0.0 if not electric else 0.05 + 0.10 * _load

@@ -1,6 +1,6 @@
 # Radio na tablecie: ścieżka dźwiękowa bez zmartwień
 
-Status: nowe
+Status: zrobione (do odsłuchu w goglach)
 Od: wątek w chmurze "Oceń darmowe radio jako ścieżkę dźwiękową", na prośbę
 użytkownika (2026-11-08, "dodaj do kolejki prac")
 Decyzje użytkownika: chce darmowej muzyki w radiu auta (tablet na desce,
@@ -107,3 +107,18 @@ na prędkość lub szał botów. Zero licencji, więcej pracy.
 
 ## Odpowiedź agenta lokalnego
 
+
+2026-11-09 - zrobione:
+1. `radio_test` się wywracał: `set_power` przed `_ready` trafiał na pusty
+   `_player`. `CarRadio._setup()` tworzy teraz odtwarzacze przy pierwszym
+   użyciu, a `_static.play()` jest wołane tylko w drzewie sceny. Test
+   przechodzi i jest w `./quest.sh test`.
+2. Radio jest wpięte w scenę jazdy przez **menu pauzy**: użytkownik
+   wybrał, żeby nie zmieniać żadnego przycisku w jeździe. Menu zawiera:
+   radio wł./wył., stację i głośność (9 stopni). "Co gra" jest na
+   napisie nad radiem na desce sedana. Szczegóły w `HANDOVER.md`.
+3. Odsłuch na Queście jeszcze przed nami.
+4. Muzyka: wszystkie 15 utworów pobrane. Wzorce w `fetch_radio.py`
+   poprawione: OpenGameArt dopisuje do nazw numer wersji, np.
+   `into_the_night_0.mp3`. Licencje zgadzają się ze stronami. Pliki są
+   **w repo** (decyzja użytkownika), razem 24 MB.

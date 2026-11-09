@@ -51,7 +51,17 @@ var _progress_t := 0.0
 
 
 func _ready() -> void:
+	# Pomiar (bench.cfg / --bench=): od razu jazda, bez menu.
+	Bench.load_config()
+	if Bench.active():
+		get_tree().change_scene_to_file.call_deferred(RACE_SCENE)
+		return
 	_xr = GameSettings.enable_xr(get_viewport())
+	# Cienie słońca wyłączone jak w scenie jazdy (xr_main): na Queście sam
+	# ekran tytułowy z cieniami ciągnął GPU do 100% (34 kl./s przy 100%,
+	# 19 przy 160%) - gogle grzały się w menu, a przełączenie modelu auta
+	# przy 160% zamykało grę.
+	($Sun as DirectionalLight3D).shadow_enabled = false
 	if _xr:
 		right_hand.button_pressed.connect(_on_xr_button)
 		left_hand.button_pressed.connect(_on_xr_button)

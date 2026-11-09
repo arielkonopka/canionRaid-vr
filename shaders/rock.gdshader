@@ -42,6 +42,13 @@ float vnoise(vec2 p) {
 			mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
+// Mapy normalnych importowane z kompresją "normal map" (RG, bez B) -
+// składowa Z odtwarzana z X i Y.
+vec3 nrm_tap(sampler2D nrm, vec2 uv) {
+	vec2 xy = texture(nrm, uv).rg * 2.0 - 1.0;
+	return vec3(xy, sqrt(max(1.0 - dot(xy, xy), 0.0)));
+}
+
 vec3 tri_weights(vec3 n) {
 	vec3 w = pow(abs(n), vec3(6.0));
 	return w / (w.x + w.y + w.z);
@@ -58,7 +65,7 @@ void triplanar(sampler2D alb, sampler2D nrm, vec3 p, vec3 n, vec3 w, bool with_n
 		vec2 uv = p.zy;
 		col += texture(alb, uv).rgb * w.x;
 		if (with_normal) {
-			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			vec3 t = nrm_tap(nrm, uv);
 			t = vec3(t.xy + n.zy, abs(t.z) * n.x);
 			acc += t.zyx * w.x;
 		}
@@ -67,7 +74,7 @@ void triplanar(sampler2D alb, sampler2D nrm, vec3 p, vec3 n, vec3 w, bool with_n
 		vec2 uv = p.xz;
 		col += texture(alb, uv).rgb * w.y;
 		if (with_normal) {
-			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			vec3 t = nrm_tap(nrm, uv);
 			t = vec3(t.xy + n.xz, abs(t.z) * n.y);
 			acc += t.xzy * w.y;
 		}
@@ -76,7 +83,7 @@ void triplanar(sampler2D alb, sampler2D nrm, vec3 p, vec3 n, vec3 w, bool with_n
 		vec2 uv = p.xy;
 		col += texture(alb, uv).rgb * w.z;
 		if (with_normal) {
-			vec3 t = texture(nrm, uv).xyz * 2.0 - 1.0;
+			vec3 t = nrm_tap(nrm, uv);
 			t = vec3(t.xy + n.xy, abs(t.z) * n.z);
 			acc += t.xyz * w.z;
 		}

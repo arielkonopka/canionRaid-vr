@@ -60,4 +60,9 @@ openxr/reference_space=0
 ; GameSettings.apply_xr_quality.
 openxr/foveation_level=2
 openxr/foveation_dynamic=true
+; Dynamiczna rozdzielczość Meta (XR_META_recommended_layer_resolution we
+; wtyczce vendors) wyłączona: gogle same wybierały rozmiar obrazu (log VrApi
+; SF=0.50 przy opcji 160%), więc opcja z menu nie działała albo "dopiero po
+; restarcie". Bez niej mnożnik z menu działa od razu (SF śledzi opcję).
+openxr/extensions/meta/dynamic_resolution=false
 shaders/enabled=true

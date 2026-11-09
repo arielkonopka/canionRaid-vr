@@ -33,22 +33,24 @@ OGA = "https://opengameart.org"
 UA = "canionraid-radio-fetch/1.0"
 AUDIO = (".ogg", ".mp3", ".wav", ".flac")
 
-# plik docelowy, strona źródłowa, wzorzec nazwy pliku na stronie (bez wielkości liter)
+# plik docelowy, strona źródłowa, wzorzec nazwy pliku na stronie (bez wielkości liter).
+# OpenGameArt dopisuje do nazw numer wersji (into_the_night_0.mp3,
+# Into The Winds_6.ogg) - stąd (_\d+)? przed rozszerzeniem.
 TRACKS = [
-    ("fala84/midnight_drive.ogg", OGA + "/content/midnight-drive", r"midnight_drive\.ogg$"),
-    ("fala84/into_the_night.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"into_the_night\.mp3$"),
-    ("fala84/moonlight.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"moonlight\.mp3$"),
-    ("fala84/sunrise.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"sunrise\.mp3$"),
-    ("fala84/the_cruise.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"the_cruise\.mp3$"),
-    ("fala84/synthwave_type.ogg", OGA + "/content/synthwavetype", r"synth_type\.mp3$"),
-    ("szuter/into_the_winds.ogg", OGA + "/node/74545", r"into the winds\.ogg$"),
-    ("szuter/on_the_road.ogg", OGA + "/node/117857", r"on_the_road\.zip$"),
-    ("szuter/techno_drive.ogg", OGA + "/content/techno-drive", r"racing tecno_v2\.5\.ogg$"),
-    ("szuter/jump_higher_run_faster.ogg", OGA + "/node/3942", r"jump higher run faster\.ogg$"),
-    ("szuter/alt_rock_song.ogg", OGA + "/node/18237", r"mix a week week 4 and 5\.mp3$"),
-    ("nocna/calm_track.ogg", OGA + "/node/98635", r"calm_track\.ogg$"),
-    ("nocna/contemplation.ogg", OGA + "/node/85636", r"contemplation\.mp3$"),
-    ("nocna/calm_ambient_1.ogg", OGA + "/node/97098", r"001_synthwave_4k\.mp3$"),
+    ("fala84/midnight_drive.ogg", OGA + "/content/midnight-drive", r"midnight_drive(_\d+)?\.ogg$"),
+    ("fala84/into_the_night.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"into_the_night(_\d+)?\.mp3$"),
+    ("fala84/moonlight.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"moonlight(_\d+)?\.mp3$"),
+    ("fala84/sunrise.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"sunrise(_\d+)?\.mp3$"),
+    ("fala84/the_cruise.ogg", OGA + "/content/synthwave-to-drive-at-oceanside", r"the_cruise(_\d+)?\.mp3$"),
+    ("fala84/synthwave_type.ogg", OGA + "/content/synthwavetype", r"synth_type(_\d+)?\.mp3$"),
+    ("szuter/into_the_winds.ogg", OGA + "/node/74545", r"into the winds(_\d+)?\.ogg$"),
+    ("szuter/on_the_road.ogg", OGA + "/node/117857", r"on_the_road(_\d+)?\.zip$"),
+    ("szuter/techno_drive.ogg", OGA + "/content/techno-drive", r"racing tecno_v2\.5(_\d+)?\.ogg$"),
+    ("szuter/jump_higher_run_faster.ogg", OGA + "/node/3942", r"jump higher run faster(_\d+)?\.ogg$"),
+    ("szuter/alt_rock_song.ogg", OGA + "/node/18237", r"mix a week week 4 and 5(_\d+)?\.mp3$"),
+    ("nocna/calm_track.ogg", OGA + "/node/98635", r"calm_track(_\d+)?\.ogg$"),
+    ("nocna/contemplation.ogg", OGA + "/node/85636", r"contemplation(_\d+)?\.mp3$"),
+    ("nocna/calm_ambient_1.ogg", OGA + "/node/97098", r"001_synthwave_4k(_\d+)?\.mp3$"),
     ("nocna/chill_jungle_ambient.ogg", OGA + "/node/123092", r"\.ogg$"),
 ]
 
@@ -64,7 +66,8 @@ def find_link(page_url: str, pattern: str) -> str:
     rx = re.compile(pattern, re.I)
     for href in re.findall(r'href="([^"]+)"', page):
         href = html.unescape(href)
-        if "/sites/default/files/" not in href:
+        # Pełne pliki; podglądy odtwarzacza (audio_preview, styles) pomijamy.
+        if "/sites/default/files/" not in href or "audio_preview" in href or "/styles/" in href:
             continue
         name = urllib.parse.unquote(href.rsplit("/", 1)[-1])
         if rx.search(name):

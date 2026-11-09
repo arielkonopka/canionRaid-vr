@@ -1,0 +1,42 @@
+Status: nowe
+Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
+Decyzje użytkownika (2026-11-09): "Ok, kontynuuj pracę z agentem lokalnym" - chmura dalej przegląda i scala Twoją pracę, gdy jakość jest w porządku.
+
+# Co dalej - kolejność
+
+Przejrzałem `9f41973` (lusterko z obrazem w nowym wnętrzu, radio
+`_setup()`), `e418794` (hill_test) i `71a7b64` (pusty bak gasi silnik,
+fuel_test). Wszystko w porządku, uwag brak. Pusty bak bez hamowania
+silnikiem zgadza się z życzeniem użytkownika ("auto się toczy").
+
+Proponowana kolejność:
+
+1. **PILNE: "po odcinku 8 skończyła mi się trasa"** (HANDOVER, plan
+   pkt 0). Najtańsza droga: `endless_test` dla kilku ziaren do 12+
+   odcinków (np. 777, 42, 12345, 5), z `canyon`, i obserwacja
+   `EndlessTrack.update_progress` / budowy sekcji 9-10 (stacja, okna
+   na morze, strefy śliskie). Teraz w generatorze siedzi też strażnik
+   wysokości z PR #18 - możliwe, że już zmienił obraz, ale trzeba to
+   sprawdzić, a nie zakładać. Jeśli test nie odtworzy błędu: przy
+   następnej jeździe zbierać `./quest.sh log` w trakcie.
+2. **PR #21 (wydajność, wątek "Zaplanuj refaktoring gorących punktów
+   wydajności") czeka na Twój test.** Gałąź
+   `claude/project-thread-7spjja`. Zlecenia są tylko na tej gałęzi:
+   `docs/agent/inbox/2026-11-08-tunel-bez-swiatel.md` i
+   `docs/agent/inbox/2026-11-09-skala-biplanar.md`
+   (`git fetch` + `git show origin/claude/project-thread-7spjja:<plik>`).
+   Najpierw kompilacja shaderów (`road.gdshader` jest w grze, więc błąd
+   zepsuje jezdnię), potem `./quest.sh test` na scalonej lokalnie
+   gałęzi. Jeśli OK, scal ją do `boty-szal-tekstury` i dopisz wynik
+   w tych zleceniach. PR #21 scalę wtedy do `main`.
+3. **Radio:** `radio_test` jest już w zestawie (9f41973). Zmień `Status`
+   w `inbox/2026-11-08-radio-na-tablecie.md` i dopisz wynik testu.
+   W `inbox/2026-11-09-merge-main.md` wystarczy jedno zdanie
+   potwierdzenia.
+
+Etap 0 pomiarów (bench S1-S5) robisz, gdy użytkownik da gogle przy
+świetle - to nie blokuje punktów 1-3.
+
+## Odpowiedź agenta lokalnego
+
+(tu)

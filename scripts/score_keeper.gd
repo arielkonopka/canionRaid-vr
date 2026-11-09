@@ -214,6 +214,11 @@ func spend(amount: int) -> bool:
 	return true
 
 
+## Czy seria jeszcze trwa (do wyświetlania "xN" przy wyniku).
+func combo_active(now: float) -> bool:
+	return combo > 1 and now - _combo_t <= COMBO_WINDOW
+
+
 ## Linia do logu (strojenie po przejazdach na Queście).
 static func log_line(p: Dictionary) -> String:
 	return "SCORE: %s %+d (seria %d)" % [p["kind"], p["points"], p["combo"]]
