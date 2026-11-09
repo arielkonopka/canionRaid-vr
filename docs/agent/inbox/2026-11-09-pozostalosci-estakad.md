@@ -168,3 +168,35 @@ Chmura nie może ich pobrać (proxy blokuje ambientCG i Poly Haven), więc:
 
 Braki: czerwona cegła (przyciemnić `Bricks105` w shaderze), elewacja
 mieszkalna z oknami (okna w `facade.gdshader`), deski płotów/stodół.
+
+## Dopisek (użytkownik, 2026-11-09 wieczorem)
+
+1. **Twoje lokalne zmiany mają pierwszeństwo.** Użytkownik mówi, że
+   "agent lokalny już coś nazmieniał" (m.in. są miasta) - w repo tego
+   jeszcze nie widać (ostatni commit agenta na `boty-szal-tekstury` to
+   PR #27). Zanim zaczniesz etapy: scal to zlecenie ze swoim stanem
+   i przelicz numery linii z raportu. Jeśli miasta stoją już na y = 0
+   (jak `highway_scenery.gd`), etap 2.9 obejmuje też je: domy, chodniki,
+   krawężniki na `ground_y`.
+2. **Miasta jako grafy ulic (przyszła faza, nie teraz).** Użytkownik:
+   "miasta chciałbym kiedyś mieć jako grafy, po których można jeździć".
+   Nie robić w tych etapach, ale nie zamykać drogi:
+   - etap 3 i tak wprowadza **więcej niż jedną ścieżkę** (dno pod
+     estakadą, rozwidlenia). Zrób to jako ogólny zbiór ścieżek
+     połączonych węzłami (ścieżka = `TrackPath`, węzeł = punkt
+     rozgałęzienia / złączenia z dystansem na każdej ścieżce), nie jako
+     sztywne "A i B". Miasto to potem po prostu gęsty graf takich
+     ścieżek (ulice, skrzyżowania);
+   - zapytania `nearest_sample` / `lateral_offset` / postęp gracza
+     (`_last_safe_dist`, odcinki, boty na "szynie") mają brać ścieżkę,
+     na której jest auto, a dystans liczyć wzdłuż niej - nie zakładać
+     jednego liniowego `dist` dla całego świata;
+   - `ground_y` w mieście liczyć z najbliższej ulicy (nie z jednej osi).
+   Zapisz to w HANDOVER, sekcja 8, jako pomysł użytkownika na później.
+3. **Zamienniki tekstur** (użytkownik: "tam, gdzie nie udało się pobrać,
+   bierz zamienniki"): skrypt ma `FALLBACKS` - pozycja, która się nie
+   pobierze (zmieniony ID, 404), sama przechodzi na zastępczą (CC0),
+   a `--credits` podpisuje to, co faktycznie leży w `SOURCE.txt`. Braki
+   z ambientCG (czerwona cegła, deski, tynk domu) są uzupełnione z Poly
+   Haven: `brick_red`, `wood_planks`, `plaster_house`. Elewacji z oknami
+   nie ma nigdzie - okna w `facade.gdshader`.
