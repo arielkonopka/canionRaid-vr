@@ -324,7 +324,7 @@ func _hint_for(e: Dictionary) -> String:
 						# W goglach wsteczny jest pod gripem ręki z gazem
 						# (car.dedicated_reverse), hamulec na postoju nic nie włącza.
 						h = "Automat zmienia biegi sam; wsteczny: grip ręki z gazem (na postoju)."
-				"motor_layout":
+				"motor_layout", "regen":
 					if GameSettings.engine_type != "electric":
 						h = "Dotyczy tylko elektryka - teraz wybrany jest inny napęd."
 				"drive_layout":

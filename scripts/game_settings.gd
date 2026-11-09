@@ -39,6 +39,8 @@ var spoiler: String = "none"
 ## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
 ## użytkownik 2026-11-09) - StuntCar.durability.
 var durability: int = 1
+## Rekuperacja elektryka (StuntCar.REGEN_LEVELS): "off", "weak", "normal", "strong".
+var regen: String = "normal"
 ## Opływowość nadwozia (StuntCar.AERO): "classic", "modern", "sport", "record".
 var aero: String = "classic"
 ## Szał drogowy botów: o ile km/h przekraczają ograniczenie (0 = bez
@@ -77,9 +79,10 @@ var xr_resolution: int = 110
 ## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
-## Rodzaj trasy. W grze tylko "canyon" (wąwóz bez końca) - jedyny tryb,
-## ustalone z użytkownikiem; nie ma go w menu. "endless" (estakady) i "demo"
-## (pokazowa z metą) zostały w kodzie dla testów (endless_test, drive_test).
+## Rodzaj trasy (menu "Trasa"): "canyon" wąwóz bez końca albo "autostrada"
+## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
+## (estakady) i "demo" (pokazowa z metą) zostały w kodzie dla testów
+## (endless_test, drive_test) - nie ma ich w menu.
 var track_mode: String = "canyon"
 ## Dźwigi (życia) na trasie bez końca; 0 = bez limitu.
 var cranes: int = 3
@@ -128,6 +131,15 @@ const PAINTS := {
 ## Opis opcji dla menu. "values" to lista możliwych wartości w kolejności
 ## przełączania, "names" ich nazwy na ekranie, "hints" opis pod opcją.
 var OPTIONS: Array[Dictionary] = [
+	{
+		"key": "track_mode", "group": "track", "label": "Trasa",
+		"values": ["canyon", "autostrada"],
+		"names": ["Wąwóz", "Autostrada"],
+		"hints": [
+			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
+			"Autostrada 2+2 pasy przez setki km: łąki, pola, pustynia, góry, morze, miasta co 25 km.",
+		],
+	},
 	{
 		"key": "cranes", "group": "track", "label": "Życia (auta)",
 		"values": [3, 5, 0],
@@ -246,6 +258,17 @@ var OPTIONS: Array[Dictionary] = [
 		"hints": [
 			"Jeden silnik, napęd przez dyferencjał (koła wg opcji Napędzane koła).",
 			"Cztery silniki po 1/4 mocy, zawsze 4x4, każde koło niezależnie. Tylko elektryk.",
+		],
+	},
+	{
+		"key": "regen", "group": "car", "label": "Rekuperacja",
+		"values": ["off", "weak", "normal", "strong"],
+		"names": ["Wył.", "Słaba", "Normalna", "Mocna"],
+		"hints": [
+			"Puszczony gaz: elektryk toczy się swobodnie, bez odzysku energii.",
+			"Lekkie hamowanie silnikiem, trochę energii wraca do baterii.",
+			"Jak w typowym elektryku: wyraźne hamowanie i odzysk energii.",
+			"Jazda jednym pedałem: mocne hamowanie po puszczeniu gazu, najwięcej odzysku.",
 		],
 	},
 	{
@@ -531,6 +554,7 @@ func apply_to_car(car: StuntCar) -> void:
 	car.drive_layout = drive_layout
 	car.tires = tires
 	car.hub_motors = motor_layout == "hub"
+	car.regen_level = regen
 	car.apply_engine(engine_type, effective_power(engine_type, motor_layout == "hub", engine_power))
 	car.automatic = transmission == "auto"
 	car.apply_suspension_preset(suspension)

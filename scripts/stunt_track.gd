@@ -90,6 +90,9 @@ const LINE_DEPTH := 1.5
 @export var generate_collision: bool = true
 ## Drzewa i głazy wokół toru (Scenery).
 @export var scenery: bool = true
+## Tryb Autostrada: plan trasy - po _build_highway kawałek dokłada słupki,
+## obiekty biomów i zabudowę miast (HighwayScenery), tablice miejscowości.
+var hwy_plan: HighwayPlan
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
 ## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
@@ -183,6 +186,16 @@ func build() -> void:
 		_build_highway()
 		if not await _slice():
 			return
+	if hwy_plan:
+		var t0 := Time.get_ticks_usec()
+		var hrng := RandomNumberGenerator.new()
+		hrng.seed = hash([hwy_plan.seed_value, int(float(_samples[0]["dist"]))])
+		for n in HighwayScenery.build(_samples, hwy_plan, hrng,
+				HighwayScenery.edges_for(float(_samples[0]["width"]))):
+			_adopt(n)
+		Perf.add("hwy_scenery", t0)
+		if not await _slice():
+			return
 	if scenery and not canyon:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name) ^ int(float(_samples[0]["dist"]))
@@ -196,6 +209,10 @@ func build() -> void:
 			n_meta += 1
 			if n_meta % 6 == 0 and not await _slice():
 				return
+		if meta.has("city_start"):
+			_town_sign(float(smp["dist"]) - 40.0, HighwayPlan.city_name(int(meta["city_start"]["name_seed"])).to_upper())
+		if meta.has("city_end"):
+			_town_sign(float(smp["dist"]) + 10.0, HighwayPlan.city_name(int(meta["city_end"]["name_seed"])).to_upper(), true)
 		if meta.has("checkpoint"):
 			# Zielony znak "miejscowości" zamiast bramownicy (prośba użytkownika);
 			# tuż przed nim koniec poprzedniego odcinka - przekreślony (E-18a).

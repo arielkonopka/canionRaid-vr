@@ -36,13 +36,13 @@ func _initialize() -> void:
 	cs.shape = bs
 	body.add_child(cs)
 	root.add_child(body)
-	body.global_position = Vector3(2100.25, 1.0, -3000.5)
+	body.position = Vector3(2100.25, 1.0, -3000.5)     # rodzic = root w (0,0,0); w _initialize węzły nie są jeszcze w drzewie
 	body.linear_velocity = Vector3(10.0, 0.0, -30.0)
 	body.angular_velocity = Vector3(0.0, 0.2, 0.0)
 	body.add_to_group(WorldOrigin.GROUP)
 	chunk = Node3D.new()
 	root.add_child(chunk)
-	chunk.global_position = Vector3(1980.0, 0.0, -2900.0)
+	chunk.position = Vector3(1980.0, 0.0, -2900.0)
 	chunk.add_to_group(WorldOrigin.GROUP)
 	marker = Node3D.new()
 	chunk.add_child(marker)

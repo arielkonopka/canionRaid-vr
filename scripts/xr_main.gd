@@ -209,7 +209,7 @@ func _ready() -> void:
 	_horizon = Scenery.horizon(hrng)
 	add_child(_horizon)
 	track = _demo_track
-	if gs and (gs.track_mode == "endless" or gs.track_mode == "canyon"):
+	if gs and gs.track_mode in ["endless", "canyon", "autostrada"]:
 		# Trasa bez końca zamiast pokazowej: te same materiały, nowy losowy tor.
 		var et := EndlessTrack.new()
 		et.name = "EndlessTrack"
@@ -218,7 +218,16 @@ func _ready() -> void:
 		et.road_material = _demo_track.road_material
 		et.pillar_material = _demo_track.pillar_material
 		et.canyon = gs.track_mode == "canyon"
+		et.autostrada = gs.track_mode == "autostrada"
 		_canyon = et.canyon
+		if et.autostrada:
+			# Setki km: przesuwanie początku świata (float32, docs/AUTOSTRADA.md
+			# pkt 3) i bak na ~100 km (użytkownik 2026-11-09: "zasięg 100 km,
+			# żeby można było pominąć stację"; stacje co ~20 km).
+			_origin = WorldOrigin.new()
+			for n in [car, origin]:
+				n.add_to_group(WorldOrigin.GROUP)
+			car.tank_kwh = StuntCar.TANK_KWH_DEFAULT * 4.0
 		_demo_track.queue_free()
 		add_child(et)
 		track = et
@@ -474,6 +483,7 @@ func _read_drive_input() -> void:
 # --------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	_check_origin_shift()
 	if _mode == Mode.DRIVE and not Bench.active():
 		_read_drive_input()
 	else:
@@ -493,6 +503,28 @@ func _physics_process(delta: float) -> void:
 		_update_bots(delta)
 		_update_oncoming(delta)
 	Perf.add("boty_mgr", t0)
+
+
+## Tryb Autostrada: przesuwanie początku świata (WorldOrigin), na początku
+## kroku fizyki - przed sterowaniem i botami. Węzły w grupie
+## WorldOrigin.GROUP (kawałki trasy, auto, boty, auta z naprzeciwka,
+## wybuchy, XROrigin, menu w powietrzu, deszcz) jadą o -s; tu poprawki
+## zapamiętanych pozycji w świecie. Dystanse (dist, szyna botów) są odporne.
+var _origin: WorldOrigin
+func _check_origin_shift() -> void:
+	if _origin == null:
+		return
+	var s := _origin.check(car.global_position)
+	if s == Vector3.ZERO:
+		return
+	_origin.apply(s, get_tree().get_nodes_in_group(WorldOrigin.GROUP))
+	_ws_xf.origin -= s
+	_chase_xf.origin -= s
+	_cine_from.origin -= s
+	_cine_to.origin -= s
+	if _rain:
+		_rain.restart()
+	print("ŚWIAT: przesunięty o %s (razem %d, offset %.0f, %.0f m)" % [str(s), _origin.shifts, _origin.offset_x, _origin.offset_z])
 
 
 ## Diagnostyka "dziwnych wypadków" (użytkownik 2026-11-09: auto nagle stanęło
@@ -572,6 +604,7 @@ func _update_bots(delta: float) -> void:
 				boom.paint = b._paint_mat.albedo_color
 				boom.ignore = [car] + _bots
 				add_child(boom)
+				boom.add_to_group(WorldOrigin.GROUP)
 				boom.global_position = b.global_position
 			_bots.erase(b)
 			b.queue_free()
@@ -619,6 +652,7 @@ func _spawn_bot(d: float) -> void:
 	bot.TIRE_SUBSTEPS = 2
 	bot.ray_probe = true
 	add_child(bot)
+	bot.add_to_group(WorldOrigin.GROUP)
 	# Zdalnie sterowane auta mają mocny silnik (250 kW) - w szale muszą
 	# realnie dogonić gracza (przy 130 kW zostawały w tyle).
 	bot.apply_engine("petrol", 250)
@@ -1049,6 +1083,7 @@ func _build_radio() -> void:
 	_pause.resumed.connect(_set_paused.bind(false))
 	_pause.quit_requested.connect(_back_to_title)
 	add_child(_pause)
+	_pause.add_to_group(WorldOrigin.GROUP)
 	_pause.apply_volume()
 
 
@@ -1141,6 +1176,7 @@ func _build_race_hud() -> void:
 	_ws_follow.camera = camera
 	_ws_follow.distance = 1.5
 	add_child(_ws_follow)
+	_ws_follow.add_to_group(WorldOrigin.GROUP)
 	_ws_follow.add_child(_ws_label)
 
 
@@ -1324,7 +1360,12 @@ func _watch_track(delta: float) -> void:
 	var below: float = surface.y - car.global_position.y
 
 	# 3 koła wystarczą: na przechyłce miękkie zawieszenie często unosi jedno.
-	if info["on_track"] and car.wheels_on_ground >= 3 and below < 2.0:
+	# Skok dystansu o ponad 300 m wstecz to nie jazda, tylko auto po locie
+	# przypisane do wcześniejszego fragmentu (jazda 2026-11-09: wąwóz, po
+	# skoku 2330 -> 1139 m, potem odrodzenie na usuniętym kawałku = "trasa
+	# się skończyła") - takiej pozycji nie uznajemy za bezpieczną.
+	var jumped_back := _endless and float(s["dist"]) < _last_safe_dist - 300.0
+	if info["on_track"] and car.wheels_on_ground >= 3 and below < 2.0 and not jumped_back:
 		_last_safe_dist = float(s["dist"])
 		_max_dist = maxf(_max_dist, _last_safe_dist)
 		_fallen_time = 0.0
@@ -1494,6 +1535,7 @@ func lose_life(reason: String) -> void:
 	boom.paint = car._paint_mat.albedo_color if car._paint_mat else Color(0.8, 0.6, 0.2)
 	boom.ignore = [car] + _bots
 	add_child(boom)
+	boom.add_to_group(WorldOrigin.GROUP)
 	boom.global_position = car.global_position
 	if car.get_node_or_null("Audio"):
 		car.get_node("Audio").thud(1.0)
@@ -1592,7 +1634,12 @@ func _respawn() -> void:
 	# Na trasie bez końca nigdy dalej wstecz niż brama bieżącego odcinka.
 	if _endless:
 		d = maxf(d, track.checkpoint_before(_last_safe_dist) + 3.0)
+		# Tylko na kawałku, który jeszcze istnieje (kawałki za autem są
+		# usuwane) - inaczej auto stawało w pustce.
+		d = maxf(d, track.loaded_start() + 5.0)
 	var xf: Transform3D = _safe_pose(d)
+	if _endless:
+		_last_safe_dist = d
 	car.place(xf)
 	_fallen_time = 0.0
 	if _mode == Mode.DRIVE and not _xr_ready:
@@ -1635,6 +1682,7 @@ func _build_rain() -> void:
 	q.material = m
 	_rain.draw_pass_1 = q
 	add_child(_rain)
+	_rain.add_to_group(WorldOrigin.GROUP)
 	_rain_sound = AudioStreamPlayer.new()
 	_rain_sound.stream = _make_rain_noise()
 	_rain_sound.volume_db = -80.0
@@ -1860,6 +1908,7 @@ func _spawn_oncoming(d: float) -> void:
 		c.name = "Oncoming%d" % Time.get_ticks_msec()
 		c.is_bot = true
 		add_child(c)
+		c.add_to_group(WorldOrigin.GROUP)
 		c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 		c.freeze = true
 		for w in c.wheels:

@@ -1,6 +1,6 @@
 # Radio online: stacja "Jamendo online"
 
-Status: w toku (menu i eksport zrobione w 2080463; brakuje klucza w grze, testów, odsłuchu) - do wykonania od razu (użytkownik 2026-11-09 17:33: "przekaż
+Status: w toku - klucz w grze i testy OK (patrz odpowiedź), czeka odsłuch na Queście
 agentowi lokalnemu od razu z propozycją wykonania")
 Od: wątek w chmurze "Oceń darmowe radio jako ścieżkę dźwiękową" (2026-11-09)
 Decyzje użytkownika: chce obok stacji offline "prawdziwego radia"
@@ -130,3 +130,18 @@ Brakuje jeszcze trzech rzeczy, zanim stacja zagra w goglach:
 3. **Odsłuch na Queście** według kryteriów z kroku 6 (czas do muzyki,
    płynność klatek, brak sieci, czytelność tabletu). Zmień potem
    `Status` i odpisz niżej.
+
+## Odpowiedź agenta lokalnego (2026-11-09, wieczór)
+
+1. Klucz **już jest w grze**: `radio_secrets.cfg` z samym `client_id` leży
+   w katalogu projektu (w .gitignore) od commita 2080463; sprawdzone
+   `unzip -l build/stunt-track-vr.apk | grep radio_secrets` - jest w APK.
+   Klucz zweryfikowany zapytaniem do API (status "success"). Plik
+   `~/.config/canion-raid/jamendo.env` to kopia zapasowa poza repo (z
+   sekretem, który do APK nie idzie). Generowanie w quest.sh - dobry
+   pomysł na świeży klon, dopiszę.
+2. `radio_test` OK (także nowe przypadki Jamendo), `title_test` OK,
+   `pause_test` OK - w zestawie `./quest.sh test`; wpis w HANDOVER.
+3. Odsłuch na Queście - czeka na użytkownika (w tej sesji jeździł bez
+   włączania stacji online).
+

@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku (modele GGBotNet pobrane)
 Od: wątek w chmurze "Dodaj nowe modele aut z epoki"
 Decyzje użytkownika (2026-11-09):
 - więcej aut z lat 70./80. do wyboru w menu, te same auta jeżdżą jako boty;
@@ -115,4 +115,12 @@ użytkownik jej nie da.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+2026-11-09: użytkownik zgodził się na GGBotNet "PSX Style Cars" i Quaternius
+"Realistic Car Pack". GGBotNet pobrany z OpenGameArt (CC0) do
+`models/ggbotnet/car_01..08` (OBJ+MTL+PNG, bez .blend, **bez wariantów
+policji i taxi** - `car5_police_la` ma oznaczenie konkretnego miasta),
+wpis w CREDITS.md. Quaternius: strona nie daje bezpośredniego linku
+(JS/Google Drive) - poproszę użytkownika o ręczne pobranie do
+`build/media_in/quaternius/`. Integracja `CarStyles` (pkt 1-6) - jeszcze
+nie; grip_test mierzy drogę od chwili wciśnięcia hamulca przy 100 km/h
+(sprawdzę dokładnie przy integracji i odpowiem).

@@ -49,13 +49,13 @@ func _test_drive() -> void:
 	_check(absf(m.p_max - 250000.0) < 2500.0, "moc maksymalna 250 kW (%.0f W)" % m.p_max)
 	_check(is_equal_approx(m.ratio(0.0), m.r_first), "postój: przełożenie 1. biegu")
 	_check(is_equal_approx(m.ratio(1000.0), m.r_top), "bardzo szybko: najwyższy bieg")
-	var mid_w := m.w_pp / ((m.r_first + m.r_top) * 0.5)
+	var mid_w: float = m.w_pp / ((m.r_first + m.r_top) * 0.5)
 	var r_mid: float = m.ratio(mid_w)
 	_check(r_mid < m.r_first and r_mid > m.r_top, "w środku: przełożenie pośrednie")
 	_check(is_equal_approx(m.engine_torque(1.0, 0.0, m.r_first, 18.0, 0.006), m.t_max),
 			"ruszanie: największy moment")
 	var t_mid: float = m.engine_torque(1.0, mid_w, r_mid, 18.0, 0.006)
-	var p_mid := t_mid * mid_w * r_mid
+	var p_mid: float = t_mid * mid_w * r_mid
 	_check(absf(p_mid - BDM.K_FILL * m.p_max) < 0.01 * m.p_max,
 			"stała moc K_FILL·P (%.0f W)" % p_mid)
 	_check(is_equal_approx(m.engine_torque(0.5, mid_w, r_mid, 18.0, 0.006), t_mid * 0.5),

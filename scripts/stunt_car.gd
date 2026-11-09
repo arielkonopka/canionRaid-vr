@@ -518,8 +518,9 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 		while rpm <= redline_rpm:
 			curve.append(Vector2(rpm, p_w / (rpm / RPM_PER_RAD_S)))
 			rpm += 1000.0
-		# Rekuperacja jako "hamowanie silnikiem": stały moment, część maksymalnego.
-		engine_brake_a = t_max * e["regen"]
+		# Rekuperacja jako "hamowanie silnikiem": stały moment, część
+		# maksymalnego - siła z opcji menu (regen_level, użytkownik 2026-11-09).
+		engine_brake_a = t_max * float(REGEN_LEVELS.get(regen_level, e["regen"]))
 		engine_brake_b = 0.0
 	else:
 		# Skala z najwyższej mocy na kształcie (próbkowanym co 50 obr.).
@@ -720,7 +721,8 @@ func _physics_step(delta: float) -> void:
 			# bez paliwa (prądu) też nie.
 			t_engine *= (1.0 - 0.75 * damage["engine"]) * (0.0 if (is_wrecked or fuel <= 0.0) else 1.0)
 		axle_torque = t_engine * g_ratio * drivetrain_efficiency
-		_burn_fuel(maxf(t_engine, 0.0) * engine_rpm / RPM_PER_RAD_S, delta)
+		# Elektryk: ujemny moment (rekuperacja) ładuje baterię.
+		_burn_fuel((t_engine if electric else maxf(t_engine, 0.0)) * engine_rpm / RPM_PER_RAD_S, delta)
 	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
@@ -2202,6 +2204,15 @@ var _settle_t := 0.0
 # --------------------------------------------------------------------------
 ## Energia pełnego baku [kWh "na kołach"].
 @export var tank_kwh: float = 7.5
+## Rekuperacja elektryka (opcja menu, użytkownik 2026-11-09: "rekuperator
+## przy hamowaniu silnikiem jako opcja"): moment hamowania silnikiem po
+## puszczeniu gazu jako część maksymalnego momentu; energia wraca do baterii
+## ze sprawnością REGEN_EFF (silnik + falownik + bateria).
+const REGEN_LEVELS := {"off": 0.0, "weak": 0.07, "normal": 0.15, "strong": 0.30}
+const REGEN_EFF := 0.7
+var regen_level := "normal"
+## Bak domyślny (wąwóz, ~25 km); tryb Autostrada x4 (~100 km).
+const TANK_KWH_DEFAULT := 7.5
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
@@ -2224,7 +2235,9 @@ func _burn_fuel(power_w: float, delta: float) -> void:
 	if is_bot:
 		return
 	var kw := power_w / 1000.0 + (0.0 if electric else idle_kw)
-	fuel = maxf(fuel - kw * delta / 3600.0 / tank_kwh, 0.0)
+	if kw < 0.0:
+		kw *= REGEN_EFF              # odzysk energii (tylko elektryk)
+	fuel = clampf(fuel - kw * delta / 3600.0 / tank_kwh, 0.0, 1.0)
 
 
 ## Zasięg na pozostałym paliwie przy spokojnej jeździe [km].

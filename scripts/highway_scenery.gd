@@ -261,6 +261,14 @@ static func _multimesh(kind: String, items: Array) -> MultiMeshInstance3D:
 			mmi.visibility_range_end = VIS_PROPS
 	if kind == "building":
 		mmi.material_override = _facade_material()
+		# Kopia transformacji dla testów: w trybie headless (atrapa
+		# renderera) MultiMesh.get_instance_transform zwraca zawsze
+		# Transform3D() - highway_gen_test widział "budynki na jezdni".
+		if DisplayServer.get_name() == "headless":
+			var xs: Array[Transform3D] = []
+			for it in items:
+				xs.append(it[0])
+			mmi.set_meta("xforms", xs)
 	return mmi
 
 

@@ -640,18 +640,35 @@ const BIG_JUMP_VMAX := 400.0 / 3.6
 const BIG_JUMP_TABLE := 170.0
 
 
-static func _big_jump(out: Array, state: Dictionary) -> void:
+static func _big_jump(out: Array, state: Dictionary, meta := {}) -> void:
 	var th := deg_to_rad(BIG_JUMP_DEG)
 	var l_in := ceilf(BIG_JUMP_VMAX * BIG_JUMP_VMAX * th / G)
+	var base_y: float = (state["pos"] as Vector3).y
+	var m := {"sign": "SKOCZNIA DO 400 km/h", "v_sign": 0.0,
+			"jump_kind": "WIELKA SKOCZNIA", "big_jump": true}
+	m.merge(meta)
 	_push(out, state, {"len": 120.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0, "surface": "dry",
-			"limit": LIMIT_HIGHWAY, "meta": {"sign": "SKOCZNIA DO 400 km/h", "v_sign": 0.0,
-			"jump_kind": "WIELKA SKOCZNIA", "big_jump": true}})
+			"limit": LIMIT_HIGHWAY, "meta": m})
 	_push(out, state, {"len": l_in, "pitch": BIG_JUMP_DEG, "surface": "dry"})
 	# Krótki grzbiet: za nim tor lotu odrywa się od jezdni (v² > g·L/θ).
 	_push(out, state, {"len": 4.0, "pitch": 0.0, "surface": "dry"})
 	_push(out, state, {"len": BIG_JUMP_TABLE, "pitch": 0.0, "surface": "dry"})
-	# Łagodny zjazd ze stołu (bez drugiego wybicia przy 400 km/h).
-	_push(out, state, {"len": 90.0, "pitch": -2.0, "surface": "dry"})
+	# Łagodny zjazd ze stołu do wysokości sprzed skoczni (bez drugiego
+	# wybicia przy 400 km/h): dwa odcinki po 90 m, nachylenie narasta
+	# i maleje liniowo, spadek ≈ 90 m · p.
+	# Nachylenie dopasowane próbnie (siecznymi), żeby jezdnia wróciła
+	# dokładnie na base_y - kawałki autostrady muszą zaczynać się na ROAD_Y.
+	var dy: float = (state["pos"] as Vector3).y - base_y
+	var p := rad_to_deg(atan(dy / 90.0))
+	for _it in range(6):
+		var trial := state.duplicate()
+		var smp := StuntTrack.sample_segments([{"len": 90.0, "pitch": -p, "surface": "dry"},
+				{"len": 90.0, "pitch": 0.0, "surface": "dry"}], trial, 0.5)
+		var got: float = (state["pos"] as Vector3).y - (smp[-1]["end_state"]["pos"] as Vector3).y
+		if absf(got - dy) < 1e-5 or absf(got) < 1e-9:
+			break
+		p *= dy / got
+	_push(out, state, {"len": 90.0, "pitch": -p, "surface": "dry"})
 	_push(out, state, {"len": 90.0, "pitch": 0.0, "surface": "dry"})
 
 

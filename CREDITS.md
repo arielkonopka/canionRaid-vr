@@ -48,10 +48,38 @@ API, tylko do odtwarzania (bez zapisu na dysk). Wykonawca, tytuł, licencja
 i link do strony utworu są wyświetlane na tablecie podczas odtwarzania.
 Użycie API jest darmowe tylko niekomercyjnie.
 
-## Tryb Autostrada (planowane)
+## Tryb Autostrada
 
-Tekstury (ambientCG, Poly Haven), modele (Kenney, Quaternius) i dźwięki
-otoczenia (Freesound) - lista do akceptacji w `docs/MEDIA_AUTOSTRADA.md`.
-Wpisy tutaj dopisuje się po pobraniu: `python3 tools/fetch_highway_media.py --credits`
-(tylko zasoby faktycznie użyte). Obiekty przy drodze i bryły domów w tym
-trybie są proceduralne (`scripts/highway_scenery.gd`, kod gry, GPL-3.0).
+Obiekty przy drodze i bryły domów są proceduralne (`scripts/highway_scenery.gd`,
+kod gry, GPL-3.0). Tekstury pobiera `tools/fetch_highway_media.py`
+(nie są w repo); wpisy niżej z `--credits`.
+
+### Tekstury (CC0)
+
+- asphalt: "Asphalt033" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Asphalt033
+- asphalt_city: "Road012A" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Road012A
+- sidewalk: "PavingStones138" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=PavingStones138
+- cobble: "PavingStones150" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=PavingStones150
+- plaster: "Plaster001" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Plaster001
+- plaster_painted: "PaintedPlaster017" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=PaintedPlaster017
+- plaster_patched: "PaintedPlaster006" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=PaintedPlaster006
+- brick: "Bricks105" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Bricks105
+- facade_glass: "Facade001" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Facade001
+- concrete: "Concrete046" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Concrete046
+- grass: "Grass004" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Grass004
+- grass_short: "Grass005" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Grass005
+- desert_sand: "Ground093C" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Ground093C
+- beach_sand: "Ground080" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Ground080
+- beach_wet: "Ground054" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Ground054
+- dry_ground: "Ground110" - ambientCG (Lennart Demes), CC0, https://ambientcg.com/view?id=Ground110
+- aerial_beach: "aerial_beach_01" - Poly Haven, CC0, https://polyhaven.com/a/aerial_beach_01
+- aerial_grass_rock: "aerial_grass_rock" - Poly Haven, CC0, https://polyhaven.com/a/aerial_grass_rock
+
+## Modele aut
+
+- "PSX Style Cars" - GGBotNet (https://ggbot.itch.io), CC0,
+  https://opengameart.org/content/psx-style-cars - w `models/ggbotnet/`
+  (bez wariantów policji i taxi).
+- "Realistic Car Pack" (Nov 2018) - Quaternius (https://quaternius.com),
+  CC0 - w `models/quaternius/` (OBJ: NormalCar1/2, SportsCar/2, SUV; bez
+  Cop i Taxi).

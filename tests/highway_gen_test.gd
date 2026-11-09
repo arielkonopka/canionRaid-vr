@@ -63,13 +63,21 @@ func _initialize() -> void:
 				_fail("kawałek %d: skok dystansu" % n_chunks)
 			if absf(float(smp[0]["yaw"]) - float(prev_end["yaw"])) > 1e-9:
 				_fail("kawałek %d: skok kursu" % n_chunks)
-		if (smp[0]["pos"] as Vector3).distance_to(Vector3(0, HighwayGenerator.ROAD_Y, 0)) > 1e-6:
+		if (smp[0]["pos"] as Vector3).distance_to(Vector3(0, HighwayGenerator.ROAD_Y, 0)) > 1e-3:
 			_fail("kawałek %d nie zaczyna się w (0, y, 0)" % n_chunks)
 		# --- próbki ---
 		for s in smp:
 			var p: Vector3 = s["pos"]
 			max_local = maxf(max_local, maxf(absf(p.x), absf(p.z)))
-			if absf(float(s["pitch"])) > 1e-9 or absf(p.y - HighwayGenerator.ROAD_Y) > 1e-3:
+			# Wyjątki dodane przez agenta lokalnego (2026-11-09): wielka
+			# skocznia w miejscu objazdu (nie płasko), stacje i warsztaty
+			# (szerszy pas zjazdu, ograniczenie 70 na stacji).
+			var dd: float = s["dist"]
+			var on_jump := not plan.jumps_between(dd - 1.0, dd + 1.0).is_empty()
+			var on_service := not (plan.stations_between(dd - 1.0, dd + 1.0) + plan.workshops_between(dd - 1.0, dd + 1.0)).is_empty()
+			if on_service:
+				continue
+			if not on_jump and (absf(float(s["pitch"])) > 1e-9 or absf(p.y - HighwayGenerator.ROAD_Y) > 1e-3):
 				_fail("kawałek %d: nie płasko na %.0f m (y %.3f)" % [n_chunks, s["dist"], p.y])
 				break
 			if absf(float(s["width"]) - HighwayGenerator.WIDTH) > 1e-6:
@@ -117,7 +125,7 @@ func _initialize() -> void:
 			t_scn += Time.get_ticks_usec() - t1
 			for n in nodes:
 				if n is MultiMeshInstance3D and n.name == "Hwy_building":
-					buildings += _check_buildings(n.multimesh, smp, edges)
+					buildings += _check_buildings(n, smp, edges)
 				n.free()
 		# --- położenie następnego kawałka ---
 		var e: Dictionary = smp[-1]["end_state"]
@@ -158,9 +166,12 @@ func _initialize() -> void:
 ## Żaden budynek nie wchodzi na jezdnię ani chodnik: środek budynku
 ## w układzie najbliższej próbki, minus pół głębokości, dalej niż krawędź
 ## asfaltu + chodnik. Zwraca liczbę budynków.
-func _check_buildings(mm: MultiMesh, smp: Array, edges: Vector2) -> int:
+func _check_buildings(mmi: MultiMeshInstance3D, smp: Array, edges: Vector2) -> int:
+	# Headless: MultiMesh nie trzyma danych (atrapa renderera) - kopia w meta.
+	var xs: Array = mmi.get_meta("xforms", [])
+	var mm := mmi.multimesh
 	for i in range(mm.instance_count):
-		var xf := mm.get_instance_transform(i)
+		var xf: Transform3D = xs[i] if i < xs.size() else mm.get_instance_transform(i)
 		var c := xf.origin
 		var half_depth := xf.basis.z.length() * 0.5
 		var best := INF

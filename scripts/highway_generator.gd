@@ -100,6 +100,11 @@ func _next_mark(d: float) -> Dictionary:
 	for j in plan.jumps_between(d + 0.5, d + 6000.0):
 		if float(j["start"]) > d + 0.5 and float(j["start"]) < float(best["dist"]):
 			best = {"dist": float(j["start"]), "kind": "detour", "jump": j}
+	for st in plan.stations_between(d + 0.5, d + 6000.0) + plan.workshops_between(d + 0.5, d + 6000.0):
+		var sign_d := float(st["start"]) - TrackGenerator.SERVICE_SIGN_DIST
+		for m in [sign_d, float(st["start"])]:
+			if m > d + 0.5 and m < float(best["dist"]):
+				best = {"dist": m, "kind": "service"}
 	return best
 
 
@@ -111,8 +116,33 @@ func _module(out: Array, state: Dictionary, meta: Dictionary) -> void:
 	# na równoległym pasie, jezdnia główna zostaje prosta i płaska).
 	for j in plan.jumps_between(d, d + 1.0):
 		if absf(float(j["start"]) - d) < 0.5:
+			# Na razie wielka skocznia (do 400 km/h, użytkownik 2026-11-09) na
+			# jezdni głównej; objazd z równoległym pasem - etap 4 spec.
 			meta["detour"] = j
-			_seg(out, state, float(j["end"]) - d, 0.0, 0.0, meta)
+			TrackGenerator._big_jump(out, state, meta.duplicate())
+			meta.clear()
+			_seg(out, state, float(j["end"]) - float(state["dist"]), 0.0, 0.0, meta)
+			return
+	# Stacja paliw: znak zjazdu SERVICE_SIGN_DIST przed, potem pas zjazdu
+	# jak w wąwozie (StuntTrack._build_service, tankowanie w xr_main).
+	# Warsztat w każdym mieście (tier 0: xr_main proponuje próg o jeden
+	# wyżej niż obecny), ograniczenie z planu (30 w mieście).
+	var svcs := []
+	for st in plan.stations_between(d - 1.0, d + TrackGenerator.SERVICE_SIGN_DIST + 1.0):
+		svcs.append([st, "station", 70.0])
+	for ws in plan.workshops_between(d - 1.0, d + TrackGenerator.SERVICE_SIGN_DIST + 1.0):
+		svcs.append([ws, "workshop", -1.0])
+	for sv in svcs:
+		var st: Dictionary = sv[0]
+		if absf(float(st["start"]) - TrackGenerator.SERVICE_SIGN_DIST - d) < 0.5:
+			meta["service_ahead"] = sv[1]
+		elif absf(float(st["start"]) - d) < 0.5:
+			var w_ext := WIDTH + TrackGenerator.SERVICE_EXTRA_W
+			var lim: float = sv[2]
+			_seg(out, state, 40.0, 0.0, 0.0, meta, w_ext, lim)
+			_seg(out, state, TrackGenerator.SERVICE_LEN, 0.0, 0.0, {"service": {"kind": sv[1],
+					"len": TrackGenerator.SERVICE_LEN, "road_w": WIDTH, "tier": 0}}, w_ext, lim)
+			_seg(out, state, 40.0, 0.0, 0.0, {}, WIDTH, lim)
 			return
 	var city := plan.city_at(d + 0.5)       # +0,5: dist po próbkowaniu bywa o 1e-9 przed znacznikiem
 	if not city.is_empty() and absf(float(city["start"]) - d) < 0.5:
@@ -164,12 +194,13 @@ func _curve(out: Array, state: Dictionary, meta: Dictionary, room: float, in_cit
 
 ## Dokłada odcinek i przesuwa stan przez prawdziwe próbkowanie (jak
 ## TrackGenerator._push) - stan zgadza się co do milimetra z torem.
-func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: float, meta: Dictionary) -> void:
+func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: float, meta: Dictionary,
+		width := WIDTH, limit := -1.0) -> void:
 	if length < 0.5:
 		return
 	var d: float = state["dist"]
 	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
-			"width": WIDTH, "surface": "dry", "limit": plan.limit_at(d + 0.25)}
+			"width": width, "surface": "dry", "limit": limit if limit > 0.0 else plan.limit_at(d + 0.25)}
 	if not meta.is_empty():
 		seg["meta"] = meta.duplicate()
 		meta.clear()

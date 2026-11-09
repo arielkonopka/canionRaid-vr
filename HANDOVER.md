@@ -454,6 +454,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
+- **Rekuperacja elektryka** (użytkownik 2026-11-09): opcja menu
+  "Rekuperacja" wył./słaba/normalna/mocna (`StuntCar.REGEN_LEVELS` 0 /
+  0,07 / 0,15 / 0,30 maks. momentu), energia wraca do baterii ze
+  sprawnością 0,7. `regen_test`: 100 km/h, 6 s bez gazu - 0,03 / 0,07 /
+  0,12 / 0,20 g, odzysk 0 / 20 / 41 / 73 Wh.
 - **Opływowość nadwozia** (użytkownik 2026-11-09: "130 kW ledwo ponad
   150", "w najwyższej opcji naprawdę ponad 300 km/h", "dodatkowy czynnik
   oporu powietrza"): opcja menu "Opływowość" (`StuntCar.AERO`,
@@ -502,6 +507,19 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     miasta, **tylko gdy gracz ich nie widzi**.
   - **Skocznie rzadko, jako atrakcja** (objazd ze skocznią / rampa obok
     drogi, którą można ominąć) - głównie zwykła jazda.
+  - Specyfikacja i moduły z chmury: `docs/AUTOSTRADA.md`,
+    `scripts/highway_plan.gd`, `highway_generator.gd`,
+    `highway_scenery.gd`, `traffic_zone.gd`, `world_origin.gd` (testy
+    `highway_plan_test`, `highway_gen_test`, `world_origin_test` w zestawie).
+  - Odpowiedzi na pytania spec. pkt 11 (użytkownik 2026-11-09):
+    **ruch** - przy mieście (5 km) 3-5 aut/km, **między miastami rzadki
+    ruch ~0,5-1 auta/km** (nie pusto); **stopniowanie ograniczeń przed
+    miastem 140 → 70 → 50 → 30**; **stacje paliw rzadziej, co ~20 km**
+    (paliwo ma być wyzwaniem), warsztat w każdym mieście; nasyp jezdni
+    1 m (propozycja chmury, przyjęta domyślnie).
+  - Zgoda na pobranie (2026-11-09): tekstury z `docs/MEDIA_AUTOSTRADA.md`
+    (ambientCG, CC0, nie do gita), modele aut GGBotNet "PSX Style Cars"
+    i Quaternius "Realistic Car Pack" (CC0, do repo w `models/`).
   - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
     ma, a pomagają ocenić prędkość).
 - **Klucze API Jamendo** (użytkownik 2026-11-09, "będzie potrzebne
@@ -553,6 +571,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Nie edytuj `quest.sh` w miejscu, gdy działa** (`./quest.sh test` trwa
+  ~25 min): bash czyta skrypt na bieżąco, a zapis z obcięciem pliku
+  (python `open('w')`, edytor) przesuwa bajty - po powrocie z funkcji bash
+  czyta od starego przesunięcia i może wykonać przypadkowy fragment.
+  `sed -i` jest bezpieczne (nowy plik, bash trzyma stary i-węzeł).
+
+- **Headless: `MultiMesh.get_instance_transform` zwraca zawsze
+  `Transform3D()`** (atrapa renderera nie trzyma danych instancji) -
+  objaw: test widzi wszystkie instancje w (0,0,0) ("budynek na jezdni").
+  `HighwayScenery` w headless zapisuje kopię w meta `xforms`.
+- **`global_position` w `SceneTree._initialize` testu** - węzły jeszcze
+  nie w drzewie: "Condition !is_inside_tree()". Używać `position`
+  (rodzic root w zerze).
 
 - **Opcja rozdzielczości w menu nic nie zmienia / "działa dopiero po
   restarcie", a VrApi pokazuje `SF=0.50`** → dynamiczna rozdzielczość
@@ -1589,13 +1621,34 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
-000. **Tryb Autostrada** (ustalenia w sekcji 2, 2026-11-09). Plan
-   etapami: (1) tryb w menu + generator odcinków samej autostrady
-   (2+2 pasy, łagodne łuki, bez skoczni) i słupki co 100 m / km;
-   (2) strefy scenerii co 50±10 km (równiny/pola/łąki/pustynia, góry,
-   morze, wąwóz) - teren i obiekty z MultiMesh (`scenery.gd`);
-   (3) miasta 1 km / 5 km z zabudową i strefą 30, ruch 3-5 aut/km
-   z znikaniem poza wzrokiem; (4) rzadkie objazdy ze skocznią.
+000. **Tryb Autostrada** (ustalenia w sekcji 2, spec. `docs/AUTOSTRADA.md`).
+   **Etap 1 zrobiony (2026-11-09)**: menu "Trasa" (Wąwóz / Autostrada),
+   `EndlessTrack.autostrada` - kawałki z `HighwayGenerator`, każdy we
+   własnym układzie (`localize`, węzeł w końcu poprzedniego, w grupie
+   `WorldOrigin.GROUP`); `EndlessTrack._g` dodaje pozycję kawałka do
+   "pos" próbek oddawanych na zewnątrz (boty, HUD, xr_main bez zmian);
+   `xr_main._check_origin_shift` na początku kroku (auto, XROrigin,
+   boty, auta z naprzeciwka, wybuchy, deszcz, menu w powietrzu w grupie;
+   poprawki `_ws_xf`, `_chase_xf`, `_cine_*`); log "ŚWIAT: przesunięty".
+   `StuntTrack.hwy_plan` -> `HighwayScenery.build` (słupki, obiekty
+   biomów, zabudowa miast z kolizją pierwszego rzędu, `Perf
+   "hwy_scenery"`), tablice z wymyśloną nazwą miasta
+   (`HighwayPlan.city_name`) na wjeździe i przekreślone na wyjeździe.
+   Stacje co 20 km (`HighwayPlan.stations_between`, offset 12,5 km, nie
+   przy miastach i skoczniach), **warsztat w każdym mieście** 300 m za
+   początkiem zabudowy (`workshops_between`), **bak ~100 km** w tym trybie
+   (`tank_kwh` x4; użytkownik: "żeby można było pominąć stację").
+   W miejscach objazdów (`jumps_between`, ~1/30 km) na razie wielka
+   skocznia na jezdni głównej (`TrackGenerator._big_jump` wraca do
+   wysokości wyjścia). Test: `endless_test -- 180 petrol 777 400
+   autostrada` - 16,2 km, 7 przesunięć świata, bez upadków (zderzenia
+   z botami, autopilot ich nie omija). Autopilot testu: wzmocnienie
+   kierownicy maleje z prędkością (przy 220 km/h stałe rozbujało go) i
+   w trybie Autostrada trzyma ograniczenia.
+   Dalej: etap 2 (biomy: teren w shaderze, horyzont, `world_wrap`
+   w shaderach - jezdnia ma dystans w UV.y jako float32!), etap 3
+   (ruch `TrafficZone`, auta z epoki), etap 4 (objazdy). Pomiar na
+   Queście (`hwy_scenery`, PERF+) przed paczkami modeli.
 00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
    2026-11-09)** - stan dochodzenia:
    - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -

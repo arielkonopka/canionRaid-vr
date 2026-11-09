@@ -48,7 +48,10 @@ const TRAFFIC_RADIUS := 5000.0
 ## z szansą JUMP_CHANCE; nie bliżej niż JUMP_CITY_CLEAR od zabudowy.
 const JUMP_BLOCK := 10000.0
 const JUMP_CHANCE := 0.35
-const JUMP_LEN := 450.0
+## Długość objazdu: na razie wielka skocznia na jezdni głównej
+## (TrackGenerator._big_jump, ~551 m) - pełny objazd z równoległym pasem to
+## etap 4 spec. (było 450 m dla samego objazdu).
+const JUMP_LEN := 600.0
 const JUMP_CITY_CLEAR := 2000.0
 ## Pierwsze metry trasy bez atrakcji (rozruch, oswojenie z autem).
 const JUMP_FIRST := 4000.0
@@ -151,6 +154,22 @@ func city(n: int) -> Dictionary:
 		"density": lerpf(TRAFFIC_MIN, TRAFFIC_MAX, _rand(n, 3)),
 		"name_seed": hash([seed_value, n, 4]),
 	}
+
+
+## Wymyślona nazwa miejscowości z `name_seed` (sylaby w polskim brzmieniu,
+## bez prawdziwych miejscowości - zasada projektu: nic z cudzego świata).
+const NAME_A := ["Brze", "Gro", "Wil", "Stru", "Ka", "Mo", "Ja", "Ró", "Sie", "Dą", "Ło", "Pie", "Zbo", "Kru", "Ole"]
+const NAME_B := ["ko", "dzi", "la", "ra", "mi", "szy", "ce", "wo", "nie", "ga", "ty", "so"]
+const NAME_C := ["wice", "ówek", "nin", "sko", "lin", "wo", "dziec", "ków", "ice", "any", "owo", "ów"]
+
+
+static func city_name(name_seed: int) -> String:
+	var r := RandomNumberGenerator.new()
+	r.seed = name_seed
+	var n: String = NAME_A[r.randi() % NAME_A.size()]
+	if r.randf() < 0.6:
+		n += NAME_B[r.randi() % NAME_B.size()]
+	return n + NAME_C[r.randi() % NAME_C.size()]
 
 
 ## Miasto, w którego zabudowie jest d ({} - poza miastem).
@@ -279,6 +298,57 @@ func jumps_between(d0: float, d1: float) -> Array:
 		var j := jump_in_block(b)
 		if not j.is_empty() and j["end"] > d0 and j["start"] < d1:
 			out.append(j)
+	return out
+
+
+# --------------------------------------------------------------------------
+# Stacje paliw
+# --------------------------------------------------------------------------
+
+## Stacje co STATION_EVERY (użytkownik 2026-11-09: "stacje rzadziej, co
+## ~20 km" - paliwo ma być wyzwaniem; bak ~25 km spokojnej jazdy). Przesunięte
+## o STATION_OFFSET, żeby nie wypadały w miastach (co 25 km); stacja
+## pomijana, gdy w pobliżu miasto albo skocznia.
+const STATION_EVERY := 20000.0
+const STATION_OFFSET := 12500.0
+const STATION_CLEAR := 1500.0
+const STATION_LEN := 190.0          # wjazd 40 + stacja 110 + wyjazd 40
+
+
+func station(k: int) -> Dictionary:
+	if k < 0:
+		return {}
+	var start := float(k) * STATION_EVERY + STATION_OFFSET
+	var end := start + STATION_LEN
+	if not cities_between(start - STATION_CLEAR, end + STATION_CLEAR).is_empty():
+		return {}
+	if not jumps_between(start - STATION_CLEAR, end + STATION_CLEAR).is_empty():
+		return {}
+	return {"start": start, "end": end}
+
+
+func stations_between(d0: float, d1: float) -> Array:
+	var out := []
+	for k in range(maxi(int(floor((d0 - STATION_OFFSET) / STATION_EVERY)), 0),
+			int(floor((d1 - STATION_OFFSET) / STATION_EVERY)) + 1):
+		var st := station(k)
+		if not st.is_empty() and st["end"] > d0 and st["start"] < d1:
+			out.append(st)
+	return out
+
+
+## Warsztat w każdym mieście (użytkownik 2026-11-09), WORKSHOP_IN m za
+## początkiem zabudowy (strefa 30 km/h), pas zjazdu jak stacja.
+const WORKSHOP_IN := 300.0
+
+
+func workshops_between(d0: float, d1: float) -> Array:
+	var out := []
+	for c in cities_between(d0 - WORKSHOP_IN - STATION_LEN, d1):
+		var start := float(c["start"]) + WORKSHOP_IN
+		var end := start + STATION_LEN
+		if end > d0 and start < d1:
+			out.append({"start": start, "end": end, "city": c})
 	return out
 
 
