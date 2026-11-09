@@ -14,3 +14,7 @@ build/
 # Tekstury z zewnętrznego źródła - nie w publicznym repo, dopóki
 # użytkownik nie potwierdzi licencji (patrz HANDOVER, sekcja 2).
 textures/
+
+# Klucz API Jamendo (client_id) - nie do publicznego repo (decyzja
+# użytkownika 2026-11-09). Dołączany do APK przez include_filter.
+radio_secrets.cfg

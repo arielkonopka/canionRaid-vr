@@ -73,9 +73,7 @@ func _item_text(id: String) -> String:
 		"radio":
 			return "Radio: " + ("włączone" if radio and radio.is_on else "wyłączone")
 		"station":
-			var n := "-"
-			if radio and radio.catalog and radio.catalog.station_count() > 0:
-				n = radio.catalog.stations[maxi(radio.station, 0)]["name"]
+			var n := radio.station_name() if radio else "-"
 			return "Stacja:  < %s >" % n
 		"volume":
 			return "Głośność radia:  < %d / %d >" % [volume_index + 1, VOLUME_STEPS.size()]
