@@ -447,6 +447,28 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   z większym momentem itd. Trudność trasy jest pod to strojona.
 - **Auto z zewnątrz: sedan z lat 70.** (prośba użytkownika). Ogólny styl
   epoki, nie konkretny model.
+- **Wytrzymałość auta** (użytkownik 2026-11-09: "to gra, gdzie człowiek
+  ma się przekonać, jak niebezpieczna jest szybka jazda, ale auto
+  powinno trochę więcej znieść"): opcja menu "Wytrzymałość" x1 (realna,
+  domyślna), x2, x3, x5, x10 - dzieli uszkodzenia mechaniczne (silnik,
+  skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
+  Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
+  Boty zawsze x1.
+- **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
+  - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
+  - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
+    jezdnie za barierą, na drugiej ruch z naprzeciwka.
+  - Sceneria zmienia się **co 50 km ± losowo 10 km**: wąwóz, góry,
+    nad morzem, równiny (pola, łąki, pustynia).
+  - **Miasta**: co 25 km małe (jedzie się przez ~1 km), co 100 km duże
+    (~5 km). Droga przechodzi w **ulicę w zabudowie** (ta sama droga,
+    domy, chodniki), **strefa 30 km/h**. Wokół miasta zawsze **3-5 aut
+    na kilometr**; te, które nie są w furii, mogą znikać do 5 km od
+    miasta, **tylko gdy gracz ich nie widzi**.
+  - **Skocznie rzadko, jako atrakcja** (objazd ze skocznią / rampa obok
+    drogi, którą można ominąć) - głównie zwykła jazda.
+  - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
+    ma, a pomagają ocenić prędkość).
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
 - **Repozytorium git** (od 2026-11-08, prośba użytkownika):
@@ -1504,6 +1526,45 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+000. **Tryb Autostrada** (ustalenia w sekcji 2, 2026-11-09). Plan
+   etapami: (1) tryb w menu + generator odcinków samej autostrady
+   (2+2 pasy, łagodne łuki, bez skoczni) i słupki co 100 m / km;
+   (2) strefy scenerii co 50±10 km (równiny/pola/łąki/pustynia, góry,
+   morze, wąwóz) - teren i obiekty z MultiMesh (`scenery.gd`);
+   (3) miasta 1 km / 5 km z zabudową i strefą 30, ruch 3-5 aut/km
+   z znikaniem poza wzrokiem; (4) rzadkie objazdy ze skocznią.
+00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
+   2026-11-09)** - stan dochodzenia:
+   - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -
+     gogle NIE zwalniają fizyki. Za to **silnik był uszkodzony 46-92%**
+     (-35..-70% mocy) po uderzeniu 171 -> 7 km/h i twardych lądowaniach.
+     Stąd "130 kW ledwo ponad 150".
+   - `tests/ramp_entry_test.gd` (diagnostyka, nie w zestawie): skocznia
+     z generatora, wjazd 80/110/140 km/h z gazem i bez. Przy prędkości
+     dużo wyższej niż projektowa auto przelatuje lądowisko, w locie
+     obraca się nosem w dół (do -28°), ląduje na przodzie i wbija się
+     zderzakiem (4x4 140 km/h bez gazu: 122 -> 11 km/h w 0,25 s) -
+     uszkodzony silnik. Do rozważenia z użytkownikiem: czy skocznie mają
+     być bezpieczniejsze przy nadmiarze prędkości (dłuższe lądowisko).
+   - Linia **"INCYDENT"** w logu (xr_main `_watch_incident`): przy
+     > 1,5 g opóźnienia albo przechyle > 60° - stan auta, pedały, koła,
+     najmocniejszy kontakt nadwozia (`StuntCar.last_hit`: ścieżka
+     obiektu, impuls, punkt), odcinek, dystans. Po następnej jeździe
+     `./quest.sh log` (najlepiej zapis do pliku na kablu - bufor logcat
+     w goglach szybko się nadpisuje) i przeczytać.
+   - **Niestabilność przy dużej prędkości**: 700 kW tył, ~240 km/h,
+     kierownica 0 - auto samo wchodzi w dryf (yaw podwaja się co
+     ~0,15 s), w kierunku -Z idealna symetria to ukrywa (jedzie prosto do
+     347 km/h), w +X zaokrąglenia wystarczą. Tylne koła na granicy
+     przyczepności wzdłużnej (TCS trzyma szczyt) nie mają zapasu bocznego
+     (poślizg łączny); podwozie ~neutralne (sztywność opon ∝ obciążeniu).
+     ESP poprawione (poślizg łączny osi zamiast samego kąta, odcięcie
+     napędu z kąta znoszenia tylnych opon, spadek od razu) - pomaga
+     częściowo; zostaje ustalony dryf z ~0,8 g bez skrętu. Pomysły: szersze
+     tylne opony przy dużej mocy (jak w prawdziwych autach), zbieżność
+     tyłu, TCS z zapasem bocznym. Diagnostyka: skrypt
+     `_dbg_top.gd` (był w tests/, usunięty) - jazda w +X z (3000, 3000).
 
 00. **Wydajność - stan 2026-11-09** (plan: `docs/PERF_PLAN.md`, inbox
    `2026-11-08-plan-wydajnosci.md`). Pomiary sprzed tej daty są

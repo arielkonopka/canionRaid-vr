@@ -136,6 +136,24 @@ const ENGINE_TYPES := {
 @export var body_inertia: Vector3 = Vector3(1750.0, 1950.0, 480.0)
 ## Opór powietrza 0,5·ρ·Cd·A [kg/m]. 0,46 ≈ Cd 0,36 przy 2,1 m² czoła.
 @export var aero_drag: float = 0.46
+## Opływowość nadwozia (opcja menu, użytkownik 2026-11-09: "130 kW ledwo
+## ponad 150, chcę >300 w najmocniejszej opcji" - opór sedana z lat 70.
+## był jedyny). Cd i powierzchnia czołowa A [m²]; aero_drag = ½·ρ·Cd·A.
+## Prędkość maksymalna (gdy nie ogranicza jej bieg) rośnie jak (1/CdA)^⅓.
+const AERO := {
+	"classic": {"cd": 0.36, "area": 2.1},     # sedan z epoki
+	"modern": {"cd": 0.29, "area": 2.0},      # współczesny kompakt/sedan
+	"sport": {"cd": 0.30, "area": 1.85},      # niskie auto sportowe
+	"record": {"cd": 0.22, "area": 1.75},     # opływowy rekordowiec
+}
+var aero := "classic"
+
+
+func set_aero(name_s: String) -> void:
+	if not AERO.has(name_s):
+		name_s = "classic"
+	aero = name_s
+	aero_drag = 0.5 * AIR_RHO * float(AERO[name_s]["cd"]) * float(AERO[name_s]["area"])
 ## Masa nadwozia bez napędu [kg] - opcja menu "Masa" (950-2500 kg).
 ## Bezwładność i zawieszenie skalują się proporcjonalnie do masy auta.
 @export var body_mass: float = 1150.0
@@ -1147,13 +1165,29 @@ func _update_esp(delta: float, grounded: int) -> void:
 		# niż wynika z kąta kół, i ESP brałby to za nadsterowność. Prawdziwe
 		# układy szacują też, czy oś faktycznie traci przyczepność - tu:
 		# kąt znoszenia opon tej osi blisko szczytu krzywej.
-		var tan_peak := tan(deg_to_rad(peak_slip_angle_deg))
+		# Poślizg łączny (w.slip, 1 = szczyt krzywej): oś napędzana na granicy
+		# przyczepności wzdłużnej nie ma zapasu na siłę boczną, choć kąt
+		# znoszenia jest jeszcze mały. Sam kąt znoszenia przegapiał to - 700 kW
+		# z tyłu przy ~240 km/h na prostej kręciło się samo (yaw podwajał się
+		# co ~0,15 s), a ESP budził się przy 0,37 rad/s (2026-11-09).
 		var axle_slip := 0.0
 		if oversteer:
-			axle_slip = maxf(absf(wheels[2].tan_alpha), absf(wheels[3].tan_alpha))
+			axle_slip = maxf(wheels[2].slip, wheels[3].slip)
 		else:
-			axle_slip = maxf(absf(wheels[0].tan_alpha), absf(wheels[1].tan_alpha))
-		var sliding := axle_slip > tan_peak * (0.75 if oversteer else 1.0)
+			axle_slip = maxf(wheels[0].slip, wheels[1].slip)
+		var sliding := axle_slip > (0.75 if oversteer else 1.0)
+		# Znoszenie tyłu (prawdziwe ESP szacuje kąt znoszenia i go ogranicza):
+		# kąt opon tylnej osi ponad połowę kąta szczytowego przy nadsterowności
+		# = tył ucieka - ESP odcina napęd mocno, zanim dryf się ustali
+		# (wcześniej przy 12° bokiem na prostej odcinał 14%). Kąt opon, nie
+		# nadwozia: w ciasnym zakręcie nadwozie ma duży kąt z samej geometrii.
+		var tan_peak := tan(deg_to_rad(peak_slip_angle_deg))
+		var rear_a := (absf(wheels[2].tan_alpha) + absf(wheels[3].tan_alpha)) * 0.5 / tan_peak
+		var beta_cut := clampf(1.0 - (rear_a - 0.5) * 1.5, 0.15, 1.0)
+		if beta_cut < 1.0 and oversteer:
+			esp_active = true
+			esp_oversteer = true
+			target_factor = beta_cut
 		if absf(err) > esp_deadband and sliding:
 			esp_active = true
 			esp_oversteer = oversteer
@@ -1164,11 +1198,12 @@ func _update_esp(delta: float, grounded: int) -> void:
 			var idx: int
 			if oversteer:
 				idx = 0 if brake_left else 1     # przednie - zewnętrzne w zakręcie
-				target_factor = clampf(1.0 - (absf(err) - esp_deadband) * 2.0, 0.2, 1.0)
+				target_factor = minf(target_factor, clampf(1.0 - (absf(err) - esp_deadband) * 6.0, 0.2, 1.0))
 			else:
 				idx = 2 if brake_left else 3     # tylne - wewnętrzne w zakręcie
 			_esp_brake[idx] = t
-	_esp_factor = move_toward(_esp_factor, target_factor, tcs_response * delta)
+	# W dół od razu (jak TCS), w górę łagodnie.
+	_esp_factor = target_factor if target_factor < _esp_factor else move_toward(_esp_factor, target_factor, tcs_response * delta)
 
 
 # --------------------------------------------------------------------------
@@ -2136,6 +2171,10 @@ var damage := {
 @export var damage_impulse_scale: float = 9000.0
 ## Prędkość lądowania [m/s], powyżej której lądowanie uszkadza.
 @export var damage_landing_speed: float = 7.5
+## Wytrzymałość (opcja menu, jawna pomoc): 1 = zgodnie z fizyką; N dzieli
+## uszkodzenia mechaniczne z uderzeń i lądowań przez N. Wgniecenia blachy
+## zostają jak przy 1 - gracz ma widzieć, jak groźne było uderzenie.
+@export_range(1.0, 10.0) var durability: float = 1.0
 var is_wrecked := false
 var _settle_t := 0.0
 
@@ -2293,7 +2332,7 @@ func dent(local_point: Vector3, local_dir: Vector3, depth: float) -> void:
 
 ## Uszkodzenia z uderzenia w punkcie `p` (układ auta) o powadze `sev`.
 func _damage_impact(p: Vector3, sev: float) -> void:
-	sev = clampf(sev, 0.0, 1.5)
+	sev = clampf(sev, 0.0, 1.5) / maxf(durability, 1.0)
 	if sev <= 0.0:
 		return
 	damage["structure"] += sev * 0.17
@@ -2314,7 +2353,7 @@ func _damage_landing(impact_speed: float) -> void:
 	var sev := (impact_speed - damage_landing_speed) / 6.0
 	if sev <= 0.0:
 		return
-	sev = minf(sev, 1.5)
+	sev = minf(sev, 1.5) / maxf(durability, 1.0)
 	damage["structure"] += sev * 0.05
 	damage["gearbox"] += sev * 0.15
 	for i in range(4):
@@ -2379,6 +2418,12 @@ func _recompute_normals(g: Dictionary) -> void:
 	g["normals"] = acc
 
 
+## Najmocniejszy kontakt nadwozia z ostatniej sekundy (diagnostyka
+## "dziwnych wypadków" - linia INCYDENT w logu xr_main): impuls [N·s],
+## czas, ścieżka obiektu, punkt w układzie auta.
+var last_hit := {}
+
+
 ## Odczyt kontaktów nadwozia z silnika fizyki. Impuls działa na auto, więc
 ## jego kierunek wskazuje w głąb karoserii - w tę stronę idzie wgniecenie.
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -2386,6 +2431,12 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	for i in range(state.get_contact_count()):
 		var imp := state.get_contact_impulse(i)
 		var j := imp.length()
+		if j > last_hit.get("j", 0.0) or Time.get_ticks_msec() - int(last_hit.get("ms", 0)) > 1000:
+			if j > 200.0:
+				var o := state.get_contact_collider_object(i)
+				last_hit = {"j": j, "ms": Time.get_ticks_msec(),
+						"what": (o as Node).get_path() if o is Node else "?",
+						"at": inv * state.get_contact_local_position(i)}
 		if j < dent_threshold:
 			continue
 		var p := state.get_contact_local_position(i)

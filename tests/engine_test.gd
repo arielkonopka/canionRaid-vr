@@ -6,7 +6,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/engine_test.gd [-- dry|wet|ice [petrol|diesel|electric]] </dev/null
 
 const START := Vector3(-300.0, 0.75, 600.0)
-const POWERS := [90, 180, 350, 700]
+const POWERS := [90, 130, 180, 350, 700]
 
 var main
 var car

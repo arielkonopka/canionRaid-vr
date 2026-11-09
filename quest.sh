@@ -114,6 +114,7 @@ do_test() {
 	run_test grip_test ""                "przeciążenie|hamowanie|grip_test"
 	run_test launch_test ""              "0-50|launch_test"
 	run_test landing_test ""             "gaz 1|landing_test"
+	run_test durability_test ""          "wytrzymałość|durability_test"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }

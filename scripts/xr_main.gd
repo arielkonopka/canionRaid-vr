@@ -473,6 +473,7 @@ func _physics_process(delta: float) -> void:
 		car.steer = 0.0
 		car.handbrake = 1.0
 	_grace_t = maxf(_grace_t - delta, 0.0)
+	_watch_incident(delta)
 	update_race(delta)
 	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
@@ -483,6 +484,41 @@ func _physics_process(delta: float) -> void:
 		_update_bots(delta)
 		_update_oncoming(delta)
 	Perf.add("boty_mgr", t0)
+
+
+## Diagnostyka "dziwnych wypadków" (użytkownik 2026-11-09: auto nagle stanęło
+## po puszczeniu gazu, dachowało na prostej przy niedużej prędkości). Przy
+## opóźnieniu > 1,5 g albo przechyle > 60° jedna linia INCYDENT do logu:
+## stan auta, pedały, miejsce na trasie i najmocniejszy kontakt nadwozia
+## (ścieżka obiektu). Najwyżej raz na 3 s.
+var _inc_v := Vector3.ZERO
+var _inc_cool := 0.0
+func _watch_incident(delta: float) -> void:
+	var v: Vector3 = car.linear_velocity
+	var dec := (_inc_v.length() - v.length()) / maxf(delta, 1e-4) / 9.81
+	var v_before := _inc_v.length()
+	_inc_v = v
+	_inc_cool = maxf(_inc_cool - delta, 0.0)
+	var tilt: float = rad_to_deg(acos(clampf(car.global_basis.y.y, -1.0, 1.0)))
+	if _inc_cool > 0.0 or (dec < 1.5 and tilt < 60.0) or _mode != Mode.DRIVE:
+		return
+	_inc_cool = 3.0
+	var s: Dictionary = track.nearest_sample(car.global_position) if track else {}
+	var hit: Dictionary = car.last_hit
+	var hit_txt := "brak"
+	if not hit.is_empty() and Time.get_ticks_msec() - int(hit["ms"]) < 1000:
+		hit_txt = "%s impuls %.0f N·s w punkcie %s" % [hit["what"], hit["j"], str((hit["at"] as Vector3).snapped(Vector3.ONE * 0.1))]
+	var wheels := ""
+	for w in car.wheels:
+		wheels += "%s(%.0f%%)" % ["K" if w.contact else "-", w.slip * 100.0]
+	var near_bot := INF
+	for b in _bots:
+		near_bot = minf(near_bot, (b as Node3D).global_position.distance_to(car.global_position))
+	print("INCYDENT: %s %.1f g, przechył %.0f°, %.0f -> %.0f km/h, gaz %.2f hamulec %.2f ręczny %.2f skręt %.2f, bieg %d, %.0f obr., koła %s, kontakt: %s, odcinek %d, dystans %.0f m, %s, nawierzchnia %s, najbliższy bot %.0f m, ABS %s TCS %s ESP %s" % [
+			"HAMOWANIE" if dec >= 1.5 else "PRZECHYŁ", dec, tilt, v_before * 3.6, v.length() * 3.6,
+			car.throttle, car.brake, car.handbrake, car.steer, car.gear, car.engine_rpm, wheels, hit_txt,
+			_last_section, float(s.get("dist", -1.0)), "autostrada" if s.get("meta", {}).has("highway") else "",
+			str(s.get("surface", "?")), near_bot, car.abs_active, car.tcs_active, car.get("esp_active")])
 
 
 ## Gracz jedzie zgodnie z przepisami: prędkość nie większa niż ograniczenie
@@ -1626,11 +1662,28 @@ var _bench_stage := 0
 var _bench_driver: BotDriver
 var _bench_sum := {"frames": 0, "over": 0, "over33": 0, "worst": 0.0, "gpu": [], "fps": []}
 var _perf_measure := false
+## Tempo gry: czas fizyki (kroki × 1/120 s) do czasu zegarowego. Poniżej
+## 100% gra jedzie w zwolnionym tempie (gogle nie nadążają z krokami
+## fizyki), a prędkościomierz tego nie pokazuje - użytkownik 2026-11-09:
+## "albo silnik gry działa za wolno, albo przyczepność".
+var _tempo_ticks := -1
+var _tempo_usec := 0
 func _log_perf(delta: float) -> void:
 	_perf_t += delta
 	if _perf_t < 5.0:
 		return
 	_perf_t = 0.0
+	var ticks := Engine.get_physics_frames()
+	var usec := Time.get_ticks_usec()
+	if _tempo_ticks >= 0 and usec > _tempo_usec:
+		var sim := float(ticks - _tempo_ticks) / float(Engine.physics_ticks_per_second)
+		var tempo := sim / (float(usec - _tempo_usec) * 1e-6)
+		print("PERF tempo gry: %d%% (fizyka %.2f s na %.2f s zegara), %.0f km/h, %.0f obr., bieg %d, uszk. silnika %d%%" % [
+				roundi(tempo * 100.0), sim, float(usec - _tempo_usec) * 1e-6,
+				car.linear_velocity.length() * 3.6, car.engine_rpm, car.gear,
+				roundi(car.damage["engine"] * 100.0)])
+	_tempo_ticks = ticks
+	_tempo_usec = usec
 	var rail := 0
 	for b in _bots:
 		if b.get_node("Driver").on_rail:

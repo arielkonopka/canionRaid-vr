@@ -36,6 +36,11 @@ var body_model: String = "sedan"
 var body_mass: int = 1150
 ## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
 var spoiler: String = "none"
+## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
+## użytkownik 2026-11-09) - StuntCar.durability.
+var durability: int = 1
+## Opływowość nadwozia (StuntCar.AERO): "classic", "modern", "sport", "record".
+var aero: String = "classic"
 ## Szał drogowy botów: o ile km/h przekraczają ograniczenie (0 = bez
 ## limitu), najkrótszy szał [s], ile sekund przepisowej jazdy gracza go
 ## gasi, strategia: "block" (wyprzedza, zajeżdża, hamuje przed graczem),
@@ -185,6 +190,29 @@ var OPTIONS: Array[Dictionary] = [
 			"Bez docisku - przy dużej prędkości auto lekkie w zakrętach.",
 			"Mały docisk: ok. 70 kg przy 200 km/h na tylną oś, trochę więcej oporu.",
 			"Duży docisk: ok. 170 kg przy 200 km/h, ok. 480 kg przy 300 km/h; większy opór.",
+		],
+	},
+	{
+		"key": "aero", "group": "body", "label": "Opływowość",
+		"values": ["classic", "modern", "sport", "record"],
+		"names": ["Sedan z epoki", "Współczesna", "Sportowa", "Rekordowa"],
+		"hints": [
+			"Cd 0,36, duże czoło: 130 kW ok. 215 km/h, ponad 300 km/h od ok. 450 kW.",
+			"Cd 0,29 jak dzisiejsze auta: o kilkanaście km/h szybciej.",
+			"Cd 0,30, niskie i wąskie czoło: jeszcze trochę szybciej.",
+			"Cd 0,22, jak auta do bicia rekordów: najmniejszy opór, mocne auto ponad 350 km/h.",
+		],
+	},
+	{
+		"key": "durability", "group": "body", "label": "Wytrzymałość",
+		"values": [1, 2, 3, 5, 10],
+		"names": ["x1 (realna)", "x2", "x3", "x5", "x10"],
+		"hints": [
+			"Jak prawdziwe auto: uderzenie przy dużej prędkości kończy jazdę.",
+			"Auto znosi dwa razy więcej, zanim silnik, hamulce i zawieszenie odmówią.",
+			"Trzy razy mocniejsze - wybacza kilka poważnych stłuczek.",
+			"Pięć razy mocniejsze - wgniecenia widać, ale auto jedzie dalej.",
+			"Prawie niezniszczalne. Wgniecenia nadal widać.",
 		],
 	},
 	{
@@ -502,6 +530,8 @@ func apply_to_car(car: StuntCar) -> void:
 	car.apply_suspension_preset(suspension)
 	car.set_body_mass(body_mass)
 	car.set_spoiler(spoiler)
+	car.durability = float(durability)
+	car.set_aero(aero)
 	car.abs_enabled = abs_enabled
 	car.tcs_enabled = tcs_enabled
 	car.esp_enabled = esp_enabled
