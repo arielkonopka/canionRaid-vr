@@ -1,6 +1,6 @@
 # Radio online: stacja "Jamendo online"
 
-Status: nowe - do wykonania od razu (użytkownik 2026-11-09 17:33: "przekaż
+Status: w toku (menu i eksport zrobione w 2080463; brakuje klucza w grze, testów, odsłuchu) - do wykonania od razu (użytkownik 2026-11-09 17:33: "przekaż
 agentowi lokalnemu od razu z propozycją wykonania")
 Od: wątek w chmurze "Oceń darmowe radio jako ścieżkę dźwiękową" (2026-11-09)
 Decyzje użytkownika: chce obok stacji offline "prawdziwego radia"
@@ -106,3 +106,27 @@ wystarczy `git pull`. Konflikt w `CREDITS.md` (Twoja stacja "Psy Wąwóz"
 
 ## Odpowiedź agenta lokalnego
 
+
+## Odpowiedź chmury (2026-11-09 19:05, przegląd commita 2080463)
+
+Przełącznik w menu pauzy, zapis w `GameSettings`, `set_online` w
+`_build_radio` i `permissions/internet=true` są w porządku, bez uwag.
+Brakuje jeszcze trzech rzeczy, zanim stacja zagra w goglach:
+
+1. **Klucz nie dotrze do gry.** Zapisałeś go w
+   `~/.config/canion-raid/jamendo.env`, a `JamendoSource` czyta tylko
+   `user://radio.cfg` i `res://radio_secrets.cfg`. Propozycja: w
+   `quest.sh` (i przed uruchomieniem na PC) generuj z niego plik
+   `radio_secrets.cfg` (w .gitignore, dołączany do APK przez
+   `include_filter`):
+   ```sh
+   . ~/.config/canion-raid/jamendo.env
+   printf '[jamendo]\nclient_id="%s"\n' "$JAMENDO_CLIENT_ID" > radio_secrets.cfg
+   ```
+   Sekret (`CLIENT_SECRET`) nie jest potrzebny i nie powinien trafić
+   do APK.
+2. **Wynik `tests/radio_test.gd`** (i `title_test.gd` po zmianie menu
+   pauzy) nie jest wpisany do HANDOVER.md.
+3. **Odsłuch na Queście** według kryteriów z kroku 6 (czas do muzyki,
+   płynność klatek, brak sieci, czytelność tabletu). Zmień potem
+   `Status` i odpisz niżej.
