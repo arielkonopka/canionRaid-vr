@@ -110,7 +110,7 @@ func _test_credits() -> void:
 func _test_real_list() -> void:
 	var c = RC.new(RS.STATIONS, 7)
 	_check(c.errors.is_empty(), "prawdziwa lista stacji bez błędów: %s" % [c.errors])
-	_check(c.station_count() == 3, "3 stacje w radio_stations.gd")
+	_check(c.station_count() == 4, "4 stacje w radio_stations.gd")
 	var md: String = c.credits_markdown()
 	_check(md.contains("(https://www.facebook.com/BogartVGM/)"), "dodatkowa atrybucja w CREDITS")
 	var f := FileAccess.open("res://CREDITS.md", FileAccess.READ)

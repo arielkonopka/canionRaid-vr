@@ -136,6 +136,24 @@ const ENGINE_TYPES := {
 @export var body_inertia: Vector3 = Vector3(1750.0, 1950.0, 480.0)
 ## Opór powietrza 0,5·ρ·Cd·A [kg/m]. 0,46 ≈ Cd 0,36 przy 2,1 m² czoła.
 @export var aero_drag: float = 0.46
+## Opływowość nadwozia (opcja menu, użytkownik 2026-11-09: "130 kW ledwo
+## ponad 150, chcę >300 w najmocniejszej opcji" - opór sedana z lat 70.
+## był jedyny). Cd i powierzchnia czołowa A [m²]; aero_drag = ½·ρ·Cd·A.
+## Prędkość maksymalna (gdy nie ogranicza jej bieg) rośnie jak (1/CdA)^⅓.
+const AERO := {
+	"classic": {"cd": 0.36, "area": 2.1},     # sedan z epoki
+	"modern": {"cd": 0.29, "area": 2.0},      # współczesny kompakt/sedan
+	"sport": {"cd": 0.30, "area": 1.85},      # niskie auto sportowe
+	"record": {"cd": 0.22, "area": 1.75},     # opływowy rekordowiec
+}
+var aero := "classic"
+
+
+func set_aero(name_s: String) -> void:
+	if not AERO.has(name_s):
+		name_s = "classic"
+	aero = name_s
+	aero_drag = 0.5 * AIR_RHO * float(AERO[name_s]["cd"]) * float(AERO[name_s]["area"])
 ## Masa nadwozia bez napędu [kg] - opcja menu "Masa" (950-2500 kg).
 ## Bezwładność i zawieszenie skalują się proporcjonalnie do masy auta.
 @export var body_mass: float = 1150.0
@@ -224,7 +242,7 @@ const TIRE_COMPOUNDS := {
 ## Dyferencjał LSD: moment blokady [Nm na rad/s różnicy] i jego limit.
 @export var lsd_stiffness: float = 25.0
 @export var lsd_max_torque: float = 500.0
-## Układ napędu: "rwd" (tył) albo "awd" (4x4). W 4x4 centralny dyferencjał
+## Układ napędu: "rwd" (tył), "fwd" (przód) albo "awd" (4x4). W 4x4 centralny dyferencjał
 ## planetarny dzieli moment AWD_FRONT_SHARE na przód, reszta na tył,
 ## sprzęgło wiskotyczne między osiami (moment z różnicy ich prędkości)
 ## i LSD na obu osiach.
@@ -233,7 +251,9 @@ const TIRE_COMPOUNDS := {
 ## kręcą się niezależnie, kontrola trakcji osobno na każde koło). Zawsze 4x4.
 @export var hub_motors: bool = false
 const AWD_FRONT_SHARE := 0.4
-@export var center_coupling: float = 40.0
+@export var center_coupling: float = 400.0
+## Jaką część momentu na osiach sprzęgło może przerzucić między osiami.
+const CENTER_COUPLING_SHARE := 0.35
 @export var center_coupling_max: float = 900.0
 
 @export_group("Hamulce")
@@ -244,6 +264,13 @@ const AWD_FRONT_SHARE := 0.4
 
 @export_group("Systemy wspomagania")
 @export var abs_enabled: bool = true
+## ABS: docelowy poślizg (ułamek poślizgu szczytowego), wzmocnienie
+## regulatora [1/s na jednostkę poślizgu], szybkość spuszczania i dokładania
+## ciśnienia [pełne ciśnienie / s].
+const ABS_SLIP_TARGET := 0.9
+const ABS_GAIN := 2.0
+const ABS_MIN := 0.2
+const ABS_MAX := 1.15
 @export var tcs_enabled: bool = true
 @export var esp_enabled: bool = true
 ## TCS: poślizg tylnych kół (względem przednich), który system dopuszcza.
@@ -341,6 +368,7 @@ var _ray: PhysicsRayQueryParameters3D  # TCS na koło (silniki w kołach)
 var _esp_factor := 1.0                          # mnożnik momentu silnika od ESP
 var _esp_brake: Array[float] = [0.0, 0.0, 0.0, 0.0]
 var _abs_hit := false
+var _brake_scale := 1.0          # hamulce względem auta odniesienia (_base_mass)
 ## Modulacja ciśnienia ABS na koło: 1 = pełne ciśnienie z pedału.
 var _abs_mod: Array[float] = [1.0, 1.0, 1.0, 1.0]
 
@@ -516,6 +544,11 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	_extra_mass = e["extra_mass"]
 	_apply_mass()
 	com_offset = _base_com + Vector3(0.0, e["com_y"], 0.0) + _model_com
+	# Przedni napęd = silnik nad przednią osią: rozkład ~60/40 zamiast 50/50
+	# (bez tego przód odciążony przy ruszaniu miał ~40% docisku i auto
+	# ledwo ruszało pod górę). Ustawiać drive_layout przed apply_engine.
+	if _is_fwd():
+		com_offset.z -= FWD_FRONT_SHIFT * _wheelbase
 	center_of_mass = com_offset
 	engine_rpm = idle_rpm
 	gear = 1
@@ -599,6 +632,7 @@ func _apply_mass() -> void:
 	mass = car_mass
 	# _base_mass to masa odniesienia (1150 kg z _ready), dla niej body_inertia.
 	inertia = _base_inertia * (car_mass / maxf(_base_mass, 1.0))
+	_brake_scale = maxf(car_mass / maxf(_base_mass, 1.0), 1.0)
 
 
 func set_spoiler(kind: String) -> void:
@@ -690,7 +724,7 @@ func _physics_step(delta: float) -> void:
 	elif not electric and engine_running:
 		_burn_fuel(0.0, delta)
 	# Bezwładność silnika przez przełożenie, rozdzielona na napędzane koła.
-	var n_driven := 2.0 if _is_rwd() else 4.0
+	var n_driven := 2.0 if (_is_rwd() or _is_fwd()) else 4.0
 	var reflected := engine_inertia * g_ratio * g_ratio / n_driven if (_clutch_engaged and engine_running) else 0.0
 
 	# --- 4. opony i koła, w podkrokach ---
@@ -720,11 +754,16 @@ func _physics_step(delta: float) -> void:
 				-lsd_max_torque, lsd_max_torque)
 		# 4x4: podział 40/60 i wiskoza między osiami (przenosi moment z osi
 		# szybszej na wolniejszą).
-		var t_front := 0.0
-		var t_rear := axle_torque
-		if not _is_rwd() and not _hub():
+		var t_front := axle_torque if _is_fwd() else 0.0
+		var t_rear := 0.0 if _is_fwd() else axle_torque
+		if drive_layout == "awd" and not _hub():
+			# Limit sprzęgła rośnie z momentem napędu: stałe 900 Nm przy
+			# ~9700 Nm na osiach (700 kW na 1. biegu) nic nie dawało - przy
+			# ruszaniu buksował odciążony przód, a dociśnięty tył się nudził
+			# (zgłoszenie użytkownika 2026-11-09: "przy ruszaniu przyczepność").
+			var c_max := maxf(center_coupling_max, CENTER_COUPLING_SHARE * absf(axle_torque))
 			var visc := clampf(((wheels[0].omega + wheels[1].omega) - (wheels[2].omega + wheels[3].omega))
-					* 0.5 * center_coupling, -center_coupling_max, center_coupling_max)
+					* 0.5 * center_coupling, -c_max, c_max)
 			t_front = axle_torque * AWD_FRONT_SHARE - visc
 			t_rear = axle_torque * (1.0 - AWD_FRONT_SHARE) + visc
 		for i in range(4):
@@ -747,10 +786,12 @@ func _physics_step(delta: float) -> void:
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
 				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else 1.0)
 				inertia_w += reflected
+			elif not _is_driven(w):
+				pass
 			elif not w.front:
 				t_drive = t_rear * 0.5 + (-lsd if w.left else lsd)
 				inertia_w += reflected
-			elif not _is_rwd():
+			else:
 				t_drive = t_front * 0.5 + (-lsd_f if w.left else lsd_f)
 				inertia_w += reflected
 			var t_roll := -rolling_resistance_coef * w.load * wheel_radius * clampf(w.omega * 2.0, -1.0, 1.0)
@@ -790,7 +831,9 @@ func _physics_step(delta: float) -> void:
 	# --- 6. opór powietrza ---
 	var v2 := linear_velocity.length_squared()
 	if v2 > 0.01:
-		var sp: Dictionary = SPOILERS[spoiler]
+		# Spojler tylko w sedanie - concept car go nie ma (bez niewidzialnego
+		# skrzydła; inbox menu-a-gra-niespojnosci pkt 4).
+		var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" else "none"]
 		apply_central_force(-linear_velocity.normalized() * v2 * (aero_drag + 0.5 * AIR_RHO * sp["cda"]))
 		if sp["cla"] > 0.0:
 			# Docisk z prędkości wzdłuż auta, nad tylną osią (spojler na klapie).
@@ -966,6 +1009,14 @@ func _relax(state: float, input_vel: float, vx_abs: float, sigma: float, h: floa
 
 
 ## Znormalizowana Magic Formula: maksimum 1 przy ρ = 1.
+## Szczytowa siła opony przy obecnym docisku i nawierzchni [N] (jak f_max
+## w _tire_forces) - dla ABS.
+func _tire_peak_force(w: Wheel) -> float:
+	var fz0 := car_mass * 9.81 * 0.25
+	var mu := tire_mu * clampf(1.0 - load_sensitivity * (w.load / fz0 - 1.0), 0.5, 1.3)
+	return mu * w.grip * w.load
+
+
 func _magic_formula(rho: float) -> float:
 	var b := tan(PI / (2.0 * mf_shape_c))
 	return sin(mf_shape_c * atan(b * rho))
@@ -973,7 +1024,10 @@ func _magic_formula(rho: float) -> float:
 
 func _brake_torque_for(w: Wheel, i: int, h: float) -> float:
 	var pedal := throttle if (gear < 0 and automatic and not dedicated_reverse) else brake
-	var t := pedal * (brake_torque_front if w.front else brake_torque_rear)
+	# Hamulce rosną z masą jak w prawdziwych autach (większe tarcze
+	# i zaciski): bez tego auto 2500 kg miało hamulce auta 1150 kg, ABS
+	# się nie włączał, a 100-0 km/h trwało 55 m (pomiar grip_test).
+	var t := pedal * (brake_torque_front if w.front else brake_torque_rear) * _brake_scale
 	# Uszkodzony hamulec (przewody, zacisk): do -80% siły.
 	t *= 1.0 - 0.8 * damage["brakes"][i]
 	# ESP dokłada hamowanie pojedynczego koła, niezależnie od pedału.
@@ -984,12 +1038,20 @@ func _brake_torque_for(w: Wheel, i: int, h: float) -> float:
 		# Stały procent ciśnienia nie wystarcza - na lodzie nawet 15% pedału
 		# blokuje koło, bo lód przenosi ~110 Nm, a hamulec daje ~1900.
 		# Działa też na hamowanie z ESP - tak jest w prawdziwych układach.
+		# Regulacja poślizgu wokół celu tuż przed szczytem krzywej, z
+		# wyprzedzeniem: moment hamulca ograniczony do tego, co opona przeniesie
+		# przy docelowym poślizgu (siła szczytowa x promień), a odchyłka
+		# poślizgu go koryguje. Pierwsza wersja (cykl "spuść - dołóż")
+		# oscylowała: poślizg skakał 0..0,64 przy celu 0,10, koła hamowały
+		# średnio połową siły i auto z ABS stawało dalej niż z zablokowanymi
+		# kołami (51 m wobec 46 m ze 100 km/h). Dobry ABS daje ~95% optimum.
 		var dir := signf(speed)
-		if w.kappa * dir < -peak_slip_ratio * 1.15:
-			_abs_mod[i] = maxf(_abs_mod[i] - 25.0 * h, 0.0)
-		else:
-			_abs_mod[i] = minf(_abs_mod[i] + 20.0 * h, 1.0)
-		t *= _abs_mod[i]
+		var slip := -w.kappa * dir
+		var target := peak_slip_ratio * ABS_SLIP_TARGET
+		var cap := _tire_peak_force(w) * wheel_radius \
+				* clampf(1.0 + ABS_GAIN * (target - slip) / peak_slip_ratio, ABS_MIN, ABS_MAX)
+		_abs_mod[i] = clampf(cap / maxf(t, 1.0), 0.0, 1.0)
+		t = minf(t, cap)
 		if _abs_mod[i] < 0.98:
 			_abs_hit = true
 	else:
@@ -1003,46 +1065,73 @@ func _brake_torque_for(w: Wheel, i: int, h: float) -> float:
 ## Kontrola trakcji. Prędkość odniesienia z przednich kół, bo nie są
 ## napędzane - dokładnie tak liczy to prawdziwy TCS z czujników ABS.
 func _update_tcs(delta: float) -> void:
-	var target := 1.0
 	tcs_active = false
 	var dir := -1.0 if gear < 0 else 1.0
+	# Kontrola trakcji z wyprzedzeniem (jak ABS): moment napędu ograniczony
+	# do tego, co opony napędzanych kół przeniosą przy docelowym poślizgu,
+	# odchyłka poślizgu (stan opony, kappa) koryguje. Wcześniej regulator
+	# proporcjonalny "1 - 6 x nadwyżka" trzymał poślizg 0,2-0,3 - za
+	# szczytem krzywej (0,11) - i mocne auta ruszały wolniej, niż pozwala
+	# przyczepność (zgłoszenie użytkownika 2026-11-09).
+	var req := 0.0
+	if tcs_enabled and _drive_pedal() > 0.05 and gear != 0:
+		req = _engine_torque_at_clutch() * absf(_total_ratio(gear)) * drivetrain_efficiency \
+				* (1.0 - 0.75 * damage["engine"])
 	if _hub():
-		# Każde koło osobno: poślizg względem prędkości auta.
-		var v_ref := maxf(absf(speed), 3.0)
 		for i in range(4):
 			var t_w := 1.0
-			if tcs_enabled and _drive_pedal() > 0.05 and wheels[i].contact:
-				var slip := (wheels[i].omega * dir * wheel_radius - absf(speed)) / v_ref
-				if slip > tcs_target_slip:
-					t_w = clampf(1.0 - (slip - tcs_target_slip) * 6.0, 0.05, 1.0)
+			if req > 1.0:
+				if wheels[i].contact:
+					t_w = clampf(_traction_cap(wheels[i], dir) / (req * 0.25), 0.05, 1.0)
+				else:
+					t_w = _tcs_air(wheels[i], dir)
+				if t_w < 0.98:
 					tcs_active = true
-			_hub_tcs[i] = move_toward(_hub_tcs[i], t_w, tcs_response * delta)
+			_hub_tcs[i] = t_w if t_w < _hub_tcs[i] else move_toward(_hub_tcs[i], t_w, tcs_response * delta)
 		_tcs_factor = 1.0
 		return
-	if tcs_enabled and _drive_pedal() > 0.05 and not _is_rwd():
-		# 4x4: odniesieniem jest prędkość auta (nie ma kół nienapędzanych).
-		if wheels[0].contact or wheels[2].contact or wheels[1].contact or wheels[3].contact:
-			var v_max := 0.0
-			for w in wheels:
-				v_max = maxf(v_max, w.omega * dir * wheel_radius)
-			var slip := (v_max - absf(speed)) / maxf(absf(speed), 3.0)
-			if slip > tcs_target_slip:
-				target = clampf(1.0 - (slip - tcs_target_slip) * 6.0, 0.05, 1.0)
-				tcs_active = true
-		_tcs_factor = move_toward(_tcs_factor, target, tcs_response * delta)
-		return
-	if tcs_enabled and _drive_pedal() > 0.05:
-		var front_contact := wheels[0].contact or wheels[1].contact
-		var rear_contact := wheels[2].contact or wheels[3].contact
-		if front_contact and rear_contact:
-			var v_ref := (wheels[0].omega + wheels[1].omega) * 0.5 * wheel_radius
-			var v_rear := maxf(wheels[2].omega * dir, wheels[3].omega * dir) * wheel_radius
-			var slip := (v_rear - absf(v_ref)) / maxf(absf(v_ref), 3.0)
-			if slip > tcs_target_slip:
-				# Im większy poślizg ponad cel, tym mocniej odcina.
-				target = clampf(1.0 - (slip - tcs_target_slip) * 6.0, 0.05, 1.0)
-				tcs_active = true
-	_tcs_factor = move_toward(_tcs_factor, target, tcs_response * delta)
+	var target := 1.0
+	if req > 1.0:
+		var cap := 0.0
+		var any := false
+		for i in range(4):
+			if not _is_driven(wheels[i]):
+				continue
+			if wheels[i].contact:
+				any = true
+				cap += _traction_cap(wheels[i], dir)
+		if any:
+			target = clampf(cap / req, 0.05, 1.0)
+		else:
+			# W locie (skok): TCS widzi czujnikami obrotów, że koła kręcą się
+			# szybciej niż jedzie auto, i obcina moment - bez tego koła
+			# rozkręcały się w powietrzu do ~2x prędkości auta, a po lądowaniu
+			# na gazie poślizg zabierał oponom przyczepność boczną
+			# (użytkownik 2026-11-09: "przy lądowaniu wcisnę gaz - auto się
+			# obraca"). Bez TCS zostaje pełna fizyka.
+			for i in range(4):
+				if _is_driven(wheels[i]):
+					target = minf(target, _tcs_air(wheels[i], dir))
+		tcs_active = target < 0.98
+	# W dół od razu (nadmiar momentu w jednej klatce to już buksowanie),
+	# w górę z szybkością tcs_response.
+	_tcs_factor = target if target < _tcs_factor else move_toward(_tcs_factor, target, tcs_response * delta)
+
+
+## TCS w locie: mnożnik momentu z poślizgu koła względem prędkości auta.
+func _tcs_air(w: Wheel, dir: float) -> float:
+	var v := maxf(absf(speed), 3.0)
+	var slip := (w.omega * dir * wheel_radius - absf(speed)) / v
+	return clampf(1.0 - (slip - tcs_target_slip) * 6.0, 0.05, 1.0)
+
+
+## Moment, jaki koło przeniesie na drogę przy docelowym poślizgu TCS
+## (siła szczytowa x promień, korekta odchyłką poślizgu) [Nm].
+func _traction_cap(w: Wheel, dir: float) -> float:
+	var slip := w.kappa * dir
+	var target := peak_slip_ratio * ABS_SLIP_TARGET
+	return _tire_peak_force(w) * wheel_radius \
+			* clampf(1.0 + ABS_GAIN * (target - slip) / peak_slip_ratio, ABS_MIN, ABS_MAX)
 
 
 ## ESP. Oczekiwana prędkość obrotu z modelu rowerowego:
@@ -1078,13 +1167,29 @@ func _update_esp(delta: float, grounded: int) -> void:
 		# niż wynika z kąta kół, i ESP brałby to za nadsterowność. Prawdziwe
 		# układy szacują też, czy oś faktycznie traci przyczepność - tu:
 		# kąt znoszenia opon tej osi blisko szczytu krzywej.
-		var tan_peak := tan(deg_to_rad(peak_slip_angle_deg))
+		# Poślizg łączny (w.slip, 1 = szczyt krzywej): oś napędzana na granicy
+		# przyczepności wzdłużnej nie ma zapasu na siłę boczną, choć kąt
+		# znoszenia jest jeszcze mały. Sam kąt znoszenia przegapiał to - 700 kW
+		# z tyłu przy ~240 km/h na prostej kręciło się samo (yaw podwajał się
+		# co ~0,15 s), a ESP budził się przy 0,37 rad/s (2026-11-09).
 		var axle_slip := 0.0
 		if oversteer:
-			axle_slip = maxf(absf(wheels[2].tan_alpha), absf(wheels[3].tan_alpha))
+			axle_slip = maxf(wheels[2].slip, wheels[3].slip)
 		else:
-			axle_slip = maxf(absf(wheels[0].tan_alpha), absf(wheels[1].tan_alpha))
-		var sliding := axle_slip > tan_peak * (0.75 if oversteer else 1.0)
+			axle_slip = maxf(wheels[0].slip, wheels[1].slip)
+		var sliding := axle_slip > (0.75 if oversteer else 1.0)
+		# Znoszenie tyłu (prawdziwe ESP szacuje kąt znoszenia i go ogranicza):
+		# kąt opon tylnej osi ponad połowę kąta szczytowego przy nadsterowności
+		# = tył ucieka - ESP odcina napęd mocno, zanim dryf się ustali
+		# (wcześniej przy 12° bokiem na prostej odcinał 14%). Kąt opon, nie
+		# nadwozia: w ciasnym zakręcie nadwozie ma duży kąt z samej geometrii.
+		var tan_peak := tan(deg_to_rad(peak_slip_angle_deg))
+		var rear_a := (absf(wheels[2].tan_alpha) + absf(wheels[3].tan_alpha)) * 0.5 / tan_peak
+		var beta_cut := clampf(1.0 - (rear_a - 0.5) * 1.5, 0.15, 1.0)
+		if beta_cut < 1.0 and oversteer:
+			esp_active = true
+			esp_oversteer = true
+			target_factor = beta_cut
 		if absf(err) > esp_deadband and sliding:
 			esp_active = true
 			esp_oversteer = oversteer
@@ -1095,11 +1200,12 @@ func _update_esp(delta: float, grounded: int) -> void:
 			var idx: int
 			if oversteer:
 				idx = 0 if brake_left else 1     # przednie - zewnętrzne w zakręcie
-				target_factor = clampf(1.0 - (absf(err) - esp_deadband) * 2.0, 0.2, 1.0)
+				target_factor = minf(target_factor, clampf(1.0 - (absf(err) - esp_deadband) * 6.0, 0.2, 1.0))
 			else:
 				idx = 2 if brake_left else 3     # tylne - wewnętrzne w zakręcie
 			_esp_brake[idx] = t
-	_esp_factor = move_toward(_esp_factor, target_factor, tcs_response * delta)
+	# W dół od razu (jak TCS), w górę łagodnie.
+	_esp_factor = target_factor if target_factor < _esp_factor else move_toward(_esp_factor, target_factor, tcs_response * delta)
 
 
 # --------------------------------------------------------------------------
@@ -1150,7 +1256,21 @@ func _hub() -> bool:
 
 
 func _is_rwd() -> bool:
-	return drive_layout != "awd" and not _hub()
+	return drive_layout == "rwd" and not _hub()
+
+
+## Napęd na przód (użytkownik 2026-11-09: "w opcjach jest tył, nie ma przodu").
+## Środek masy przesunięty o tyle rozstawów osi do przodu (50/50 -> 60/40).
+const FWD_FRONT_SHIFT := 0.1
+func _is_fwd() -> bool:
+	return drive_layout == "fwd" and not _hub()
+
+
+## Koło dostaje moment silnika.
+func _is_driven(w: Wheel) -> bool:
+	if _hub() or drive_layout == "awd":
+		return true
+	return w.front == _is_fwd()
 
 
 ## Prędkość kątowa "wału" z kół napędzanych: tył - średnia tylnych; 4x4 -
@@ -1161,6 +1281,8 @@ func _driven_omega() -> float:
 	if _is_rwd():
 		return rear
 	var front := (wheels[0].omega + wheels[1].omega) * 0.5
+	if _is_fwd():
+		return front
 	var share := 0.5 if _hub() else AWD_FRONT_SHARE
 	return front * share + rear * (1.0 - share)
 
@@ -1214,6 +1336,10 @@ func _update_gearbox(delta: float) -> void:
 
 	var wheel_rpm := _wheel_rpm()
 	# Elektryk nie ma sprzęgła: silnik jest zawsze sprzężony z kołami.
+	# PR #28 (sprzęgło zamyka się po zrównaniu obrotów) cofnięty 2026-11-09:
+	# pod górę 35% auto utykało na ~13 km/h ze sprzęgłem ślizgającym się
+	# przy launch_rpm i buksującymi kołami (hill_test) - szczegóły
+	# w inbox/2026-11-09-trakcja-i-sprzeglo.md.
 	_clutch_engaged = gear != 0 and (electric or wheel_rpm >= clutch_engage_rpm)
 
 	if dedicated_reverse:
@@ -1287,7 +1413,7 @@ func shift_down() -> void:
 
 func _update_engine_rpm(delta: float) -> void:
 	if not engine_running:
-		engine_rpm = move_toward(engine_rpm, 0.0, 1500.0 * delta)
+		engine_rpm = move_toward(engine_rpm, 0.0, 3000.0 * delta)
 		return
 	if _clutch_engaged:
 		engine_rpm = maxf(_wheel_rpm(), idle_rpm)
@@ -2051,18 +2177,23 @@ var damage := {
 @export var damage_impulse_scale: float = 9000.0
 ## Prędkość lądowania [m/s], powyżej której lądowanie uszkadza.
 @export var damage_landing_speed: float = 7.5
+## Wytrzymałość (opcja menu, jawna pomoc): 1 = zgodnie z fizyką; N dzieli
+## uszkodzenia mechaniczne z uderzeń i lądowań przez N. Wgniecenia blachy
+## zostają jak przy 1 - gracz ma widzieć, jak groźne było uderzenie.
+@export_range(1.0, 10.0) var durability: float = 1.0
 var is_wrecked := false
 var _settle_t := 0.0
 
 # --------------------------------------------------------------------------
 # Paliwo (bateria w elektryku). Zużycie z mocy, którą silnik faktycznie
 # oddaje, plus wolne obroty (spalinowe). Pojemność dobrana tak, żeby przy
-# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~12 km
-# (użytkownik 2026-11-08: zasięg ~10-15 km zamiast 150 km - stacje co
-# 5 odcinków, ~4-5 km, mają znaczenie, a walka z botami kosztuje paliwo).
+# spokojnej jeździe ~100 km/h (średnio ~30 kW) wystarczyło na ~25 km.
+# Użytkownik 2026-11-08: ~10-15 km (stacje co 5 odcinków mają znaczenie);
+# 2026-11-09 zmienione na 20-30 km - przy 3,6 kWh 700 kW na pełnym gazie
+# wypalało bak w ~25 s (~2 km). Pełny gaz mocnego auta dalej pali szybko.
 # --------------------------------------------------------------------------
 ## Energia pełnego baku [kWh "na kołach"].
-@export var tank_kwh: float = 3.6
+@export var tank_kwh: float = 7.5
 ## Moc na wolnych obrotach [kW] (tylko spalinowe).
 @export var idle_kw: float = 1.5
 var fuel := 1.0                    # 0..1
@@ -2207,7 +2338,7 @@ func dent(local_point: Vector3, local_dir: Vector3, depth: float) -> void:
 
 ## Uszkodzenia z uderzenia w punkcie `p` (układ auta) o powadze `sev`.
 func _damage_impact(p: Vector3, sev: float) -> void:
-	sev = clampf(sev, 0.0, 1.5)
+	sev = clampf(sev, 0.0, 1.5) / maxf(durability, 1.0)
 	if sev <= 0.0:
 		return
 	damage["structure"] += sev * 0.17
@@ -2228,7 +2359,7 @@ func _damage_landing(impact_speed: float) -> void:
 	var sev := (impact_speed - damage_landing_speed) / 6.0
 	if sev <= 0.0:
 		return
-	sev = minf(sev, 1.5)
+	sev = minf(sev, 1.5) / maxf(durability, 1.0)
 	damage["structure"] += sev * 0.05
 	damage["gearbox"] += sev * 0.15
 	for i in range(4):
@@ -2293,6 +2424,12 @@ func _recompute_normals(g: Dictionary) -> void:
 	g["normals"] = acc
 
 
+## Najmocniejszy kontakt nadwozia z ostatniej sekundy (diagnostyka
+## "dziwnych wypadków" - linia INCYDENT w logu xr_main): impuls [N·s],
+## czas, ścieżka obiektu, punkt w układzie auta.
+var last_hit := {}
+
+
 ## Odczyt kontaktów nadwozia z silnika fizyki. Impuls działa na auto, więc
 ## jego kierunek wskazuje w głąb karoserii - w tę stronę idzie wgniecenie.
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -2300,6 +2437,12 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	for i in range(state.get_contact_count()):
 		var imp := state.get_contact_impulse(i)
 		var j := imp.length()
+		if j > last_hit.get("j", 0.0) or Time.get_ticks_msec() - int(last_hit.get("ms", 0)) > 1000:
+			if j > 200.0:
+				var o := state.get_contact_collider_object(i)
+				last_hit = {"j": j, "ms": Time.get_ticks_msec(),
+						"what": (o as Node).get_path() if o is Node else "?",
+						"at": inv * state.get_contact_local_position(i)}
 		if j < dent_threshold:
 			continue
 		var p := state.get_contact_local_position(i)

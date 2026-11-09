@@ -27,9 +27,13 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# ccMixter nie wydaje plików skryptom (HTTP 403) - pliki pobrane ręcznie
+# w przeglądarce kładzie się tutaj (nazwa jak w adresie), skrypt je konwertuje.
+INCOMING = ROOT / "build" / "radio_in"
 OUT = ROOT / "audio" / "radio"
 STATIONS_GD = ROOT / "scripts" / "radio_stations.gd"
 OGA = "https://opengameart.org"
+CCM = "https://ccmixter.org/files"
 UA = "canionraid-radio-fetch/1.0"
 AUDIO = (".ogg", ".mp3", ".wav", ".flac")
 
@@ -52,6 +56,15 @@ TRACKS = [
     ("nocna/contemplation.ogg", OGA + "/node/85636", r"contemplation(_\d+)?\.mp3$"),
     ("nocna/calm_ambient_1.ogg", OGA + "/node/97098", r"001_synthwave_4k(_\d+)?\.mp3$"),
     ("nocna/chill_jungle_ambient.ogg", OGA + "/node/123092", r"\.ogg$"),
+    # ccMixter: bezpośredni adres pliku z API (https://ccmixter.org/api/query?ids=N&f=json)
+    ("psy/amigos.ogg", CCM + "/F_Fact/52032", "https://ccmixter.org/content/F_Fact/F_Fact_-_Amigos.mp3"),
+    ("psy/end_of_days.ogg", CCM + "/F_Fact/43533", "https://ccmixter.org/content/F_Fact/F_Fact_-_End_of_Days.mp3"),
+    ("psy/the_beach.ogg", CCM + "/Astral/50472", "https://ccmixter.org/content/Astral/Astral_-_The_Beach_(Original_Mix).mp3"),
+    ("psy/psycho_freak.ogg", CCM + "/Psykick/37264", "https://ccmixter.org/content/Psykick/Psykick_-_Psycho_Freak_(Final_Edit).mp3"),
+    ("psy/trance_dance.ogg", CCM + "/Psykick/40201", "https://ccmixter.org/content/Psykick/Psykick_-_Trance_Dance.mp3"),
+    ("psy/tempest.ogg", CCM + "/Psykick/53063", "https://ccmixter.org/content/Psykick/Psykick_-_Tempest.mp3"),
+    ("psy/shiva.ogg", CCM + "/chandubaba/52311", "https://ccmixter.org/content/chandubaba/chandubaba_-_Shiva.mp3"),
+    ("psy/psytrance_for_a_game.ogg", OGA + "/content/psytrance-for-a-game-by-kris-klavenes", r"psytrance_for_a_game_by_kris_klavenes(_\d+)?\.mp3$"),
 ]
 
 
@@ -129,9 +142,15 @@ def main() -> int:
         try:
             with tempfile.TemporaryDirectory() as td:
                 tmp = Path(td)
-                url = find_link(page, pattern)
+                # Wzorzec zaczynający się od http to bezpośredni adres pliku.
+                url = pattern if pattern.startswith("http") else find_link(page, pattern)
                 print(f"    {url}")
-                data = get(url)
+                local = INCOMING / urllib.parse.unquote(url.rsplit("/", 1)[-1])
+                if local.exists():
+                    print(f"    z dysku: {local.relative_to(ROOT)}")
+                    data = local.read_bytes()
+                else:
+                    data = get(url)
                 if url.lower().endswith(".zip"):
                     src = pick_from_zip(data, tmp)
                 else:

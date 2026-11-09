@@ -8,6 +8,9 @@ on:
   push:
     paths:
       - 'docs/agent/**'
+      # Agent lokalny po każdej zmianie kodu aktualizuje HANDOVER.md -
+      # dzięki temu chmura widzi też pushe bez wiadomości w skrzynce.
+      - 'HANDOVER.md'
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
             let files = [];
             if (before && !/^0+$/.test(before)) {
               const cmp = await github.rest.repos.compareCommits({ owner, repo, base: before, head: after });
-              files = (cmp.data.files || []).filter(f => f.filename.startsWith('docs/agent/'));
+              files = (cmp.data.files || []).filter(f => f.filename.startsWith('docs/agent/') || f.filename === 'HANDOVER.md');
             }
             const list = files.length
               ? files.map(f => `- \`${f.filename}\` (${f.status})`).join('\n')
@@ -40,7 +43,7 @@ jobs:
               .join('\n');
 
             const body = [
-              '📬 **agent-mail**: zmiana w skrzynce `docs/agent/`',
+              '📬 **agent-mail**: zmiana w skrzynce `docs/agent/` albo w `HANDOVER.md`',
               `Gałąź: \`${branch}\`, commit ${after.slice(0, 7)}`,
               '', 'Pliki:', list, '', 'Commity:', commits || '-',
             ].join('\n');

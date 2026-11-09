@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 4 (noc: rozdzielczość działa od razu, kompresja tekstur skał, concept car przy 160%)
+Ostatnia aktualizacja: 2026-11-09, sesja 5 (popołudnie: wytrzymałość, opływowość, moc z menu w trasie, diagnostyka wypadków, plan trybu Autostrada)
 
 ---
 
@@ -447,6 +447,42 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   z większym momentem itd. Trudność trasy jest pod to strojona.
 - **Auto z zewnątrz: sedan z lat 70.** (prośba użytkownika). Ogólny styl
   epoki, nie konkretny model.
+- **Wytrzymałość auta** (użytkownik 2026-11-09: "to gra, gdzie człowiek
+  ma się przekonać, jak niebezpieczna jest szybka jazda, ale auto
+  powinno trochę więcej znieść"): opcja menu "Wytrzymałość" x1 (realna,
+  domyślna), x2, x3, x5, x10 - dzieli uszkodzenia mechaniczne (silnik,
+  skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
+  Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
+  Boty zawsze x1.
+- **Opływowość nadwozia** (użytkownik 2026-11-09: "130 kW ledwo ponad
+  150", "w najwyższej opcji naprawdę ponad 300 km/h", "dodatkowy czynnik
+  oporu powietrza"): opcja menu "Opływowość" (`StuntCar.AERO`,
+  `set_aero`): sedan z epoki Cd 0,36 × 2,1 m² (domyślnie), współczesna
+  0,29 × 2,0, sportowa 0,30 × 1,85, rekordowa 0,22 × 1,75. Pomiar
+  (`tests/topspeed_test.gd`, jazda w -Z): 130 kW 213/229/232/264 km/h;
+  350 kW ~282 wszędzie (ogranicza 6. bieg na odcince); 700 kW
+  378/393/393/398 km/h, 0-300 17-19 s.
+- **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
+  panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
+- **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
+  - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
+  - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
+    jezdnie za barierą, na drugiej ruch z naprzeciwka.
+  - Sceneria zmienia się **co 50 km ± losowo 10 km**: wąwóz, góry,
+    nad morzem, równiny (pola, łąki, pustynia).
+  - **Miasta**: co 25 km małe (jedzie się przez ~1 km), co 100 km duże
+    (~5 km). Droga przechodzi w **ulicę w zabudowie** (ta sama droga,
+    domy, chodniki), **strefa 30 km/h**. Wokół miasta zawsze **3-5 aut
+    na kilometr**; te, które nie są w furii, mogą znikać do 5 km od
+    miasta, **tylko gdy gracz ich nie widzi**.
+  - **Skocznie rzadko, jako atrakcja** (objazd ze skocznią / rampa obok
+    drogi, którą można ominąć) - głównie zwykła jazda.
+  - **Słupki kilometrowe przy drodze** (użytkownik zauważył, że ich nie
+    ma, a pomagają ocenić prędkość).
+- **Klucze API Jamendo** (użytkownik 2026-11-09, "będzie potrzebne
+  później" - stacja radia z Jamendo): `~/.config/canion-raid/jamendo.env`
+  (`JAMENDO_CLIENT_ID`, `JAMENDO_CLIENT_SECRET`, chmod 600). **Nigdy do
+  gita** ani do plików w repo; skrypty mają je czytać z tego pliku.
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
 - **Repozytorium git** (od 2026-11-08, prośba użytkownika):
@@ -904,12 +940,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   31... (`WORKSHOP_EVERY` = 10) prostą 170 m z `meta.workshop = próg`;
   `StuntTrack._build_workshop` stawia halę z napisami i żółtą linię
   postoju 95 m od początku prostej. `EndlessTrack.next_workshop(dist)`.
-  W grze start na `GameSettings.POWER_TIERS[0]` (90 kW) wybranego rodzaju
-  napędu (opcja "Moc" w menu działa tylko na trasie pokazowej);
-  przejazd przez linię postoju (`_check_workshop`, płaszczyzna jak meta)
+  **Start z mocą z menu** (decyzja użytkownika 2026-11-09; do tej pory
+  zawsze 90 kW - stąd "1000 kW ledwo wjeżdża pod górkę"): `restart_race`
+  bierze `effective_power(...)`, `_tier` = jej indeks w `POWER_TIERS`.
+  Przejazd przez linię postoju (`_check_workshop`, płaszczyzna jak meta)
   → stan `Race.WORKSHOP`: zegar stoi, auto hamuje, przed kierowcą lista:
-  benzyna/diesel/elektryk na następnym progu (z momentem z prawdziwej
-  krzywej) + "bez zmian". Drążek/strzałki + A/Enter (`workshop_choose`).
+  benzyna/diesel/elektryk na progu `max(próg z trasy, _tier + 1)`
+  (z momentem z prawdziwej krzywej) + "bez zmian"; na ostatnim progu
+  tylko "bez zmian". Silniki w kołach tylko z ostatniego progu albo gdy
+  elektryk już je miał. Drążek/strzałki + A/Enter (`workshop_choose`).
   Przy okazji `repair()` i +1 dźwig.
 - **Znaki przed garbami**: `_hill` dokłada 30 m prostej z `meta.warn`
   ("GARB maks. X km/h", `v_warn`), pomarańczowa tablica. Prędkość:
@@ -1441,15 +1480,128 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
   Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
 - Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
-- Do odsłuchu w goglach: głośność radia względem silnika (`VOLUME_DB`
-  -8 dB, w pauzie 9 stopni), brzmienie szyny "Radio", czytelność
-  napisu nad radiem.
+- **Przyczepność** (użytkownik: "w prawdziwych autach jest lepsza,
+  zwłaszcza na suchym", "przy ruszaniu też"). Pomiary (`grip_test`,
+  `launch_test`, oba w `./quest.sh test`): w zakręcie było dobrze
+  (0,93-0,98 g), hamowanie i ruszanie za słabe. Naprawione:
+  - ABS z wyprzedzeniem (`_tire_peak_force`): moment ograniczony do
+    siły szczytowej opony x promień, korekta odchyłką poślizgu.
+    Stary cykl "spuść/dołóż" oscylował (poślizg 0..0,64), auto z ABS
+    hamowało dłużej niż z zablokowanymi kołami. 100-0: 51-55 m -> 40,5 m
+    (całoroczne), 38 m (letnie).
+  - Hamulce skalowane masą (`_brake_scale`): 2500 kg miało hamulce
+    auta 1150 kg.
+  - TCS z wyprzedzeniem (`_traction_cap`): stary regulator
+    proporcjonalny trzymał poślizg 0,2-0,3 (za szczytem 0,11).
+  - Sprzęgło międzyosiowe 4x4: limit `CENTER_COUPLING_SHARE` (35%)
+    momentu na osiach zamiast stałych 900 Nm (przy 9700 Nm na 1. biegu
+    buksował odciążony przód). 4x4 700 kW 2500 kg 0-100: 3,86 -> 3,56 s.
+  - Tylny napęd 700 kW 1200 kg ~5 s do 100 to granica przyczepności tyłu
+    (~0,6 g), nie błąd.
+- `engine_test` tankuje przed każdym przejazdem (po zmianie "silnik
+  gaśnie" diesel stał z obrotami 0).
+- **Zasięg 20-30 km** (użytkownik 2026-11-09, wcześniej 10-15 km):
+  `tank_kwh` 3,6 -> 7,5 (~25 km spokojnej jazdy; 700 kW na pełnym gazie
+  wypalało 3,6 kWh w ~25 s).
+- **Lądowanie z gazem** (użytkownik: "przy lądowaniu wcisnę gaz - auto
+  się obraca, może i dobrze, ale sprawdź"). `tests/landing_test.gd`:
+  w locie koła rozkręcały się do ~2x prędkości auta; bez TCS tylny
+  napęd po lądowaniu na gazie obraca się o 180° (fizyka - zostaje).
+  TCS działa teraz też w locie (`_tcs_air`: poślizg koła względem
+  prędkości auta, jak czujniki obrotów w prawdziwym TCS) - z TCS
+  kurs po lądowaniu trzymany.
+- **Napęd na przód** (użytkownik: "w opcjach jest tył, nie ma przodu"):
+  `drive_layout = "fwd"`, `_is_fwd()`, `_is_driven(w)`; LSD przedni.
+  Sedan ma rozkład 50/50 - przy FWD przód odciążony przy ruszaniu
+  (0-100 8,2 s, 35% podjazd ledwo), więc `apply_engine` przesuwa środek
+  masy o `FWD_FRONT_SHIFT` (0,1 rozstawu) do przodu = ~60/40 jak auto
+  z silnikiem z przodu. Ustawiać `drive_layout` przed `apply_engine`
+  (GameSettings.apply_to_car tak robi). Teraz 180 kW: 0-100 6,9 s,
+  0,93 g w zakręcie. Testy: launch, hill, grip, engine z FWD.
+  (Przy okazji sprawdzone: przenoszenie ciężaru przy przyspieszaniu jest
+  realistyczne; pozorne "za duże" było odczytem obciążeń przed osiadaniem
+  auta po `place()`.)
+- Zgaśnięty silnik: obroty opadają 3000 obr./min na s (było 1500 -
+  przy większym baku fuel_test łapał jeszcze ~350 obr.).
+- **Pliki na gogle**: `./quest.sh push PLIK... [-- KATALOG]` (domyślnie
+  `/sdcard/Download/`, działa po Wi-Fi) i `./quest.sh pull`. MTP
+  (Dolphin): gogle wystawiają przez USB tylko adb, dopóki użytkownik nie
+  zatwierdzi w goglach "Zezwolić na dostęp do danych"; `adb shell svc usb
+  setFunctions mtp,adb` nie działa (Quest wymaga zgody w goglach).
+- Radio w goglach (użytkownik): "radio poprawia komfort jazdy",
+  głośność względem silnika w porządku, wszystkie stacje pasują.
+  Użytkownik lubi do auta **psytrance** - 4. stacja "Psy Wąwóz"
+  (8 utworów CC-BY, lista zaakceptowana 2026-11-09; 7 z ccMixter,
+  1 z OpenGameArt). **ccMixter odrzuca pobieranie skryptem (HTTP 403)** -
+  nie obchodzić (nagłówki przeglądarki = obejście zabezpieczenia);
+  użytkownik pobiera pliki w przeglądarce do `build/radio_in/`, potem
+  `python3 tools/fetch_radio.py` je konwertuje. Brakujące pliki radio
+  pomija (log "RADIO: brak pliku").
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
+
+### 2026-11-09, sesja 5 (popołudnie, użytkownik jeździ w goglach na kablu)
+
+- Nowe opcje: Wytrzymałość x1-x10, Opływowość (sekcja 2). Testy:
+  `durability_test` (w zestawie), `topspeed_test`, `coast_test`
+  (puszczony gaz 0,10-0,12 g - w normie), `ramp_entry_test`
+  (diagnostyka skoczni).
+- Log: "PERF tempo gry" co 5 s i "INCYDENT" przy > 1,5 g / > 60°.
+  Z logu gogli: tempo 95-100%, silnik uszkodzony 46-92% po wypadkach
+  - przyczyna "wolnego" auta (razem ze startem zawsze z 90 kW).
+- ESP: wykrywanie ślizgu osi z poślizgu łącznego, odcinanie napędu
+  z kąta znoszenia tylnych opon, spadek od razu (niestabilność 700 kW
+  przy 240 km/h - sekcja 8, pkt 00).
+- Scalone PR #28 i #29 z chmury; **sprzęgło z #28 cofnięte** (hill_test:
+  180 kW na 35% utykało na 13 km/h). Moc z menu w trasie bez końca
+  i poprawki niespójności menu (inbox z chmury).
+- Klucze Jamendo zapisane poza repo (sekcja 2).
+- Do chmury (outbox `2026-11-09-niestabilnosc-i-autostrada.md`):
+  przegląd modelu opon, specyfikacja trybu Autostrada, szukanie
+  multimediów (pomysł użytkownika).
 
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+000. **Tryb Autostrada** (ustalenia w sekcji 2, 2026-11-09). Plan
+   etapami: (1) tryb w menu + generator odcinków samej autostrady
+   (2+2 pasy, łagodne łuki, bez skoczni) i słupki co 100 m / km;
+   (2) strefy scenerii co 50±10 km (równiny/pola/łąki/pustynia, góry,
+   morze, wąwóz) - teren i obiekty z MultiMesh (`scenery.gd`);
+   (3) miasta 1 km / 5 km z zabudową i strefą 30, ruch 3-5 aut/km
+   z znikaniem poza wzrokiem; (4) rzadkie objazdy ze skocznią.
+00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
+   2026-11-09)** - stan dochodzenia:
+   - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -
+     gogle NIE zwalniają fizyki. Za to **silnik był uszkodzony 46-92%**
+     (-35..-70% mocy) po uderzeniu 171 -> 7 km/h i twardych lądowaniach.
+     Stąd "130 kW ledwo ponad 150".
+   - `tests/ramp_entry_test.gd` (diagnostyka, nie w zestawie): skocznia
+     z generatora, wjazd 80/110/140 km/h z gazem i bez. Przy prędkości
+     dużo wyższej niż projektowa auto przelatuje lądowisko, w locie
+     obraca się nosem w dół (do -28°), ląduje na przodzie i wbija się
+     zderzakiem (4x4 140 km/h bez gazu: 122 -> 11 km/h w 0,25 s) -
+     uszkodzony silnik. Do rozważenia z użytkownikiem: czy skocznie mają
+     być bezpieczniejsze przy nadmiarze prędkości (dłuższe lądowisko).
+   - Linia **"INCYDENT"** w logu (xr_main `_watch_incident`): przy
+     > 1,5 g opóźnienia albo przechyle > 60° - stan auta, pedały, koła,
+     najmocniejszy kontakt nadwozia (`StuntCar.last_hit`: ścieżka
+     obiektu, impuls, punkt), odcinek, dystans. Po następnej jeździe
+     `./quest.sh log` (najlepiej zapis do pliku na kablu - bufor logcat
+     w goglach szybko się nadpisuje) i przeczytać.
+   - **Niestabilność przy dużej prędkości**: 700 kW tył, ~240 km/h,
+     kierownica 0 - auto samo wchodzi w dryf (yaw podwaja się co
+     ~0,15 s), w kierunku -Z idealna symetria to ukrywa (jedzie prosto do
+     347 km/h), w +X zaokrąglenia wystarczą. Tylne koła na granicy
+     przyczepności wzdłużnej (TCS trzyma szczyt) nie mają zapasu bocznego
+     (poślizg łączny); podwozie ~neutralne (sztywność opon ∝ obciążeniu).
+     ESP poprawione (poślizg łączny osi zamiast samego kąta, odcięcie
+     napędu z kąta znoszenia tylnych opon, spadek od razu) - pomaga
+     częściowo; zostaje ustalony dryf z ~0,8 g bez skrętu. Pomysły: szersze
+     tylne opony przy dużej mocy (jak w prawdziwych autach), zbieżność
+     tyłu, TCS z zapasem bocznym. Diagnostyka: skrypt
+     `_dbg_top.gd` (był w tests/, usunięty) - jazda w +X z (3000, 3000).
 
 00. **Wydajność - stan 2026-11-09** (plan: `docs/PERF_PLAN.md`, inbox
    `2026-11-08-plan-wydajnosci.md`). Pomiary sprzed tej daty są
@@ -1576,8 +1728,8 @@ Propozycje (do uzgodnienia):
 ## 9. Otwarte pytania do użytkownika
 
 - (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
-  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? Czy zużycie ma
-  mniej zależeć od mocy (teraz 700 kW do dechy = ~2 km na baku)?
+  było (zwykły podjazd / rozbieg skoczni / po dźwigu)? (Zużycie:
+  ustalono zasięg 20-30 km, sekcja 7.)
 
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.

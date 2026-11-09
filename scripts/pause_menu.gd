@@ -11,7 +11,7 @@ class_name PauseMenu
 signal resumed
 signal quit_requested
 
-const ITEMS := ["resume", "radio", "station", "volume", "quit"]
+const ITEMS := ["resume", "radio", "station", "online", "volume", "quit"]
 const VOLUME_STEPS := [-30.0, -24.0, -18.0, -14.0, -10.0, -8.0, -6.0, -3.0, 0.0]
 
 var radio: CarRadio
@@ -75,6 +75,10 @@ func _item_text(id: String) -> String:
 		"station":
 			var n := radio.station_name() if radio else "-"
 			return "Stacja:  < %s >" % n
+		"online":
+			if radio and radio.jamendo and not radio.jamendo.configured():
+				return "Radio online: brak klucza"
+			return "Radio online (Jamendo):  < %s >" % ("wł." if radio and radio.online_enabled else "wył.")
 		"volume":
 			return "Głośność radia:  < %d / %d >" % [volume_index + 1, VOLUME_STEPS.size()]
 		"quit":
@@ -96,6 +100,13 @@ func change(dir: int) -> void:
 		"station":
 			if radio:
 				radio.next_station(dir)
+		"online":
+			if radio:
+				radio.set_online(not radio.online_enabled)
+				var gs := get_node_or_null("/root/GameSettings")
+				if gs:
+					gs.radio_online = radio.online_enabled
+					gs.save_settings()
 		"volume":
 			volume_index = clampi(volume_index + dir, 0, VOLUME_STEPS.size() - 1)
 			apply_volume()
@@ -108,11 +119,7 @@ func accept() -> void:
 			resumed.emit()
 		"quit":
 			quit_requested.emit()
-		"radio":
-			change(1)
-		"station":
-			change(1)
-		"volume":
+		"radio", "station", "online", "volume":
 			change(1)
 
 

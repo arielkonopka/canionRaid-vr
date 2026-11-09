@@ -30,6 +30,17 @@ Lista zgodna z `scripts/radio_stations.gd` (`RadioCatalog.credits_markdown()`).
 - "Calm Ambient 1 (Synthwave 4k)" - The Cynic Project, CC0, https://opengameart.org/node/97098 (cynicmusic.com / pixelsphere.org)
 - "Chill Jungle Ambient" - Tausdei, CC-BY-3.0, https://opengameart.org/node/123092
 
+### Psy Wąwóz
+
+- "Amigos" - F_Fact, CC-BY-3.0, https://ccmixter.org/files/F_Fact/52032
+- "End of Days" - F_Fact, CC-BY-3.0, https://ccmixter.org/files/F_Fact/43533
+- "The Beach (Original Mix)" - Astral, CC-BY-3.0, https://ccmixter.org/files/Astral/50472
+- "Psycho Freak (Final Edit)" - Psykick, CC-BY-3.0, https://ccmixter.org/files/Psykick/37264
+- "Trance Dance" - Psykick, CC-BY-3.0, https://ccmixter.org/files/Psykick/40201
+- "Tempest" - Psykick, CC-BY-3.0, https://ccmixter.org/files/Psykick/53063
+- "Shiva" - chandubaba, CC-BY-3.0, https://ccmixter.org/files/chandubaba/52311
+- "psytrance for a game" - Kris Klavenes (klavo85), CC-BY-4.0, https://opengameart.org/content/psytrance-for-a-game-by-kris-klavenes
+
 ## Stacja "Jamendo online" (opcjonalna)
 
 Utwory pobierane na bieżąco z [Jamendo](https://www.jamendo.com) przez ich

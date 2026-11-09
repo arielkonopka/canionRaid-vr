@@ -27,7 +27,7 @@ var esp_enabled: bool = true
 var steer_assist: bool = true
 var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
-## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
+## Układ napędu: "rwd" tył, "fwd" przód, "awd" 4x4 (StuntCar.drive_layout).
 var drive_layout: String = "rwd"
 ## Model auta gracza: "concept" (Khronos Car Concept, CC BY 4.0) albo
 ## "sedan" (własny z lat 70., z wgnieceniami). Boty zawsze sedany.
@@ -36,6 +36,11 @@ var body_model: String = "sedan"
 var body_mass: int = 1150
 ## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
 var spoiler: String = "none"
+## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
+## użytkownik 2026-11-09) - StuntCar.durability.
+var durability: int = 1
+## Opływowość nadwozia (StuntCar.AERO): "classic", "modern", "sport", "record".
+var aero: String = "classic"
 ## Szał drogowy botów: o ile km/h przekraczają ograniczenie (0 = bez
 ## limitu), najkrótszy szał [s], ile sekund przepisowej jazdy gracza go
 ## gasi, strategia: "block" (wyprzedza, zajeżdża, hamuje przed graczem),
@@ -92,6 +97,10 @@ var best_distance: float = 0.0
 ## false = nic nie jest zapisywane na dysk. Ustawiają to testy, żeby nie
 ## nadpisywać ustawień i rekordów gracza.
 var persist := true
+## Radio online (stacja Jamendo, menu pauzy) - jawna opcja, domyślnie
+## wyłączona (inbox radio-online-jamendo). Poza OPTIONS: nie ma jej
+## w menu tytułowym, tylko w menu pauzy.
+var radio_online := false
 
 ## Grupy menu (podmenu na ekranie tytułowym), w kolejności wyświetlania.
 const GROUPS: Array[Dictionary] = [
@@ -188,6 +197,29 @@ var OPTIONS: Array[Dictionary] = [
 		],
 	},
 	{
+		"key": "aero", "group": "body", "label": "Opływowość",
+		"values": ["classic", "modern", "sport", "record"],
+		"names": ["Sedan z epoki", "Współczesna", "Sportowa", "Rekordowa"],
+		"hints": [
+			"Cd 0,36, duże czoło (pomiar: 130 kW 213 km/h, 700 kW 378 km/h).",
+			"Cd 0,29 jak dzisiejsze auta: 130 kW 229 km/h, 700 kW 393 km/h.",
+			"Cd 0,30, niskie i wąskie czoło: 130 kW 232 km/h.",
+			"Cd 0,22, jak auta do bicia rekordów: 130 kW 264 km/h, 700 kW 398 km/h. Przy 350 kW prędkość ogranicza najwyższy bieg (~285).",
+		],
+	},
+	{
+		"key": "durability", "group": "body", "label": "Wytrzymałość",
+		"values": [1, 2, 3, 5, 10],
+		"names": ["x1 (realna)", "x2", "x3", "x5", "x10"],
+		"hints": [
+			"Jak prawdziwe auto: uderzenie przy dużej prędkości kończy jazdę.",
+			"Auto znosi dwa razy więcej, zanim silnik, hamulce i zawieszenie odmówią.",
+			"Trzy razy mocniejsze - wybacza kilka poważnych stłuczek.",
+			"Pięć razy mocniejsze - wgniecenia widać, ale auto jedzie dalej.",
+			"Prawie niezniszczalne. Wgniecenia nadal widać.",
+		],
+	},
+	{
 		"key": "tires", "group": "body", "label": "Opony",
 		"values": ["all_season", "summer", "winter"],
 		"names": ["Całoroczne", "Letnie", "Zimowe"],
@@ -199,10 +231,11 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "drive_layout", "group": "car", "label": "Napędzane koła",
-		"values": ["rwd", "awd"],
-		"names": ["Tył", "4x4"],
+		"values": ["rwd", "fwd", "awd"],
+		"names": ["Tył", "Przód", "4x4"],
 		"hints": [
 			"Klasycznie, tylne koła z szperą - tył ucieka przy gazie w zakręcie.",
+			"Przednie koła ciągną: stabilnie, przy gazie w zakręcie auto wynosi przodem na zewnątrz; mocne auto buksuje przy ruszaniu (ciężar przechodzi na tył).",
 			"Wszystkie koła: 40% przód, 60% tył, wiskoza między osiami. Ciężej o poślizg.",
 		],
 	},
@@ -468,6 +501,7 @@ func load_settings() -> void:
 		steer_stick = "right"
 	best_time = cfg.get_value("records", "best_time", 0.0)
 	best_distance = cfg.get_value("records", "best_distance", 0.0)
+	radio_online = bool(cfg.get_value("radio", "online", false))
 
 
 func save_settings() -> void:
@@ -479,6 +513,7 @@ func save_settings() -> void:
 	cfg.set_value("meta", "version", SETTINGS_VERSION)
 	cfg.set_value("records", "best_time", best_time)
 	cfg.set_value("records", "best_distance", best_distance)
+	cfg.set_value("radio", "online", radio_online)
 	cfg.save(PATH)
 
 
@@ -501,6 +536,8 @@ func apply_to_car(car: StuntCar) -> void:
 	car.apply_suspension_preset(suspension)
 	car.set_body_mass(body_mass)
 	car.set_spoiler(spoiler)
+	car.durability = float(durability)
+	car.set_aero(aero)
 	car.abs_enabled = abs_enabled
 	car.tcs_enabled = tcs_enabled
 	car.esp_enabled = esp_enabled
