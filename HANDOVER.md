@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 5 (popołudnie: wytrzymałość, opływowość, moc z menu w trasie, diagnostyka wypadków, plan trybu Autostrada)
+Ostatnia aktualizacja: 2026-11-09, sesja 6 (wieczór: wielka skocznia, Autostrada etap 1, rekuperacja, nowe boty, tekstury poza repo)
 
 ---
 
@@ -1627,6 +1627,31 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Do chmury (outbox `2026-11-09-niestabilnosc-i-autostrada.md`):
   przegląd modelu opon, specyfikacja trybu Autostrada, szukanie
   multimediów (pomysł użytkownika).
+
+### 2026-11-09, sesja 6 (wieczór, użytkownik jeździ na kablu)
+
+- **Skocznie**: dwa rodzaje (sekcja 2) - wielka skocznia do 400 km/h na
+  autostradzie (`TrackGenerator._big_jump`, próg 3,5°, stół 170 m),
+  lądowanie liczone prostopadle do nawierzchni, lot nad jezdnią nie jest
+  upadkiem (gra wysadzała auto w długim locie).
+- **Punkty**: bez mandatu za stłuczki, punkty za lot wg skali użytkownika.
+- **Autostrada etap 1** (sekcja 8, pkt 000), moduły z chmury uruchomione
+  i poprawione (headless MultiMesh, `global_position` w `_initialize`).
+- **Rekuperacja** elektryka w menu z odzyskiem energii.
+- **Modele aut CC0** w `models/` (GGBotNet, Quaternius - ręcznie
+  pobrany), tekstury CC0 poza repo (skrypt).
+- **"Trasa się skończyła"** (wąwóz, po skoku): dystans po locie skakał
+  2330 -> 1139 m (auto przypisane do wcześniejszego fragmentu), potem
+  odrodzenie na usuniętym kawałku. Poprawka: `jumped_back` (> 300 m
+  wstecz nie jest bezpieczną pozycją), odrodzenie >= `loaded_start()`.
+- **Nowe boty z chmury**: `BotDriveModel` (z ESP - bez niego boty się
+  obracały), `BotLod` (budżet 8), `_curve_speed` 0,7 g; `FeudDirector`
+  (waśnie) - test OK, wpięcie czeka.
+- Log z Questa: pojawienie się bota = ~170 ms klatki (budowa StuntCar) -
+  w kolejce pula botów.
+- Testy: pełny zestaw `./quest.sh test` OK (w tym nowe: durability,
+  topspeed (poza zestawem), regen, highway_plan/gen, world_origin,
+  bot_drive, feud, endless autostrada).
 
 ## 8. Kolejka zadań
 
