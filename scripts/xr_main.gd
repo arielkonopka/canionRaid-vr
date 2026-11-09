@@ -135,6 +135,9 @@ var _beep_fine: AudioStreamPlayer
 var _last_hit := {}                  # bot -> czas ostatniej kary (bez kar z jednego zderzenia)
 
 var _xr_ready: bool = false
+var _radio: CarRadio
+var _radio_label: Label3D
+var _pause: PauseMenu
 var _mode: Mode = Mode.DRIVE
 var _cockpit_on_pc: bool = false
 var _yaw: float = 0.0
@@ -232,6 +235,13 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 	# (powrót do menu przerywał przejazd) - wejście ignorowane.
 	if Bench.active():
 		return
+	if _pause and _pause.is_open():
+		# W pauzie: lewe menu wraca do jazdy, A zatwierdza w menu.
+		if not is_right and button == "menu_button":
+			_set_paused(false)
+		elif is_right and button == "ax_button":
+			_pause.accept()
+		return
 	match [is_right, button]:
 		[true, "ax_button"]:          # A
 			if race_state == Race.FINISHED:
@@ -247,7 +257,9 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 		[false, "by_button"]:         # Y - akcja dopiero po puszczeniu albo przytrzymaniu
 			_y_held = 0.0
 		[false, "menu_button"]:
-			_back_to_title()
+			# Pauza z radiem (wcześniej: od razu ekran tytułowy - wyjście
+			# jest teraz w menu pauzy).
+			_set_paused(true)
 		[true, "primary_click"]:
 			# Nowe auto na kołach = strata życia (na trasie bez końca).
 			if _mode != Mode.DRIVE:
@@ -286,7 +298,20 @@ func toggle_tcs() -> void:
 	toggle_assist("tcs")
 
 
+## Pauza: drzewo sceny stoi (fizyka, boty), działa menu pauzy, radio
+## i XROrigin (śledzenie głowy i kontrolerów).
+func _set_paused(on: bool) -> void:
+	if _pause == null or Bench.active():
+		return
+	get_tree().paused = on
+	if on:
+		_pause.open()
+	else:
+		_pause.close()
+
+
 func _back_to_title() -> void:
+	get_tree().paused = false
 	if Bench.active():
 		print("BENCH: pominięty powrót do menu")
 		return
@@ -306,6 +331,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_ESCAPE:
+				_set_paused(true)
+				get_viewport().set_input_as_handled()
+				return
 			KEY_F:
 				_set_mode(Mode.FLY if _mode == Mode.DRIVE else Mode.DRIVE)
 			KEY_R:
@@ -920,6 +949,50 @@ func _update_mirror() -> void:
 		_mirror_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
+## Radio (moduł z chmury, CarRadio) i menu pauzy, z którego się nim steruje
+## (użytkownik 2026-11-09). Napis "co gra" nad radiem na desce sedana,
+## w concept carze pod mapką; przy zmianie utworu krótki napis w HUD.
+func _build_radio() -> void:
+	origin.process_mode = Node.PROCESS_MODE_ALWAYS
+	_radio = CarRadio.new()
+	_radio.name = "CarRadio"
+	_radio.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_radio)
+	_radio_label = Label3D.new()
+	_radio_label.name = "RadioText"
+	_radio_label.font_size = 24
+	_radio_label.pixel_size = 0.00035
+	_radio_label.outline_size = 4
+	_radio_label.modulate = Color(1.0, 0.85, 0.55)
+	_radio_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	if car.get_node_or_null("MirrorFace") and car.body_model == "sedan":
+		_radio_label.position = Vector3(0.10, 0.03, -0.24)
+	else:
+		_radio_label.position = _track_hud.position + Vector3(0.0, -TrackHud.SIZE.y * 0.5 - 0.03, 0.0) \
+				if _track_hud else Vector3(0.0, 0.3, -0.5)
+		_radio_label.no_depth_test = true
+	car.add_child(_radio_label)
+	_radio.now_playing.connect(_on_radio_text)
+	_pause = PauseMenu.new()
+	_pause.camera = camera
+	_pause.hands = [left_hand, right_hand]
+	_pause.xr = _xr_ready
+	_pause.radio = _radio
+	_pause.resumed.connect(_set_paused.bind(false))
+	_pause.quit_requested.connect(_back_to_title)
+	add_child(_pause)
+	_pause.apply_volume()
+
+
+func _on_radio_text(text: String) -> void:
+	if _radio_label:
+		_radio_label.text = text
+	if _pause and _pause.is_open():
+		_pause.refresh()
+	elif text != "":
+		_show_popup(text.get_slice("\n", 0) + "  " + text.get_slice("\n", 1), false)
+
+
 func _fmt_time(t: float) -> String:
 	return "%d:%05.2f" % [int(t / 60.0), fmod(t, 60.0)]
 
@@ -968,6 +1041,7 @@ func _build_race_hud() -> void:
 	_track_hud.position = Vector3(-0.38, 0.375, -0.40) + car.cockpit_offset
 	_track_hud.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
 	car.add_child(_track_hud)
+	_build_radio()
 	if Bench.active():
 		# Widać od razu, że to przejazd pomiarowy (wejście ignorowane).
 		var bl := Label3D.new()

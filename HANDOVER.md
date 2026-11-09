@@ -1408,12 +1408,25 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   `StuntCar.mirror_mount` (+ chromowana tafla "MirrorFace" bez sceny
   jazdy), `xr_main._build_mirror` kładzie na niej szkło z kamery.
   Concept car dalej ma osobną ramkę nad deską.
-- Radio z chmury (`car_radio.gd`): odtwarzacze tworzone przy pierwszym
-  użyciu (`_setup`) - test wołał `set_power` przed `_ready` i się
-  wywracał; `radio_test` w `./quest.sh test`, OK. Użytkownik zgodził
-  się na pobranie 15 utworów z listy (`tools/fetch_radio.py`) - czeka
-  na `sudo apt install ffmpeg` (brak w systemie). Radio nie jest jeszcze
-  wpięte w grę (tablet, przyciski).
+- **Radio** (moduły z chmury: `car_radio.gd`, `radio_catalog.gd`,
+  `radio_stations.gd`): 15 utworów z OpenGameArt w 3 stacjach
+  (`audio/radio/`, 24 MB, **w repo** - decyzja użytkownika; licencje
+  CC0/CC-BY/CC-BY-SA sprawdzone na stronach 2026-11-09, podpisy w
+  `CREDITS.md`). `tools/fetch_radio.py` pobiera i konwertuje (ffmpeg);
+  OpenGameArt dopisuje do nazw plików numer wersji (`_0`, `_6`) -
+  wzorce mają `(_\d+)?`, podglądy (`audio_preview`) pomijane.
+  `CarRadio` tworzy odtwarzacze przy pierwszym użyciu (`_setup`).
+- **Menu pauzy** (`scripts/pause_menu.gd`, `PauseMenu extends
+  GazeFollow`): lewy przycisk menu w jeździe (PC: Esc) - **wcześniej
+  wracał od razu do ekranu tytułowego**, teraz pauza; wyjście do menu
+  głównego jest pozycją pauzy. Ustalone z użytkownikiem: radio sterowane
+  tylko z pauzy (wł./wył., stacja, głośność) - żaden przycisk w jeździe
+  się nie zmienił. Pauza = `get_tree().paused`; `PROCESS_MODE_ALWAYS`
+  mają menu, `CarRadio` i **XROrigin3D** (bez tego w pauzie zamarza
+  śledzenie głowy i kontrolerów). W pauzie A zatwierdza, drążek
+  góra/dół wybiera, w bok zmienia. "Co gra": napis nad radiem na desce
+  sedana (concept: pod mapką) i krótki napis w HUD przy zmianie utworu.
+  Test `tests/pause_test.gd`.
 - Zgłoszenie: "auto praktycznie nie jest w stanie ruszyć pod górę"
   (gogle: benzyna 1000->700 kW, 4x4, automat, 2500 kg, TCS). Nowy
   `tests/hill_test.gd` (w `./quest.sh test`): pochylnia 15% i 35%, cztery
@@ -1428,6 +1441,9 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   dźwięk silnika cichnie (`car_audio`), po zatankowaniu znowu pracuje.
   Elektryk nie gaśnie. Test `tests/fuel_test.gd` (w `./quest.sh test`).
 - Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
+- Do odsłuchu w goglach: głośność radia względem silnika (`VOLUME_DB`
+  -8 dB, w pauzie 9 stopni), brzmienie szyny "Radio", czytelność
+  napisu nad radiem.
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 
