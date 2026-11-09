@@ -871,6 +871,28 @@ func _build_mirror() -> void:
 	_mirror_cam.far = 400.0
 	_mirror_cam.current = true
 	_mirror_vp.add_child(_mirror_cam)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = _mirror_vp.get_texture()
+	# Lustro odwraca lewo-prawo.
+	m.uv1_scale = Vector3(-1, 1, 1)
+	m.uv1_offset = Vector3(1, 0, 0)
+	var glass := MeshInstance3D.new()
+	glass.name = "MirrorGlass"
+	var q := QuadMesh.new()
+	q.material = m
+	glass.mesh = q
+	var face := car.get_node_or_null("MirrorFace") as Node3D
+	if face and face.is_visible_in_tree():
+		# Sedan: obraz w lusterku z nowego wnętrza (wcześniej działające
+		# lusterko wisiało osobno obok atrapy - zgłoszenie użytkownika).
+		q.size = Vector2(StuntCar.MIRROR_GLASS_SIZE.x, StuntCar.MIRROR_GLASS_SIZE.y)
+		_mirror_vp.size = Vector2i(256, int(256.0 * q.size.y / q.size.x))
+		glass.transform = car.mirror_mount.translated_local(
+				Vector3(0.0, 0.0, StuntCar.MIRROR_GLASS_SIZE.z * 0.5 + 0.001))
+		car.add_child(glass)
+		return
+	# Concept car: własna ramka nad deską.
 	var frame := MeshInstance3D.new()
 	var fb := BoxMesh.new()
 	fb.size = Vector3(0.27, 0.09, 0.02)
@@ -881,17 +903,7 @@ func _build_mirror() -> void:
 	frame.position = Vector3(0.0, 0.565, -0.13)
 	frame.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(12.0), 0.0)
 	car.add_child(frame)
-	var glass := MeshInstance3D.new()
-	var q := QuadMesh.new()
 	q.size = Vector2(0.25, 0.075)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_texture = _mirror_vp.get_texture()
-	# Lustro odwraca lewo-prawo.
-	m.uv1_scale = Vector3(-1, 1, 1)
-	m.uv1_offset = Vector3(1, 0, 0)
-	q.material = m
-	glass.mesh = q
 	glass.position = Vector3(0, 0, 0.011)
 	frame.add_child(glass)
 

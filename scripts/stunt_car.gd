@@ -1844,12 +1844,22 @@ func _build_interior(trim: Material, carpet: Material, headliner: Material,
 			var gas: bool = px > -0.3
 			_ip_box(p, alu, Vector3(0.05 if gas else 0.07, 0.09 if gas else 0.06, 0.012),
 					pad + Vector3(0.0, -0.02, 0.006), Basis(Vector3.RIGHT, deg_to_rad(-25.0)))
-		# Lusterko wsteczne (chrom zamiast odbicia) i osłony przeciwsłoneczne.
+		# Lusterko wsteczne: obudowa tutaj, szkło z obrazem z kamery wstawia
+		# scena jazdy (xr_main._build_mirror) w `mirror_mount` - bez sceny
+		# (ekran tytułowy, zrzuty) chromowana tafla.
 		_ip_bar(p, dark, Vector3(0.0, 0.625, 0.01), Vector3(0.0, 0.59, -0.035), 0.012, 0.012)
 		var mb := Basis(Vector3.UP, -0.2) * Basis(Vector3.RIGHT, -0.1)
 		var mc := Vector3(0.0, 0.575, -0.045)
 		_ip_box(p, dark, Vector3(0.22, 0.06, 0.022), mc, mb)
-		_ip_box(p, chrome, Vector3(0.205, 0.048, 0.003), mc + mb * Vector3(0.0, 0.0, 0.0115), mb)
+		mirror_mount = Transform3D(mb, mc + mb * Vector3(0.0, 0.0, 0.0115))
+		var face := MeshInstance3D.new()
+		face.name = "MirrorFace"
+		var fq := BoxMesh.new()
+		fq.size = MIRROR_GLASS_SIZE
+		fq.material = chrome
+		face.mesh = fq
+		face.transform = mirror_mount
+		add_child(face)
 		for sx in [-0.40, 0.40]:
 			_ip_box(p, headliner, Vector3(0.36, 0.012, 0.15), Vector3(sx, 0.615, 0.07),
 					Basis(Vector3.RIGHT, deg_to_rad(8.0)))
@@ -2433,6 +2443,10 @@ const CONCEPT := {
 }
 @export var body_model: String = "sedan"
 var _concept: Node3D
+## Lusterko wsteczne sedana: położenie tafli (środek, przód = +Z, do
+## kierowcy) w układzie auta; zero, gdy auto nie ma wnętrza z lusterkiem.
+var mirror_mount := Transform3D()
+const MIRROR_GLASS_SIZE := Vector3(0.205, 0.048, 0.003)
 static var _concept_scene: PackedScene
 var _concept_steer: Node3D
 var _concept_steer_axis := Vector3.FORWARD

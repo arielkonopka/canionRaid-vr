@@ -1403,6 +1403,17 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   zostawiony w goglach przełączał każde uruchomienie w tryb pomiaru);
   w pomiarze czerwony napis "BENCH S1" nad mapką (uwagi z chmury).
 - Scalone z chmury: wnętrze sedana z epoki (PR #24), zrzuty obejrzane.
+- Rano (użytkownik): "nowe lusterko nie działa, stare tak, ale
+  nielogicznie umieszczone". Atrapa z nowego wnętrza ma teraz obraz:
+  `StuntCar.mirror_mount` (+ chromowana tafla "MirrorFace" bez sceny
+  jazdy), `xr_main._build_mirror` kładzie na niej szkło z kamery.
+  Concept car dalej ma osobną ramkę nad deską.
+- Radio z chmury (`car_radio.gd`): odtwarzacze tworzone przy pierwszym
+  użyciu (`_setup`) - test wołał `set_power` przed `_ready` i się
+  wywracał; `radio_test` w `./quest.sh test`, OK. Użytkownik zgodził
+  się na pobranie 15 utworów z listy (`tools/fetch_radio.py`) - czeka
+  na `sudo apt install ffmpeg` (brak w systemie). Radio nie jest jeszcze
+  wpięte w grę (tablet, przyciski).
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 

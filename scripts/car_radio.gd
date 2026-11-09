@@ -71,6 +71,15 @@ static func ensure_bus() -> int:
 
 
 func _ready() -> void:
+	_setup()
+
+
+## Szyna, katalog i odtwarzacze - przy pierwszym użyciu, nie tylko w _ready
+## (węzeł dodany w _initialize testu albo przed wejściem sceny do drzewa
+## dostaje wywołania wcześniej niż _ready).
+func _setup() -> void:
+	if _player:
+		return
 	ensure_bus()
 	if catalog == null:
 		catalog = Catalog.new(Stations.STATIONS)
@@ -89,6 +98,7 @@ func _ready() -> void:
 
 
 func set_power(on: bool) -> void:
+	_setup()
 	is_on = on
 	if not on:
 		_gap = -1.0
@@ -125,13 +135,15 @@ func skip() -> void:
 
 
 func set_volume_db(db: float) -> void:
+	_setup()
 	_player.volume_db = db
 	_static.volume_db = db + (STATIC_DB - VOLUME_DB)
 
 
 func _burst(join: bool) -> void:
 	_player.stop()
-	_static.play()
+	if _static.is_inside_tree():
+		_static.play()
 	_join = join
 	_gap = GAP_S
 
