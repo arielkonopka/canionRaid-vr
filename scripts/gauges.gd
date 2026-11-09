@@ -11,6 +11,10 @@ class_name Gauges
 ##   zgaszony   - zniszczone (100%), widać tylko blady "duch" segmentu
 ## Wszystko z prymitywów 3D (tarcza, kreski, liczby Label3D, wskazówka),
 ## materiały bez cieniowania - czytelne także w cieniu ściany wąwozu.
+## Kontrolki wspomagań (ABS, TCS, ESP, ograniczenie skrętu) w górnej części
+## prędkościomierza: trójkąty jak znak ostrzegawczy ze skrótem w środku
+## (prośba użytkownika). Zgaszona = system włączony; świeci = wyłączony;
+## miga = system włączony i właśnie ingeruje (jak kontrolka ESP w aucie).
 ## Oś tarczy: lokalne +Z patrzy na kierowcę.
 
 const SWEEP := deg_to_rad(270.0)           # zakres wskazówki
@@ -32,6 +36,7 @@ var _mark_mat: StandardMaterial3D
 var _red_mat: StandardMaterial3D
 var _needle_mat: StandardMaterial3D
 var _chrome: StandardMaterial3D
+var _lamps := {}                           # klucz -> [materiał obrysu, Label3D, świeci?]
 
 
 func _init() -> void:
@@ -61,8 +66,11 @@ func build(cluster: Vector3, tilt_deg: float) -> void:
 	hood.mesh = hb
 	hood.position = Vector3(0, 0, -0.03)
 	cl.add_child(hood)
-	var sp := _dial(cl, Vector3(-0.085, 0.0, 0.0), 0.075, _speed_max, 25.0, 50.0, -1.0, "km/h")
+	# "km/h" wyżej niż na obrotomierzu - między górnymi kontrolkami.
+	var sp := _dial(cl, Vector3(-0.085, 0.0, 0.0), 0.075, _speed_max, 25.0, 50.0, -1.0, "km/h",
+			LAMP_UNIT_Y)
 	_speed_needle = sp
+	_build_assist_lamps(sp.get_parent())
 	var lcd := Node3D.new()
 	lcd.name = "DamageLCD"
 	lcd.position = Vector3(-0.085, -0.042, 0.0045)
@@ -146,7 +154,7 @@ func set_fuel(f: float) -> void:
 ## Tarcza: kreski co `minor`, liczby co `major`, czerwone pole od `red`
 ## (-1 = bez). Zwraca węzeł wskazówki.
 func _dial(parent: Node3D, pos: Vector3, r: float, vmax: float, minor: float, major: float,
-		red: float, unit: String) -> Node3D:
+		red: float, unit: String, unit_y: float = 0.32) -> Node3D:
 	var d := Node3D.new()
 	d.position = pos
 	parent.add_child(d)
@@ -203,7 +211,7 @@ func _dial(parent: Node3D, pos: Vector3, r: float, vmax: float, minor: float, ma
 	ul.pixel_size = 0.0004
 	ul.modulate = Color(0.7, 0.7, 0.65)
 	# Nad środkiem tarczy - dół obrotomierza zajmuje wskaźnik paliwa.
-	ul.position = Vector3(0, r * 0.32, 0.005)
+	ul.position = Vector3(0, r * unit_y, 0.005)
 	ul.outline_size = 0
 	d.add_child(ul)
 	# Wskazówka: obraca się wokół osi tarczy (lokalne Z).
@@ -237,6 +245,114 @@ func _angle(v: float, vmax: float) -> float:
 
 func _set_needle(pivot: Node3D, v: float) -> void:
 	pivot.rotation = Vector3(0, 0, _angle(v, pivot.get_meta("vmax")))
+
+
+## Kontrolki wspomagań: [klucz, skrót, kąt na tarczy w stopniach od +X].
+## Ułożone na łuku LAMP_RING wokół osi, symetrycznie, z przerwą u góry na
+## "km/h". Wymiary sprawdzone tak, żeby trójkąty nie nachodziły na siebie,
+## na liczby skali (promień 0,62 r), piastę wskazówki ani okienko LCD
+## (tests/gauges_test.gd liczy odstępy). Wskazówka przesuwa się nad nimi.
+const ASSIST_LAMPS := [["abs", "ABS", 168.0], ["tcs", "TCS", 127.0],
+		["esp", "ESP", 53.0], ["steer", "SKR", 12.0]]
+const LAMP_SIDE := 0.018                   # bok trójkąta (m)
+const LAMP_BORDER := 0.0011                # grubość świecącego obrysu (m)
+const LAMP_RING := 0.029                   # promień łuku środków trójkątów (m)
+const LAMP_UNIT_Y := 0.467                 # "km/h": wysokość w promieniach tarczy
+const LAMP_LIT := Color(1.0, 0.62, 0.06)   # bursztyn, jak kontrolki w aucie
+const LAMP_OFF := Color(0.17, 0.15, 0.12)  # zgaszona: widać tylko zarys
+const LAMP_BLINK_MS := 250                 # miganie przy ingerencji (2 Hz)
+
+
+## Środek kontrolki `i` (układ tarczy, środek ciężkości trójkąta).
+static func lamp_center(i: int) -> Vector2:
+	var a := deg_to_rad(ASSIST_LAMPS[i][2])
+	return Vector2(cos(a), sin(a)) * LAMP_RING
+
+
+## Wierzchołki trójkąta o boku `side` wokół środka ciężkości `c`, ostrzem w górę.
+static func lamp_triangle(c: Vector2, side: float) -> PackedVector2Array:
+	var h := side * sqrt(3.0) * 0.5
+	return PackedVector2Array([c + Vector2(-side * 0.5, -h / 3.0),
+			c + Vector2(side * 0.5, -h / 3.0), c + Vector2(0.0, h * 2.0 / 3.0)])
+
+
+## Czy kontrolka świeci: wyłączony system świeci stale, włączony gaśnie,
+## a w czasie ingerencji miga.
+static func lamp_lit(enabled: bool, active: bool, t_ms: int) -> bool:
+	if not enabled:
+		return true
+	return active and (t_ms / LAMP_BLINK_MS) % 2 == 0
+
+
+func _build_assist_lamps(dial: Node3D) -> void:
+	# Obrys: pełny trójkąt w kolorze kontrolki, na nim czarny trójkąt
+	# mniejszy o LAMP_BORDER z każdej strony; skrót w kolorze kontrolki.
+	# Wszystko płaskie, bez cieniowania, 3 draw calle na kontrolkę.
+	var inner_side := LAMP_SIDE - 2.0 * sqrt(3.0) * LAMP_BORDER
+	var inner_mat := _unshaded(_face_mat.albedo_color)
+	inner_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var h := LAMP_SIDE * sqrt(3.0) * 0.5
+	for i in range(ASSIST_LAMPS.size()):
+		var c := lamp_center(i)
+		var lamp := Node3D.new()
+		lamp.name = "Lamp" + ASSIST_LAMPS[i][1]
+		lamp.position = Vector3(c.x, c.y, 0.0045)
+		dial.add_child(lamp)
+		var mat := _unshaded(LAMP_OFF)
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var outer := MeshInstance3D.new()
+		outer.mesh = _triangle_mesh(LAMP_SIDE, mat)
+		lamp.add_child(outer)
+		var inner := MeshInstance3D.new()
+		inner.mesh = _triangle_mesh(inner_side, inner_mat)
+		inner.position = Vector3(0, 0, 0.0004)
+		lamp.add_child(inner)
+		var l := Label3D.new()
+		l.text = ASSIST_LAMPS[i][1]
+		# Duży font i mały piksel: ostre litery przy wysokości ~4 mm.
+		l.font_size = 42
+		l.pixel_size = 0.0001
+		l.outline_size = 0
+		l.shaded = false
+		l.modulate = LAMP_OFF
+		# Skrót w dolnej, szerszej części trójkąta.
+		l.position = Vector3(0, h * 0.26 - h / 3.0, 0.0008)
+		lamp.add_child(l)
+		_lamps[ASSIST_LAMPS[i][0]] = [mat, l, false]
+
+
+func _triangle_mesh(side: float, mat: Material) -> ArrayMesh:
+	var v := PackedVector3Array()
+	for p in lamp_triangle(Vector2.ZERO, side):
+		v.append(Vector3(p.x, p.y, 0.0))
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_NORMAL] = PackedVector3Array([Vector3.BACK, Vector3.BACK, Vector3.BACK])
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	m.surface_set_material(0, mat)
+	return m
+
+
+## Stan systemu wspomagania: `key` z ASSIST_LAMPS, `active` = właśnie ingeruje.
+## Materiał zmienia się tylko przy zmianie stanu.
+func set_assist(key: String, enabled: bool, active: bool) -> void:
+	var lamp: Array = _lamps.get(key, [])
+	if lamp.is_empty():
+		return
+	var lit := lamp_lit(enabled, active, Time.get_ticks_msec())
+	if lit == lamp[2]:
+		return
+	lamp[2] = lit
+	var c := LAMP_LIT if lit else LAMP_OFF
+	lamp[0].albedo_color = c
+	lamp[1].modulate = c
+
+
+## Czy kontrolka świeci (dla testów).
+func assist_lit(key: String) -> bool:
+	return _lamps.has(key) and _lamps[key][2]
 
 
 ## LCD uszkodzeń: obrys auta z góry, przód u góry. Okienko 36×50 mm

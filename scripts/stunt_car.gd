@@ -1343,15 +1343,7 @@ func _visual_step(delta: float) -> void:
 		var shown := _pending_gear if _shift_timer > 0.0 else gear
 		var g := "R" if shown < 0 else ("N" if shown == 0 else str(shown))
 		var mode := "A" if automatic else "M"
-		# Kontrolki systemów: świecą, gdy system ingeruje; "off", gdy wyłączony.
-		var lights := PackedStringArray()
-		for sys in [["ABS", abs_enabled, abs_active], ["TCS", tcs_enabled, tcs_active], ["ESP", esp_enabled, esp_active]]:
-			if not sys[1]:
-				lights.append(sys[0] + " off")
-			elif sys[2]:
-				lights.append("[" + sys[0] + "]")
-		if not steer_assist:
-			lights.append("SKRĘT off")
+		# Kontrolki wspomagań są na prędkościomierzu (Gauges.set_assist).
 		# Kontrolki uszkodzeń: tylko układy powyżej 10%.
 		var dmg := PackedStringArray()
 		if damage["engine"] > 0.1:
@@ -1368,10 +1360,14 @@ func _visual_step(delta: float) -> void:
 		if damage["structure"] > 0.02:
 			dmg_line = "\nstan auta %d%%  %s" % [roundi((1.0 - damage["structure"]) * 100.0), "  ".join(dmg)]
 		# Prędkość i obroty pokazują tarcze, uszkodzenia - obrys auta.
-		dash_label.text = "%s%s   %s" % [mode, g, "  ".join(lights)]
+		dash_label.text = "%s%s" % [mode, g]
 	if gauges:
 		gauges.update_values(absf(speed) * 3.6, engine_rpm, damage)
 		gauges.set_fuel(fuel)
+		gauges.set_assist("abs", abs_enabled, abs_active)
+		gauges.set_assist("tcs", tcs_enabled, tcs_active)
+		gauges.set_assist("esp", esp_enabled, esp_active)
+		gauges.set_assist("steer", steer_assist, false)
 
 
 ## Ustawia samochód w podanym miejscu i zeruje cały stan dynamiczny.

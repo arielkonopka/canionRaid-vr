@@ -281,7 +281,8 @@ func _on_left_released(button: String) -> void:
 
 
 ## Przełącza pomoc w trakcie jazdy i zapamiętuje wybór - ekran tytułowy
-## pokaże go przy następnej wizycie. Stan widać na desce ("ABS off" itd.).
+## pokaże go przy następnej wizycie. Stan widać na kontrolkach w prędkościomierzu
+## (świeci = wyłączona, Gauges.set_assist).
 func toggle_assist(which: String) -> void:
 	var key: String = {"abs": "abs_enabled", "tcs": "tcs_enabled", "esp": "esp_enabled",
 			"steer": "steer_assist"}[which]
