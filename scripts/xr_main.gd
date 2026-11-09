@@ -88,6 +88,15 @@ var _next_station := {}
 var _refueling := false
 var _lateral := 0.0                 # przesunięcie auta od osi toru [m], + w prawo
 var _track_hud: TrackHud
+## Panel HUD (mapka, kolumna postępu, znaki, napisy) - dziecko auta, na prawo
+## od kierownicy, obrócony twarzą do oczu kierowcy. Wcześniej stał nad
+## kierownicą i zasłaniał zegary (użytkownik 2026-11-09).
+var _hud_panel: Node3D
+## Środek mapki względem oczu kierowcy (car.seat): w prawo, w dół, przed.
+## Mapka 17°..29° w prawo, kolumna postępu do ~37°, wszystko 4°..16° pod
+## linią wzroku - nad środkiem deski, z dala od osłony zegarów (do ~17°).
+## Liczone od fotela, więc tak samo w sedanie i w concept carze.
+const HUD_FROM_EYES := Vector3(0.27, -0.11, -0.62)
 
 # --- boty: puste, zdalnie sterowane auta (trasa bez końca) ---
 ## Liczba aut na trasie (użytkownik): 4 na start, +1 co 2 odcinki do 20,
@@ -626,7 +635,7 @@ func update_race(delta: float) -> void:
 	# Ograniczenie i "za szybko" - znak obok miniatury ostrzegawczej przy
 	# mapce (użytkownik; pole pod wskaźnikiem uszkodzeń usunięte).
 	if _track_hud and _race_label:
-		_track_hud.show_limit(car, _race_label.position + Vector3(0.062, -0.105, 0.0),
+		_track_hud.show_limit(_hud_panel, _race_label.position + Vector3(0.062, -0.105, 0.0),
 				current_limit if _endless else -1.0, not player_compliant())
 	if _race_label:
 		if race_state == Race.READY:
@@ -883,7 +892,7 @@ func _update_warning(delta: float) -> void:
 	# Pod kolumną postępu (która stoi przy prawej krawędzi mapki).
 	# Niżej niż kolumna tekstu (nie zasłania jej ostatnich linii).
 	var pos := _race_label.position + Vector3(0.02, -0.105, 0.0)
-	_track_hud.show_warning(car, pos, kind, value)
+	_track_hud.show_warning(_hud_panel, pos, kind, value)
 
 
 ## Lusterko wsteczne u góry przedniej szyby: osobna kamera tuż za tylnym
@@ -967,11 +976,11 @@ func _build_radio() -> void:
 	_radio_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	if car.get_node_or_null("MirrorFace") and car.body_model == "sedan":
 		_radio_label.position = Vector3(0.10, 0.03, -0.24)
+		car.add_child(_radio_label)
 	else:
-		_radio_label.position = _track_hud.position + Vector3(0.0, -TrackHud.SIZE.y * 0.5 - 0.03, 0.0) \
-				if _track_hud else Vector3(0.0, 0.3, -0.5)
+		_radio_label.position = Vector3(0.0, -TrackHud.SIZE.y * 0.5 - 0.03, 0.0)
 		_radio_label.no_depth_test = true
-	car.add_child(_radio_label)
+		_hud_panel.add_child(_radio_label)
 	_radio.now_playing.connect(_on_radio_text)
 	_pause = PauseMenu.new()
 	_pause.camera = camera
@@ -1000,20 +1009,29 @@ func _fmt_time(t: float) -> String:
 ## Zegar nad deską i tablica wyników przed kierowcą. Dzieci auta, więc
 ## jadą z nim; bez testu głębi, żeby prześwitująca kabina ich nie zasłaniała.
 func _build_race_hud() -> void:
+	# Panel HUD na prawo od kierownicy, twarzą do oczu (odchylenie w bok
+	# i pochylenie z kierunku od oczu), żeby tekst nie był ścięty w perspektywie.
+	_hud_panel = Node3D.new()
+	_hud_panel.name = "HudPanel"
+	_hud_panel.position = car.seat.position + HUD_FROM_EYES
+	var to_eyes := -HUD_FROM_EYES
+	_hud_panel.rotation = Vector3(-atan2(to_eyes.y, Vector2(to_eyes.x, to_eyes.z).length()),
+			atan2(to_eyes.x, to_eyes.z), 0.0)
+	car.add_child(_hud_panel)
+
 	_race_label = Label3D.new()
 	_race_label.name = "RaceClock"
 	# Postęp (odcinek, dystans, czas, auta) w kolumnie tuż obok mapki trasy
-	# (prawa krawędź HUD), w skali mapki - jeden zwarty panel nad kierownicą.
+	# (prawa krawędź HUD), w skali mapki - jeden zwarty panel obok kierownicy.
 	_race_label.font_size = 26
 	_race_label.pixel_size = 0.00045
 	_race_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_race_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_race_label.position = Vector3(-0.38 + TrackHud.SIZE.x * 0.5 + 0.008, 0.375 + TrackHud.SIZE.y * 0.5 - 0.004, -0.40) + car.cockpit_offset
-	_race_label.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
+	_race_label.position = Vector3(TrackHud.SIZE.x * 0.5 + 0.008, TrackHud.SIZE.y * 0.5 - 0.004, 0.0)
 	_race_label.outline_size = 6
 	_race_label.modulate = Color(0.85, 0.95, 1.0)
 	_race_label.no_depth_test = true
-	car.add_child(_race_label)
+	_hud_panel.add_child(_race_label)
 
 	_result_label = Label3D.new()
 	_result_label.name = "Results"
@@ -1035,12 +1053,10 @@ func _build_race_hud() -> void:
 	_env.name = "EnvAudio"
 	add_child(_env)
 
-	# Mapka trasy na 1,5 km nad kierownicą, lekko poniżej linii wzroku.
+	# Mapka trasy na 1,5 km: środek panelu HUD (na prawo od kierownicy).
 	_track_hud = TrackHud.new()
 	_track_hud.name = "TrackHud"
-	_track_hud.position = Vector3(-0.38, 0.375, -0.40) + car.cockpit_offset
-	_track_hud.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
-	car.add_child(_track_hud)
+	_hud_panel.add_child(_track_hud)
 	_build_radio()
 	if Bench.active():
 		# Widać od razu, że to przejazd pomiarowy (wejście ignorowane).
@@ -1052,9 +1068,8 @@ func _build_race_hud() -> void:
 		bl.modulate = Color(1.0, 0.4, 0.3)
 		bl.outline_size = 6
 		bl.no_depth_test = true
-		bl.position = _track_hud.position + Vector3(0.0, TrackHud.SIZE.y * 0.5 + 0.02, 0.0)
-		bl.rotation = _track_hud.rotation
-		car.add_child(bl)
+		bl.position = Vector3(0.0, TrackHud.SIZE.y * 0.5 + 0.02, 0.0)
+		_hud_panel.add_child(bl)
 
 	_ws_label = _result_label.duplicate()
 	_ws_label.name = "Workshop"
@@ -1829,7 +1844,7 @@ func _build_popups() -> void:
 		l.no_depth_test = true
 		l.render_priority = 5
 		l.visible = false
-		car.add_child(l)
+		_hud_panel.add_child(l)
 		_popups.append(l)
 		_popup_t.append(0.0)
 	_beep = AudioStreamPlayer.new()
@@ -1857,9 +1872,8 @@ func _show_popup(text: String, bad: bool) -> void:
 	l.text = text
 	l.modulate = Color(1.0, 0.35, 0.3) if bad else Color(1.0, 0.85, 0.2)
 	l.position = _race_label.position + Vector3(0.0, 0.05, 0.0)
-	# Jak kolumna przy mapce: pochylenie -8° i wyrównanie do lewej (inaczej
+	# Jak kolumna przy mapce (w panelu HUD) i wyrównanie do lewej (inaczej
 	# napisy wystawały w lewo od kolumny - przegląd punktacji).
-	l.rotation = _race_label.rotation
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.visible = true
 	_popup_t[k] = 1.6
