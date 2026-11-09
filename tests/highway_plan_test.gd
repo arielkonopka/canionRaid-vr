@@ -147,7 +147,9 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 	var t := 0.0
 	var in_zone_short := 0
 	var in_zone_checks := 0
-	var far_cars := 0
+	var far_cars := 0          # najwięcej aut w oknie między miastami
+	var far_sum := 0
+	var far_checks := 0
 	var raging_id := -1
 	while t * v_player < 60000.0:
 		var pd := t * v_player
@@ -183,13 +185,33 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			if n < tz.wanted(pd) - 3:
 				in_zone_short += 1
 		if pd > 37000.0 and pd < 42000.0:      # strefa miasta 1 do 31 km, miasta 2 od 45 km
+			var n_far := 0
 			for c in cars:
-				if not c["raging"] and float(c["dist"]) > pd - 300.0 and float(c["dist"]) < pd + 1500.0:
-					far_cars += 1
+				if not c["raging"] and not c["oncoming"] and float(c["dist"]) > pd - 300.0 and float(c["dist"]) < pd + 1500.0:
+					n_far += 1
+			far_cars = maxi(far_cars, n_far)
+			far_sum += n_far
+			far_checks += 1
 		t += dt
-	print("ruch: aut łącznie %d, w strefie za mało w %d/%d krokach, daleko od miast %d" % [
-			next_id, in_zone_short, in_zone_checks, far_cars])
+	var far_avg := float(far_sum) / maxf(far_checks, 1)
+	print("ruch: aut łącznie %d, w strefie za mało w %d/%d krokach, między miastami średnio %.1f (najwięcej %d, chciane %d)" % [
+			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0)])
 	if in_zone_checks == 0 or in_zone_short > in_zone_checks / 5:
 		_fail("za mało aut w strefie miasta")
-	if far_cars > 0:
-		_fail("ruch daleko od miast (%d)" % far_cars)
+	# Między miastami rzadki ruch 0,5-1/km (nie pusto i nie jak w mieście).
+	if far_avg < 0.3 or far_cars > tz.wanted(40000.0) + TrafficZone.SURPLUS + 2:
+		_fail("ruch między miastami: średnio %.1f, najwięcej %d" % [far_avg, far_cars])
+	# Gęstości z planu.
+	if not is_equal_approx(plan.base_traffic(0.0), HighwayPlan.BASE_TRAFFIC_MIN) \
+			or not is_equal_approx(plan.base_traffic(400000.0), HighwayPlan.BASE_TRAFFIC_MAX):
+		_fail("base_traffic: %.2f / %.2f" % [plan.base_traffic(0.0), plan.base_traffic(400000.0)])
+	if plan.traffic_density(12500.0) > 1.0 or plan.traffic_density(22000.0) < 3.0:
+		_fail("gęstość 12,5 km %.2f, 22 km %.2f" % [plan.traffic_density(12500.0), plan.traffic_density(22000.0)])
+	# Pasy autostrady: prawy/lewy na naszej jezdni i lustrzanie na drugiej,
+	# żaden na pasie awaryjnym.
+	var lanes := [HighwayGenerator.lane_center(0), HighwayGenerator.lane_center(1),
+			HighwayGenerator.lane_center(0, true), HighwayGenerator.lane_center(1, true)]
+	var want_l := [0.75, -3.0, -15.0, -11.25]
+	for i in range(4):
+		if absf(float(lanes[i]) - float(want_l[i])) > 1e-4:
+			_fail("lane_center %d: %.2f zamiast %.2f" % [i, lanes[i], want_l[i]])
