@@ -1,6 +1,10 @@
 # Multimedia do trybu "Autostrada" - lista do akceptacji
 
-Status: **propozycja, czeka na akceptację użytkownika** (nic nie pobrane).
+Status: **tekstury zaakceptowane do repo** (użytkownik 2026-11-09: "dodać
+tekstury do repo, jeśli są kompatybilne w sensie licencji" - wszystkie
+poniżej są CC0, zgodne z GPL). Trafiają do `textures/cc0/` (wyjątek
+w `.gitignore`). Nic jeszcze nie pobrane - chmura nie ma dostępu do tych
+serwerów. Modele i dźwięki dalej czekają na akceptację.
 Przegląd: wątek w chmurze "Zaprojektuj tryb Autostrada", 2026-11-09.
 Pobieranie: `tools/fetch_highway_media.py` (agent lokalny, po akceptacji).
 Wpisy do `CREDITS.md`: `python3 tools/fetch_highway_media.py --credits`
@@ -54,8 +58,33 @@ i rozpoznawalnych miejsc, wygląd względnie realistyczny (VISION, filar 10).
 
 \* rozmiar nie wrócił z API przy tym zapytaniu - typowo 5-10 MB.
 
-Pobieranie razem ~120 MB, na dysku po wyciągnięciu ~30 MB; `textures/`
-jest w `.gitignore` (jak dziś). Woda morska - bez tekstury: jest
+Pobieranie razem ~200 MB, na dysku po wyciągnięciu ~45 MB (3 mapy 1K
+na teksturę, `textures/cc0/<nazwa>/`), **w repo**.
+
+### Dopisane: wąwóz, tunele, estakady, miasto (2026-11-09)
+
+Z wątku "Usuń pozostałości dróg na estakadach" (ID sprawdzone w API).
+Skały i mech zastępują dzisiejsze tekstury z freepbr.com (licencja
+niepotwierdzona, tylko lokalnie).
+
+| Nazwa w grze | Zasób | Do czego |
+|---|---|---|
+| canyon_rock | [cliff_side](https://polyhaven.com/a/cliff_side) (Poly Haven) | ściany wąwozu, warstwowy osad |
+| canyon_rock_alt | [Rock063](https://ambientcg.com/view?id=Rock063) | zapas: skała warstwowa |
+| mountain_rock | [Rock058](https://ambientcg.com/view?id=Rock058) | góry nad tunelami |
+| moss | [Moss002](https://ambientcg.com/view?id=Moss002) | mech na zboczach w cieniu |
+| gravel | [Gravel043](https://ambientcg.com/view?id=Gravel043) | pobocze, dno wąwozu pod estakadą |
+| concrete_rough | [Concrete047A](https://ambientcg.com/view?id=Concrete047A) | tunel, filary estakad |
+| roof_tiles | [RoofingTiles013A](https://ambientcg.com/view?id=RoofingTiles013A) | dachówka |
+| roof_slate | [RoofingTiles001](https://ambientcg.com/view?id=RoofingTiles001) | dach z łupku |
+| corrugated_steel | [CorrugatedSteel009](https://ambientcg.com/view?id=CorrugatedSteel009) | warsztat, stacja, garaże |
+| asphalt_worn | [Road013A](https://ambientcg.com/view?id=Road013A) | spękany asfalt dróg lokalnych |
+| field_soil | [Ground109](https://ambientcg.com/view?id=Ground109) | pole orne |
+| snow | [Snow015](https://ambientcg.com/view?id=Snow015) | śnieg w górach (opcja) |
+
+Dalej brak: czerwonej cegły (przyciemnić Bricks105 w shaderze), elewacji
+mieszkalnej z oknami (okna w `facade.gdshader`), desek na płoty i stodoły
+(najbliżej Planks040 - podłogowe). Woda morska - bez tekstury: jest
 proceduralny `ocean.gdshader`. Skały gór - te same co w wąwozie.
 
 Braki: **pole uprawne / ściernisko** (w API nie znalazłem; zastępczo

@@ -11,9 +11,13 @@ build/
 .idea/
 *~
 
-# Tekstury z zewnętrznego źródła - nie w publicznym repo, dopóki
-# użytkownik nie potwierdzi licencji (patrz HANDOVER, sekcja 2).
-textures/
+# Tekstury z zewnętrznego źródła (freepbr.com: cavern-walls, ocean-rock,
+# mossy-rock, derived/moss) - nie w publicznym repo, licencja niepotwierdzona.
+# Wyjątek: textures/cc0/ - tekstury CC0 (ambientCG, Poly Haven) pobrane przez
+# tools/fetch_highway_media.py; użytkownik 2026-11-09: "dodać tekstury do
+# repo, jeśli są kompatybilne w sensie licencji" (CC0 jest zgodne z GPL).
+/textures/*
+!/textures/cc0/
 
 # Klucz API Jamendo (client_id) - nie do publicznego repo (decyzja
 # użytkownika 2026-11-09). Dołączany do APK przez include_filter.
