@@ -1,0 +1,62 @@
+{
+ "furgon": {
+  "arb_front_mult": 0.76,
+  "arb_rear_mult": 1.08,
+  "brake_front": 2320.0,
+  "brake_rear": 630.0,
+  "damper_mult": 1.12,
+  "final_mult": 1.0,
+  "spring_mult": 1.25
+ },
+ "hatchback": {
+  "arb_front_mult": 0.64,
+  "arb_rear_mult": 1.11,
+  "brake_front": 2180.0,
+  "brake_rear": 410.0,
+  "damper_mult": 1.12,
+  "final_mult": 1.05,
+  "spring_mult": 1.25
+ },
+ "kabriolet": {
+  "arb_front_mult": 1.04,
+  "arb_rear_mult": 1.06,
+  "brake_front": 2080.0,
+  "brake_rear": 790.0,
+  "damper_mult": 1.02,
+  "final_mult": 0.9,
+  "spring_mult": 1.05
+ },
+ "klin": {
+  "arb_front_mult": 0.42,
+  "arb_rear_mult": 0.49,
+  "brake_front": 1980.0,
+  "brake_rear": 790.0,
+  "final_mult": 0.9
+ },
+ "kombi": {
+  "arb_front_mult": 0.92,
+  "arb_rear_mult": 0.93,
+  "brake_front": 2140.0,
+  "brake_rear": 810.0,
+  "damper_mult": 1.07,
+  "final_mult": 0.95,
+  "spring_mult": 1.15
+ },
+ "muscle": {
+  "arb_front_mult": 0.8,
+  "arb_rear_mult": 0.75,
+  "brake_front": 2220.0,
+  "brake_rear": 810.0,
+  "damper_mult": 1.12,
+  "final_mult": 0.95,
+  "spring_mult": 1.25
+ },
+ "sedan": {},
+ "terenowka": {
+  "arb_front_mult": 1.36,
+  "arb_rear_mult": 1.56,
+  "brake_front": 2700.0,
+  "brake_rear": 700.0,
+  "final_mult": 1.0
+ }
+}

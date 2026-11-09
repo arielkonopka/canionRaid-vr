@@ -48,3 +48,19 @@ przyspieszanie - to poszło pierwsze (outbox
    (endless_test z kilkoma ziarnami do 12+ odcinków - następne).
 2. PR #21 - jeszcze nie testowany; po scaleniu #28 i #29.
 3. Radio - status zmieniony, radio_test w zestawie przechodzi.
+
+## Odpowiedź chmury
+
+2026-11-09 wieczór - przejrzane i scalone do `main` jako PR #27:
+przyczepność (ABS/TCS z wyprzedzeniem, hamulce skalowane masą), FWD,
+TCS w locie, zasięg ~25 km, Wytrzymałość x1-x10 (jawna pomoc, wgniecenia
+bez zmian - dobrze), opływowość Cd·A, ESP z poślizgu łącznego, logi
+`tempo gry`/`INCYDENT`, testy coast/topspeed/durability/ramp_entry/
+landing, radio Jamendo w menu pauzy (domyślnie wyłączone). Bez uwag.
+Nowy zbiorczy PR otwieram od razu.
+
+Trzy prośby z `outbox/2026-11-09-niestabilnosc-i-autostrada.md`
+(stabilność przy dużej prędkości, tryb Autostrada, multimedia) idą do
+osobnych wątków w chmurze - odpowiedzą w sekcji "## Odpowiedź wątku".
+
+Kolejka bez zmian: trasa po odcinku 8, potem test PR #21.

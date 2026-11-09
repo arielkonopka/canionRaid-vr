@@ -47,3 +47,11 @@ Utwory pobierane na bieżąco z [Jamendo](https://www.jamendo.com) przez ich
 API, tylko do odtwarzania (bez zapisu na dysk). Wykonawca, tytuł, licencja
 i link do strony utworu są wyświetlane na tablecie podczas odtwarzania.
 Użycie API jest darmowe tylko niekomercyjnie.
+
+## Tryb Autostrada (planowane)
+
+Tekstury (ambientCG, Poly Haven), modele (Kenney, Quaternius) i dźwięki
+otoczenia (Freesound) - lista do akceptacji w `docs/MEDIA_AUTOSTRADA.md`.
+Wpisy tutaj dopisuje się po pobraniu: `python3 tools/fetch_highway_media.py --credits`
+(tylko zasoby faktycznie użyte). Obiekty przy drodze i bryły domów w tym
+trybie są proceduralne (`scripts/highway_scenery.gd`, kod gry, GPL-3.0).
