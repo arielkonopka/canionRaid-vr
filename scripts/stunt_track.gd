@@ -225,6 +225,7 @@ func build() -> void:
 		if meta.has("island"):
 			var isl: Dictionary = meta["island"]
 			_build_island(float(smp["dist"]) + float(isl["start"]), float(isl["len"]), float(isl["w"]))
+			_island_front(float(smp["dist"]) + float(isl["start"]))
 		# Skocznie i sztuczki: bez tabliczek z napisami - ograniczenie przed
 		# (B-33 z pętli niżej) i koniec ograniczenia za (B-34).
 		if meta.has("grade"):
@@ -1409,30 +1410,46 @@ func _lamp_material() -> Material:
 
 
 ## Skalna wyspa rozwidlenia: od `d0` na długości `length`, szerokość `w`,
-## z ostrymi "dziobami" na obu końcach (12 m), wysokość 3,5 m, z kolizją.
+## zwężona na obu końcach (12 m), wysokość 3,5 m, z kolizją.
+## Czoło jest pionową, tępą ścianą pełnej wysokości (ISLAND_NOSE_W szerokości)
+## z oznakowaniem (_island_front). Wcześniej dziób zaczynał się od ~1 m
+## wysokości i rósł przez 6 m - z auta wyglądał i działał jak rampa
+## ("podjazd jak bariera", użytkownik 2026-11-09).
+const ISLAND_NOSE_W := 1.4
 func _build_island(d0: float, length: float, w: float) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
 	var prev := {}
+	var first := {}
+	var first_fwd := Vector3.FORWARD
+	var last_fwd := Vector3.FORWARD
 	for smp in _samples:
 		var d := float(smp["dist"])
 		if d < d0 or d > d0 + length:
 			continue
 		var t := minf(d - d0, d0 + length - d)
-		var half := w * 0.5 * clampf(t / 12.0, 0.05, 1.0)
+		var half := maxf(w * 0.5 * clampf(t / 12.0, 0.0, 1.0), ISLAND_NOSE_W * 0.5)
 		var c: Vector3 = smp["pos"]
 		var r_h: Vector3 = (smp["right"] * Vector3(1, 0, 1)).normalized()
-		var h := 3.5 * clampf(t / 6.0, 0.3, 1.0)
+		var h := 3.5
 		var p := {"l0": c - r_h * half, "r0": c + r_h * half,
 				"l1": c - r_h * half * 0.8 + Vector3.UP * h, "r1": c + r_h * half * 0.8 + Vector3.UP * h}
-		if not prev.is_empty():
+		if prev.is_empty():
+			first = p
+			first_fwd = (smp["fwd"] * Vector3(1, 0, 1)).normalized()
+		else:
 			_quad_facing(st, faces, prev["l0"], p["l0"], p["l1"], prev["l1"], -r_h)
 			_quad_facing(st, faces, prev["r0"], p["r0"], p["r1"], prev["r1"], r_h)
 			_quad_facing(st, faces, prev["l1"], p["l1"], p["r1"], prev["r1"], Vector3.UP)
+		last_fwd = (smp["fwd"] * Vector3(1, 0, 1)).normalized()
 		prev = p
 	if faces.is_empty():
 		return
+	# Czoło i tył: pionowe ściany zamykające bryłę (z kolizją - auto, które
+	# nie wybierze strony, uderza w ścianę, nie wjeżdża na skałę).
+	_quad_facing(st, faces, first["l0"], first["r0"], first["r1"], first["l1"], -first_fwd)
+	_quad_facing(st, faces, prev["l0"], prev["r0"], prev["r1"], prev["l1"], last_fwd)
 	st.generate_normals()
 	st.set_material(_rock_material("cavern"))
 	var mi := MeshInstance3D.new()
@@ -1440,6 +1457,70 @@ func _build_island(d0: float, length: float, w: float) -> void:
 	mi.mesh = st.commit()
 	_adopt(mi)
 	_collision_body("IslandBody", faces, "rock", 0.55)
+
+
+## Oznakowanie czoła wysepki (użytkownik 2026-11-09): żółto-czarna tablica
+## przeszkodowa z pasami skośnymi w obie strony (objazd z obu stron)
+## i nad nią niebieski znak C-11 "nakaz jazdy z prawej lub lewej strony
+## znaku". Trójkąt A-30 120 m wcześniej stawia generator
+## (TrackGenerator._island_warning). Tablice odsunięte 5 cm od ściany.
+func _island_front(d0: float) -> void:
+	var root := Node3D.new()
+	root.name = "IslandFront"
+	_adopt(root)
+	# Pierwsza próbka >= d0 - na niej _build_island stawia ścianę czoła.
+	var smp: Dictionary = _samples[mini(_dists.bsearch(d0, true), _samples.size() - 1)]
+	root.transform = _sample_transform(smp)
+	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
+	var origin := root.position
+	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
+	root.position = origin
+	var mats := _sign_mats()
+	var z := 0.05
+	# Tablica: tył jak słupek, przód - QuadMesh (UV 0..1; BoxMesh dzieli
+	# teksturę na 6 ścian i pasy by się rozjechały).
+	_sign_box(root, Vector3(1.2, 1.0, 0.03), Vector3(0, 1.0, z), mats["post"])
+	var board := MeshInstance3D.new()
+	board.name = "HazardBoard"
+	var q := QuadMesh.new()
+	q.size = Vector2(1.2, 1.0)
+	q.material = _hazard_mat()
+	board.mesh = q
+	board.position = Vector3(0, 1.0, z + 0.017)
+	root.add_child(board)
+	# C-11: niebieska tarcza, dwie białe strzałki w dół, w lewo i w prawo.
+	if not _shared_mats.has("sign_blue"):
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(0.05, 0.25, 0.65)
+		_shared_mats["sign_blue"] = bm
+	var face := Vector3(0, 2.25, z)
+	_sign_disc(root, face, 0.42, mats["white"], 0.0)
+	_sign_disc(root, face, 0.38, _shared_mats["sign_blue"], 0.012)
+	for sx in [-1.0, 1.0]:
+		var shaft := _sign_box(root, Vector3(0.06, 0.34, 0.01), face + Vector3(0.1 * sx, -0.02, 0.03), mats["white"])
+		shaft.rotation = Vector3(0, 0, 0.75 * sx)
+		var head := _sign_box(root, Vector3(0.16, 0.16, 0.01), face + Vector3(0.2 * sx, -0.14, 0.03), mats["white"])
+		head.rotation = Vector3(0, 0, PI * 0.25)
+
+
+## Materiał tablicy przeszkodowej: żółto-czarne pasy pod 45°, opadające od
+## środka na obie strony (strzałka w dół = objazd z obu stron). Tekstura
+## 64x64 liczona raz.
+func _hazard_mat() -> Material:
+	if _shared_mats.has("hazard"):
+		return _shared_mats["hazard"]
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	var yellow := Color(0.98, 0.8, 0.1)
+	for y in 64:
+		for x in 64:
+			var band := int(floor((absf(float(x) - 31.5) + float(y)) / 12.0))
+			img.set_pixel(x, y, yellow if band % 2 == 0 else Color(0.04, 0.04, 0.04))
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	m.roughness = 0.5
+	_shared_mats["hazard"] = m
+	return m
 
 
 func _collision_body(n: String, faces: PackedVector3Array, surface: String, grip: float) -> void:

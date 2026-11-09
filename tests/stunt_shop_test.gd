@@ -19,6 +19,7 @@ func _initialize() -> void:
 	_test_loop()
 	_test_hills_no_loop()
 	_test_shop()
+	_test_shop_car_and_station()
 	print("stunt_shop_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails > 0 else 0)
 
@@ -122,3 +123,38 @@ func _test_shop() -> void:
 	var sk2 = SK.new()
 	var p: Array = sk2.award_free("jump", 500, 1.0, "SALTO")
 	_check(sk2.points == 500 and String(p[0]["text"]).ends_with("SALTO"), "award_free do portfela")
+
+
+## Ceny zależne od auta, stacja (drożej, tylko naprawy), wymiana silnika.
+func _test_shop_car_and_station() -> void:
+	var ref := {"mass": 1300.0, "kw": 130.0, "type": "petrol", "hub": false}
+	var heavy := {"mass": 2500.0, "kw": 700.0, "type": "electric", "hub": true}
+	var dmg := {"structure": 0.5, "engine": 0.5, "gearbox": 0.0,
+			"brakes": [0.0, 0.0, 0.0, 0.0], "suspension": [0.0, 0.0, 0.0, 0.0]}
+	_check(WS.zone_cost(dmg, "engine", ref) == WS.zone_cost(dmg, "engine"), "auto odniesienia = cennik bazowy")
+	_check(WS.zone_cost(dmg, "engine", heavy) > 3 * WS.zone_cost(dmg, "engine", ref),
+			"silnik 700 kW w kołach dużo droższy (%d)" % WS.zone_cost(dmg, "engine", heavy))
+	_check(WS.zone_cost(dmg, "structure", heavy) > WS.zone_cost(dmg, "structure", ref), "ciężkie auto - droższa karoseria")
+	var st_cost := WS.zone_cost(dmg, "structure", ref, "station")
+	_check(st_cost == 630, "stacja +25%% (500 -> %d)" % st_cost)
+	var st_off: Array = WS.offers(dmg, 99999, [], ref, "station")
+	var st_ids := st_off.map(func(o): return o["id"])
+	_check(not ("repair:full" in st_ids) and not ("life" in st_ids) and not ("tank" in st_ids),
+			"stacja: bez pełnej naprawy i zakupów (%s)" % str(st_ids))
+	var sk = SK.new()
+	sk.points = 5000
+	_check(WS.buy("life", dmg, sk, ref, "station") == "" and sk.points == 5000, "stacja nie sprzedaje aut")
+	_check(WS.buy("repair:engine", dmg, sk, ref, "station") == "repaired" and sk.points == 5000 - 570,
+			"naprawa silnika na stacji (%d)" % sk.points)
+	# Wymiana silnika: 180 kW benzyna za 1800 minus 40% z 1300 (nieuszkodzony) = 1280.
+	var clean := {"engine": 0.0}
+	_check(WS.engine_cost("petrol", 180.0, ref, clean) == 1280, "wymiana 130 -> 180 kW (%d)" % WS.engine_cost("petrol", 180.0, ref, clean))
+	_check(WS.engine_cost("petrol", 180.0, ref, {"engine": 1.0}) == 1800, "rozbity silnik bez odkupu")
+	var off: Dictionary = WS.engine_offer("electric", 250.0, "Elektryk 250 kW", 100, ref)
+	_check(not bool(off["affordable"]) and WS.parse_engine(off["id"])["kw"] == 250.0, "oferta silnika (%s)" % str(off))
+	var sk2 = SK.new()
+	sk2.points = 2000
+	_check(WS.buy("engine:petrol:180", clean, sk2, ref) == "engine" and sk2.points == 720, "zakup silnika (%d)" % sk2.points)
+	_check(WS.buy("engine:rocket:999", clean, sk2, ref) == "", "zły silnik odrzucony")
+	var tank_e := WS.offers({}, 0, [], {"mass": 1500.0, "kw": 130.0, "type": "electric"}).filter(func(o): return o["id"] == "tank")
+	_check(tank_e.size() == 1 and int(tank_e[0]["cost"]) == 1120, "bateria droższa niż bak (%s)" % str(tank_e))
