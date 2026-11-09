@@ -1443,8 +1443,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Testy po tych zmianach: wszystkie OK (drive_test 0:23,48).
 - Radio w goglach (użytkownik): "radio poprawia komfort jazdy",
   głośność względem silnika w porządku, wszystkie stacje pasują.
-  Użytkownik lubi do auta **psytrance** - kandydat na 4. stację
-  (utwory tylko CC0/CC-BY/CC-BY-SA, lista do akceptacji przed pobraniem).
+  Użytkownik lubi do auta **psytrance** - 4. stacja "Psy Wąwóz"
+  (8 utworów CC-BY, lista zaakceptowana 2026-11-09; 7 z ccMixter,
+  1 z OpenGameArt). **ccMixter odrzuca pobieranie skryptem (HTTP 403)** -
+  nie obchodzić (nagłówki przeglądarki = obejście zabezpieczenia);
+  użytkownik pobiera pliki w przeglądarce do `build/radio_in/`, potem
+  `python3 tools/fetch_radio.py` je konwertuje. Brakujące pliki radio
+  pomija (log "RADIO: brak pliku").
 - Testy (`./quest.sh test`, po scaleniu): wszystkie OK; drive_test 95
   sport auto - przejazd 0:23,48.
 

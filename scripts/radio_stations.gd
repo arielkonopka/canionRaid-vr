@@ -13,6 +13,7 @@ class_name RadioStations
 ## "credit" - opcjonalny dodatkowy tekst, o który prosi autor.
 
 const OGA := "https://opengameart.org"
+const CCM := "https://ccmixter.org/files"
 
 const STATIONS := [
 	{"id": "fala84", "name": "Fala 84", "tracks": [
@@ -74,5 +75,33 @@ const STATIONS := [
 		{"file": "nocna/chill_jungle_ambient.ogg", "title": "Chill Jungle Ambient",
 			"artist": "Tausdei", "license": "CC-BY-3.0",
 			"source": OGA + "/node/123092"},
+	]},
+	# Psytrance - użytkownik lubi go do auta (2026-11-09, lista zaakceptowana).
+	# ccMixter: licencje z API i ze stron utworów (CC-BY 3.0), 2026-11-09.
+	{"id": "psy", "name": "Psy Wąwóz", "tracks": [
+		{"file": "psy/amigos.ogg", "title": "Amigos",
+			"artist": "F_Fact", "license": "CC-BY-3.0",
+			"source": CCM + "/F_Fact/52032"},
+		{"file": "psy/end_of_days.ogg", "title": "End of Days",
+			"artist": "F_Fact", "license": "CC-BY-3.0",
+			"source": CCM + "/F_Fact/43533"},
+		{"file": "psy/the_beach.ogg", "title": "The Beach (Original Mix)",
+			"artist": "Astral", "license": "CC-BY-3.0",
+			"source": CCM + "/Astral/50472"},
+		{"file": "psy/psycho_freak.ogg", "title": "Psycho Freak (Final Edit)",
+			"artist": "Psykick", "license": "CC-BY-3.0",
+			"source": CCM + "/Psykick/37264"},
+		{"file": "psy/trance_dance.ogg", "title": "Trance Dance",
+			"artist": "Psykick", "license": "CC-BY-3.0",
+			"source": CCM + "/Psykick/40201"},
+		{"file": "psy/tempest.ogg", "title": "Tempest",
+			"artist": "Psykick", "license": "CC-BY-3.0",
+			"source": CCM + "/Psykick/53063"},
+		{"file": "psy/shiva.ogg", "title": "Shiva",
+			"artist": "chandubaba", "license": "CC-BY-3.0",
+			"source": CCM + "/chandubaba/52311"},
+		{"file": "psy/psytrance_for_a_game.ogg", "title": "psytrance for a game",
+			"artist": "Kris Klavenes (klavo85)", "license": "CC-BY-4.0",
+			"source": OGA + "/content/psytrance-for-a-game-by-kris-klavenes"},
 	]},
 ]
