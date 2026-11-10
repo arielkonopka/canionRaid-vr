@@ -51,4 +51,74 @@ Dotyczy: `inbox/2026-11-10-plan-nocy.md`, PR #46-#50
 
 ## Odpowiedź wątku
 
-(tu)
+Od: wątek w chmurze "Doprowadź grę do pełnej trasy autostradowej", 2026-11-10 ~00:10.
+
+Pkt 1 (CityGraph), 3 (auta z epoki) i 4 (waśnie: tylko przy miastach czy
+wszędzie) przekazał wątek monitorujący do właściwych wątków - odpowiedzi
+przyjdą osobno. Tu pkt 2: przegląd renderów. Kolejność = ważność.
+
+### Rendery - co wygląda źle
+
+1. **Duże miasto to dwa rzędy budynków na pustyni**
+   (`miasto_duze_z_gory`, `miasto_male_z_gory`). Z drogi jeszcze uchodzi,
+   ale już z niewielkiej wysokości (skok, wielka skocznia) widać "ścianę"
+   wzdłuż jezdni i gołą ziemię zaraz za nią. Propozycja: 2-3 dalsze rzędy
+   jako tanie bryły bez kolizji (MultiMesh, jeden materiał, `visibility_range`),
+   gęstość i wysokość malejące od jezdni; pod miastem zamiast piasku/trawy
+   biomu - szary "grunt miejski" (parkingi, place) w promieniu zabudowy.
+   W dużym mieście co ~150-250 m przecznica (przerwa w rzędzie + pas
+   jezdni w bok na 20-30 m) - wtedy wygląda jak miasto, a jest gotowe
+   miejsce na etap 5 (leniwy graf ulic).
+2. **Budynki wyglądają na zaokrąglone / wygięte** (`miasto_duze_centrum`,
+   `miasto_duze_detal`): jasność zmienia się płynnie wzdłuż płaskiej
+   ściany i przez narożnik, dachy w widoku z góry wyglądają jak poduszki.
+   Wygląda na wygładzone normalne (wspólne wierzchołki w narożnikach albo
+   normalne liczone przed poprawką kolejności wierzchołków) albo na
+   oświetlenie w `facade.gdshader` zależne od pozycji. Każda ściana pudła
+   powinna mieć własne wierzchołki i stałą normalną.
+3. **Okna przecięte po przekątnej** (`miasto_male_ulica`,
+   `warsztat_w_miescie` - prawa strona): część okien ma ukośny podział na
+   dwa odcienie, jakby dwa trójkąty ściany miały różne UV albo inną
+   normalną. Sprawdź UV fasady na obu trójkątach ściany (po zamianie
+   kolejności wierzchołków w `_box`/`_quad` UV musiały pójść za
+   wierzchołkami).
+4. **Ciemnoszare trójkąty u podstawy budynków** (`miasto_duze_centrum`
+   lewa i prawa strona, `miasto_duze_detal`, `warsztat_w_miescie` lewa):
+   wyglądają na końce skarpy nasypu albo ukośne daszki z poprzedniego
+   błędu - w mieście nasypu ma nie być. Do znalezienia, co to za siatka.
+5. **Chodnik**: bardzo jasny, gładki, wygląda na wysoką płytę (z
+   `miasto_duze_detal` ~0,5 m nad jezdnią). Krawężnik ~0,15 m, kolor
+   szary beton (jak bariera środkowa, nie biały), delikatne fugi co 2 m
+   w shaderze albo kolorze wierzchołków.
+6. **Wielka skocznia jest niewidoczna** (`wielka_skocznia_wjazd`,
+   `_bok`): próg 3,5° na długim stole z obu ujęć wygląda jak zwykła
+   droga. Przy 400 km/h gracz musi ją zobaczyć z daleka. Propozycja:
+   nawierzchnia rozbiegu i stołu w czerwono-białe pasy poprzeczne
+   (`road.gdshader`, `layout` 3), tablice U-3 po obu stronach progu,
+   znak 1 km i 500 m przed. Ujęcie z boku niżej (5-10 m nad ziemią,
+   60-80 m od osi), żeby było widać profil.
+7. **Warsztat w mieście nie jest widoczny** na `warsztat_w_miescie`
+   (kamera s0+230 patrzy na s0+420, warsztat ma być 300 m za początkiem
+   zabudowy): albo kadr go mija, albo hala nie powstaje w trybie
+   Autostrada. Proszę o ujęcie z ~60 m przed zjazdem i sprawdzenie, czy
+   jest zjazd, znak i hala.
+8. **Stacja** - ujęcie z ~600 m, czerwony dach ledwo widać. Proszę
+   o ujęcie z ~80 m przed zjazdem (pas zjazdu, wysepka, dystrybutory).
+9. **Pas zieleni przy jezdni w biomach pustynia/wąwóz** (`biome_desert_fwd`,
+   `biome_canyon_fwd`): zielona trawa na pustyni razi. Kolor pasa
+   z palety biomu (żwir/piasek). W wąwozie-biomie poza tym brak wąwozu -
+   płaska ziemia i mesy daleko; jeśli to zamierzone (autostrada "przez
+   region wąwozów"), to OK, ale nazwa myli - może "płaskowyż".
+10. **Korony drzew** (`wielka_skocznia_bok`, `stacja_paliw`): wyglądają na
+    puste w środku / oświetlone od spodu (ciemny pas w połowie korony).
+    Możliwe, że `Scenery._cone` ma tę samą odwróconą kolejność
+    wierzchołków co `_box` - drzewa w wąwozie mogły tego nie pokazać, bo
+    patrzyło się na nie z jednej strony. Warto sprawdzić tak samo jak
+    pudła.
+11. Drobne: ekrany akustyczne na dojeździe do miasta wyglądają dobrze;
+    bariera środkowa i pas awaryjny też. Linie na jezdni z naprzeciwka
+    poprawne (lustrzane).
+
+Nic z tego nie blokuje wpięcia waśni ani sklepu - to strojenie wyglądu.
+Kolejność proponowana: 2-4 (błędy siatek, szybkie), 6 (bezpieczeństwo
+gracza przy 400 km/h), 5, 9, 10, potem 1 (głębia miast - przy etapie 5).
