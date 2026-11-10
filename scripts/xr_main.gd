@@ -1941,7 +1941,11 @@ func _watch_track(delta: float) -> void:
 		# i auto wyrzucone z wąwozu zostawało na trawie (zgłoszenie: wirowanie
 		# skończyło się "na zielonym placu").
 		var hw := float(s["width"]) * 0.5
-		var off_side := absf(float(info.get("offset", 0.0))) > hw + 15.0
+		# Odległość w poziomie od najbliższego punktu osi, nie tylko w poprzek:
+		# auto jadące na wprost od łuku ma mały "offset" (wzdłuż stycznej),
+		# choć jest kilometry od drogi (jazda 2026-11-10, "droga się urwała").
+		var flat := (car.global_position - surface) * Vector3(1, 0, 1)
+		var off_side := absf(float(info.get("offset", 0.0))) > hw + 15.0 or flat.length() > hw + 25.0
 		# Lot nad jezdnią (żadne koło nie dotyka, auto nad drogą, nie
 		# z boku) to nie upadek - przy 200 km/h ze skoczni auto leci ~12 m
 		# nad drogą przez 2-3 s i reguła "> 6 m nad jezdnią" ogłaszała

@@ -209,14 +209,14 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0, true)])
 	if in_zone_checks == 0 or in_zone_short > in_zone_checks / 5:
 		_fail("za mało aut w strefie miasta")
-	# Między miastami rzadki ruch 0,5-1/km (nie pusto i nie jak w mieście).
-	if far_avg < 0.3 or far_cars > tz.wanted(40000.0, true) + TrafficZone.SURPLUS + 2:
+	# Między miastami ruch 1,2-2/km (nie pusto i nie jak w mieście).
+	if far_avg < 1.5 or far_cars > tz.wanted(40000.0, true) + TrafficZone.SURPLUS + 2:
 		_fail("ruch między miastami: średnio %.1f, najwięcej %d" % [far_avg, far_cars])
 	# Gęstości z planu.
 	if not is_equal_approx(plan.base_traffic(0.0), HighwayPlan.BASE_TRAFFIC_MIN) \
 			or not is_equal_approx(plan.base_traffic(400000.0), HighwayPlan.BASE_TRAFFIC_MAX):
 		_fail("base_traffic: %.2f / %.2f" % [plan.base_traffic(0.0), plan.base_traffic(400000.0)])
-	if plan.traffic_density(12500.0) > 1.0 or plan.traffic_density(22000.0) < 3.0:
+	if plan.traffic_density(12500.0) > HighwayPlan.BASE_TRAFFIC_MAX or plan.traffic_density(22000.0) < 3.0:
 		_fail("gęstość 12,5 km %.2f, 22 km %.2f" % [plan.traffic_density(12500.0), plan.traffic_density(22000.0)])
 	# Pasy autostrady: prawy/lewy na naszej jezdni i lustrzanie na drugiej,
 	# żaden na pasie awaryjnym.

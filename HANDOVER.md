@@ -1860,10 +1860,42 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   pobrane. Dodana diagnostyka (log "RADIO: Jamendo - odpowiedź ... B,
   nagłówki, początek") - czekam na log z jazdy z włączonym online.
   PR #55 (wszystko powyżej) scalony przez chmurę do main.
+  **Przyczyna pustej listy znaleziona w logu**: gogle dostają
+  `"status":"success","results_count":0,"results":[]` (105 B) - zapytanie
+  przechodzi, ale wyników 0. Na PC to samo zapytanie: 50. Do sprawdzenia:
+  losowy offset (do 1000) a liczba wyników dla fuzzytags; nagłówki.
+- Jazda wieczorem: **"super rozgrywka z furią, zwłaszcza walka o to, by
+  nie dać się wyprzedzić"**, ale **"za dużo dłużyzn - pusta autostrada,
+  nie ma się z kim ścigać"** -> ruch między miastami 1,2-2 aut/km (było
+  0,5-1; w naszą stronę x2,5 - średnio 6 aut w oknie 1,8 km).
+- **"Autostrada się skończyła, jechałem poza drogą, urwała się ostro"**:
+  po wielkiej skoczni przy 190 km/h auto poleciało w pole; gra mierzyła
+  zjazd tylko w poprzek drogi (`offset`), a auto jechało na wprost od
+  łuku - mały offset, więc bez odrodzenia; `StuntTrack.nearest_sample`
+  szukał w oknie i trzymał starą próbkę jako lokalne minimum (14 767 m),
+  trasa przestała się dobudowywać. Poprawki: pełne szukanie, gdy auto
+  > 30 m od próbki; zjazd także przy odległości w poziomie > pół
+  szerokości + 25 m. `offroad_test` (na starym kodzie BŁĄD, teraz OK,
+  w zestawie quest.sh).
+- Jamendo: ponowne próby przy pustej stronie (`EMPTY_RETRIES` 4 co 1,5 s,
+  nowa losowa strona) - z PC to samo zapytanie raz daje 50, raz 0.
+- Pełny `quest.sh test` OK (z offroad_test), radio_test OK.
 
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
+   "na później")**: zamiast samego mieszania terenu - granica biomu jako
+   miejsce w krajobrazie, za którym wolno podmienić duże obiekty:
+   - **pasmo górskie z dwoma tunelami** - wjazd w jednym biomie, wyjazd
+     w innym;
+   - **rzeka i most** - po drugiej stronie inny krajobraz.
+   Cel: **duże obiekty (góry na horyzoncie) nie znikają znienacka w trakcie
+   gry** - dziś horyzont (`Scenery.horizon`) wymieniany jest naraz w połowie
+   przejścia (`xr_main._update_biome`). Podmiana w tunelu / za grzbietem,
+   gdy gracz jej nie widzi. Wąwóz ma już tunele (`TrackGenerator`) - do
+   wykorzystania. Zgłoszone przy zmianie biomów na ~5 km.
 
 000. **Tryb Autostrada** (ustalenia w sekcji 2, spec. `docs/AUTOSTRADA.md`).
    **Etap 1 zrobiony (2026-11-09)**: menu "Trasa" (Wąwóz / Autostrada),

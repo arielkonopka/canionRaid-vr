@@ -2004,7 +2004,12 @@ func nearest_sample(world_pos: Vector3) -> Dictionary:
 	var lo := maxi(_near_hint - NEAR_WINDOW, 0)
 	var hi := mini(_near_hint + NEAR_WINDOW, _samples.size() - 1)
 	var bi := _nearest_in(local, lo, hi)
-	if (bi == lo and lo > 0) or (bi == hi and hi < _samples.size() - 1):
+	# Pełne szukanie też, gdy auto jest daleko od jezdni (> 30 m): po zjeździe
+	# w pole na łuku okno trzymało się starej próbki jako lokalnego minimum
+	# (jazda 2026-11-10: gra "widziała" auto na 14 767 m, a ono jechało
+	# 170 km/h w pole - trasa przestała się dobudowywać i "urwała się").
+	if (bi == lo and lo > 0) or (bi == hi and hi < _samples.size() - 1) \
+			or local.distance_squared_to(_samples[bi]["pos"]) > 900.0:
 		bi = _nearest_in(local, 0, _samples.size() - 1)
 	_near_hint = bi
 	return _samples[bi]
