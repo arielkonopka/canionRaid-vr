@@ -559,6 +559,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   później" - stacja radia z Jamendo): `~/.config/canion-raid/jamendo.env`
   (`JAMENDO_CLIENT_ID`, `JAMENDO_CLIENT_SECRET`, chmod 600). **Nigdy do
   gita** ani do plików w repo; skrypty mają je czytać z tego pliku.
+- **Rozmowy przez chmurę** (użytkownik 2026-11-10: "łatwiej mi
+  rozmawiać z agentem w chmurze, bo potrzebny mi do tego telefon"):
+  gdy użytkownik jest z dala od komputera, odpowiedzi i pytania pisz do
+  `docs/agent/outbox/` (i w plikach zleceń w inbox, sekcja odpowiedzi)
+  i wypychaj - wątek w chmurze przekazuje je na telefon. Pisz je tak,
+  żeby były zrozumiałe bez tej sesji.
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
 - **Repozytorium git** (od 2026-11-08, prośba użytkownika):
@@ -1743,6 +1749,27 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   na drugiej jezdni; w zestawie doszły `oncoming_play_test`
   i `oncoming_skirmish_test`; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
   3 odrodzenia - autopilot nie omija botów).
+
+### 2026-11-10, sesja 7 - rano (użytkownik jeździ na kablu)
+
+- Wrażenia: "całkiem ładnie"; scenka "pit" na drugiej jezdni zadziałała.
+- **"Za mało botów jeżdżących w moją stronę"**: przy tej samej gęstości
+  auta z naprzeciwka mija się co kilkanaście sekund, a te w naszą stronę
+  dogania się powoli (w oknie 1,8 km było 1-2). `TrafficZone.
+  SAME_DIR_MULT` 2,5 na naszej jezdni między miastami (w strefie miasta
+  bez zmian, 3-5/km). `highway_plan_test`: między miastami średnio 3 auta
+  w oknie (było ~1).
+- **Kontrolki wspomagań**: PR #34 chmury (trójkąty ABS/TCS/ESP/SKR na
+  prędkościomierzu, świeci = wyłączony, miga = ingeruje) nigdy nie był
+  scalony - scalony do gałęzi. `gauges_test` OK i w zestawie, zrzut
+  kokpitu z ESP wył. (`screenshot.gd -- KATALOG esp_off`): trójkąty nie
+  wchodzą na liczby. Czytelność w goglach do oceny.
+- Log z jazdy (`build/logs/jazda_2026-11-10.log`): tempo gry 99-100%;
+  **przy stacji 67-68 kl./s, proces ~24 ms, GPU ~13 ms** (do zbadania).
+  INCYDENT 9,5 g przy 41 km/h na pasie stacji = uderzenie w dystrybutor
+  (potwierdził użytkownik), silnik 43 -> 93% - zgodne z wytrzymałością
+  x1. Diagnostyka pokazała "kontakt: brak" - `last_hit` nie łapie
+  kontaktów ze stacją (do poprawy: `get_colliding_bodies`).
 
 ## 8. Kolejka zadań
 

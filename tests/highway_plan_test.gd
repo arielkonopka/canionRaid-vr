@@ -182,7 +182,7 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			for c in cars:
 				if not c["oncoming"] and float(c["dist"]) > pd - 300.0 and float(c["dist"]) < pd + 1500.0:
 					n += 1
-			if n < tz.wanted(pd) - 3:
+			if n < tz.wanted(pd, true) - 3:
 				in_zone_short += 1
 		if pd > 37000.0 and pd < 42000.0:      # strefa miasta 1 do 31 km, miasta 2 od 45 km
 			var n_far := 0
@@ -195,11 +195,11 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 		t += dt
 	var far_avg := float(far_sum) / maxf(far_checks, 1)
 	print("ruch: aut łącznie %d, w strefie za mało w %d/%d krokach, między miastami średnio %.1f (najwięcej %d, chciane %d)" % [
-			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0)])
+			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0, true)])
 	if in_zone_checks == 0 or in_zone_short > in_zone_checks / 5:
 		_fail("za mało aut w strefie miasta")
 	# Między miastami rzadki ruch 0,5-1/km (nie pusto i nie jak w mieście).
-	if far_avg < 0.3 or far_cars > tz.wanted(40000.0) + TrafficZone.SURPLUS + 2:
+	if far_avg < 0.3 or far_cars > tz.wanted(40000.0, true) + TrafficZone.SURPLUS + 2:
 		_fail("ruch między miastami: średnio %.1f, najwięcej %d" % [far_avg, far_cars])
 	# Gęstości z planu.
 	if not is_equal_approx(plan.base_traffic(0.0), HighwayPlan.BASE_TRAFFIC_MIN) \

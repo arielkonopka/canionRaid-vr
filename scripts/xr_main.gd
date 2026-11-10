@@ -2136,6 +2136,7 @@ func _restart_section() -> void:
 		(o["car"] as Node).queue_free()
 	_oncoming.clear()
 	_osk = null
+	_osk_next_d = d + 1200.0
 	for c in _oncoming_pool:
 		c.queue_free()
 	_oncoming_pool.clear()

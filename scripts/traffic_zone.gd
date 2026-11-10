@@ -36,6 +36,13 @@ const DESPAWN_MARGIN := 300.0
 ## więcej niż wanted + SURPLUS.
 const SURPLUS := 1
 
+## Nasza jezdnia między miastami: gęstość x tyle (użytkownik 2026-11-10:
+## "za mało botów jeżdżących w moją stronę"). Przy tej samej gęstości auta
+## z naprzeciwka mija się co kilkanaście sekund (zbliżanie ~250 km/h),
+## a te w naszą stronę dogania się powoli - w oknie było ich 1-2. W strefie
+## miasta zostaje gęstość z planu (3-5/km, ustalenie użytkownika).
+const SAME_DIR_MULT := 2.5
+
 ## Widoczność (VR: głowa się obraca, są lusterka) - zgrubnie i z zapasem.
 const VIEW_DIST := 900.0
 const VIEW_HALF_ANGLE := deg_to_rad(70.0)
@@ -51,11 +58,12 @@ func _init(p: HighwayPlan) -> void:
 
 ## Ile aut powinno być w oknie wokół `player_dist` na jednej jezdni
 ## (całka gęstości po oknie, próbkowana co 100 m).
-func wanted(player_dist: float) -> int:
+func wanted(player_dist: float, same_dir := false) -> int:
 	var sum := 0.0
 	var d := player_dist - BEHIND
 	while d < player_dist + AHEAD:
-		sum += plan.traffic_density(d + 50.0) * 0.1
+		var k := SAME_DIR_MULT if same_dir and not plan.in_city_zone(d + 50.0) else 1.0
+		sum += plan.traffic_density(d + 50.0) * 0.1 * k
 		d += 100.0
 	return int(round(sum))
 
@@ -83,10 +91,10 @@ func step(player_dist: float, cars: Array, rng: RandomNumberGenerator) -> Dictio
 			if calm_hidden:
 				removable[side].append(c)
 	var spawn := []
-	var want := wanted(player_dist)
+	var want := {false: wanted(player_dist, true), true: wanted(player_dist)}   # klucz: oncoming
 	# Nadmiar (gęstość spadła): najdalsze od gracza niewidoczne auta znikają.
 	for side in [false, true]:
-		var extra: int = int(count[side]) - want - SURPLUS
+		var extra: int = int(count[side]) - int(want[side]) - SURPLUS
 		if extra <= 0:
 			continue
 		var list: Array = removable[side]
@@ -95,7 +103,7 @@ func step(player_dist: float, cars: Array, rng: RandomNumberGenerator) -> Dictio
 			despawn.append(list[i]["id"])
 			count[side] -= 1
 	for oncoming in [false, true]:
-		var missing: int = want - int(count[oncoming])
+		var missing: int = int(want[oncoming]) - int(count[oncoming])
 		for _k in range(mini(missing, MAX_SPAWN_PER_STEP)):
 			var cand := _candidate(player_dist, cars, spawn, oncoming, rng)
 			if not cand.is_empty():

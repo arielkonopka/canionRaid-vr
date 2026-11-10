@@ -39,7 +39,12 @@ func _physics_process(delta: float) -> bool:
 	if f <= 5:
 		return false
 	t += delta
-	main.car.linear_velocity = -main.car.global_basis.z * 28.0
+	# Auto prowadzone po trasie (prosto pchane wypadało na łukach z drogi,
+	# a odrodzenie kasuje scenkę).
+	var cxf: Transform3D = main.track.transform_at_distance(main._last_safe_dist + 28.0 * delta)
+	main.car.global_transform = Transform3D(cxf.basis, cxf.origin + cxf.basis.x * main.hwy_lane_off(0) + cxf.basis.y * 0.8)
+	main.car.linear_velocity = -cxf.basis.z * 28.0
+	main.car.angular_velocity = Vector3.ZERO
 	if main._osk != null:
 		if not seen:
 			seen = true
