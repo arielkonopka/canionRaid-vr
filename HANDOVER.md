@@ -1780,6 +1780,17 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
      parametry policzone przez chmurę - outbox
      `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.
+     Proponowane etapy: (1) `StuntCar.apply_style(name)` - mocowania,
+     promień, masa, środek masy, bezwładność, kolizja z `size` /
+     `body_bottom`, mnożniki zawieszenia/stabilizatorów, hamulce,
+     `final_mult`, cd/area; siatki `model`/`wheel_model` zamiast brył
+     sedana (wzór: `set_body_model` dla concept cara). Najpierw sprawdzić
+     w `tools/car_sim.py`, jak symulator chmury przekłada te pola na
+     parametry auta - przeniesienie musi się zgadzać 1:1. (2) Boty
+     losują styl z `bot_weight` (pula botów: styl przy `_take_bot`).
+     (3) Gracz: wybór w menu, fotel `seat`, kokpit - wymaga gogli
+     i oceny użytkownika. Uwaga chmury: hatchback przy 120 km/h obraca
+     się w sinusie mimo ESP.
    - **Głębia miast** (przegląd renderów pkt 1): tylne rzędy, miejski
      grunt, przecznice; potem `CityGraph` etap 5 (inbox
      `miasta-leniwy-graf`).
