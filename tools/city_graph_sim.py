@@ -31,6 +31,7 @@ class City:
         self.seed, self.bounds = seed, bounds
         self.a = self.b = (0, 0)
         self.hist, self.built, self.odo, self.last = [], {}, 0.0, None
+        self.cur_s, self.back = 0.0, 0.0
 
     def h01(self, *vals):
         h = mix(0x9E3779B9, self.seed)
@@ -137,6 +138,7 @@ class City:
     def start(self, a, b):
         assert self.has_edge(a, b)
         self.a, self.b, self.hist, self.last = a, b, [], None
+        self.cur_s, self.back = 0.0, 0.0
         return self.sync()
 
     def update(self, pos):
@@ -144,7 +146,9 @@ class City:
             self.odo += math.dist(self.last, pos)
         self.last = pos
         cur = self.key(self.a, self.b)
-        best_k, best_d = cur, self.project(self.edge_points(self.a, self.b), pos)[0]
+        cur_pts = self.edge_points(self.a, self.b)
+        cur_d, cur_s = self.project(cur_pts, pos)
+        best_k, best_d = cur, cur_d
         for k, (ea, eb, ln) in self.built.items():
             if k == cur:
                 continue
@@ -160,6 +164,15 @@ class City:
             self.hist = self.hist[-KEEP_BEHIND:]
             self.hist = [h for h in self.hist if self.key(*h) != best_k]
             self.a, self.b, switched = frm, to, True
+            self.cur_s, self.back = self.project(self.edge_points(frm, to), pos)[1], 0.0
+        else:
+            ds = cur_s - self.cur_s
+            self.back = self.back - ds if ds < 0 else 0.0
+            self.cur_s = cur_s
+            if self.back > 3.0:   # TURN_BACK - zawrócenie na tej samej ulicy
+                self.a, self.b = self.b, self.a
+                pl = sum(math.dist(cur_pts[k - 1], cur_pts[k]) for k in range(1, len(cur_pts)))
+                self.cur_s, self.back, switched = pl - self.cur_s, 0.0, True
         d = self.sync()
         d["switched"] = switched
         return d
@@ -251,7 +264,7 @@ def main():
             n_steps += 1
             record(c.update(p))
             turns += 1
-            check(c.key(c.a, c.b) == c.key(frm, to), f"po skręcie bieżąca {c.a}->{c.b} zamiast {frm}->{to}", fails)
+            check(c.key(c.a, c.b) == c.key(frm, to) and c.a == frm, f"po skręcie bieżąca {c.a}->{c.b} zamiast {frm}->{to}", fails)
         print(f"  jazda: {turns} skrzyżowań, {n_steps} kroków, {c.odo / 1000:.1f} km, "
               f"zbudowanych naraz maks. {max_built}, różnych krawędzi {len(geo)}, powrotów {revisits[0]}")
         check(revisits[0] > 0, "jazda nie wróciła na żadną ulicę - test powrotu nic nie sprawdził", fails)
