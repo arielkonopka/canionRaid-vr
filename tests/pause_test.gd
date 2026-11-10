@@ -69,6 +69,14 @@ func _process(_d: float) -> bool:
 			car.linear_velocity = -car.global_basis.z * 20.0
 		200:
 			_check(absf(car.global_position.z - z0) > 0.5, "auto jedzie po pauzie")
+			# Po końcu jazdy przycisk menu = ekran tytułowy, bez pauzy (napisy
+			# końca gry i pauzy nachodziły na siebie - użytkownik 2026-11-10).
+			main.race_state = main.Race.FINISHED
+			main._on_xr_button("menu_button", false)
+			_check(not main._pause.is_open(), "po końcu jazdy menu nie otwiera pauzy")
+		210:
+			var cs = current_scene
+			_check(cs != null and cs.scene_file_path == main.TITLE_SCENE, "po końcu jazdy menu -> ekran tytułowy (%s)" % [cs.scene_file_path if cs else "brak"])
 			print("pause_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 			return true
 	return false

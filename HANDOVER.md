@@ -1880,6 +1880,10 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Jamendo: ponowne próby przy pustej stronie (`EMPTY_RETRIES` 4 co 1,5 s,
   nowa losowa strona) - z PC to samo zapytanie raz daje 50, raz 0.
 - Pełny `quest.sh test` OK (z offroad_test), radio_test OK.
+- **Po końcu jazdy przycisk menu (i Esc) = ekran tytułowy**, nie pauza
+  (użytkownik: pauza otwarta na napisie końca gry - napisy nachodziły na
+  siebie; napis końca od dawna mówił "Menu: ekran tytułowy"). pause_test
+  sprawdza to (OK).
 
 ## 8. Kolejka zadań
 

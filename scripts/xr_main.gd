@@ -288,8 +288,13 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 			_y_held = 0.0
 		[false, "menu_button"]:
 			# Pauza z radiem (wcześniej: od razu ekran tytułowy - wyjście
-			# jest teraz w menu pauzy).
-			_set_paused(true)
+			# jest teraz w menu pauzy). Po końcu jazdy - ekran tytułowy, jak
+			# mówi napis (użytkownik 2026-11-10: pauza na napisie końca gry
+			# - napisy nachodziły na siebie).
+			if race_state == Race.FINISHED:
+				_back_to_title()
+			else:
+				_set_paused(true)
 		[true, "primary_click"]:
 			# Nowe auto na kołach = strata życia (na trasie bez końca).
 			if _mode != Mode.DRIVE:
@@ -363,7 +368,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_ESCAPE:
-				_set_paused(true)
+				if race_state == Race.FINISHED:
+					_back_to_title()
+				else:
+					_set_paused(true)
 				get_viewport().set_input_as_handled()
 				return
 			KEY_F:
@@ -380,8 +388,6 @@ func _unhandled_input(event: InputEvent) -> void:
 					restart_race()
 			KEY_C:
 				_cockpit_on_pc = not _cockpit_on_pc
-			KEY_ESCAPE:
-				_back_to_title()
 			KEY_E:
 				if _mode == Mode.DRIVE:
 					car.shift_up()
