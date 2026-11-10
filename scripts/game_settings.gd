@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 8
+const SETTINGS_VERSION := 9
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -83,7 +83,7 @@ var xr_foveation: int = 2
 ## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
 ## (estakady) i "demo" (pokazowa z metą) zostały w kodzie dla testów
 ## (endless_test, drive_test) - nie ma ich w menu.
-var track_mode: String = "canyon"
+var track_mode: String = "autostrada"
 ## Dźwigi (życia) na trasie bez końca; 0 = bez limitu.
 var cranes: int = 3
 ## Progi mocy silnika na trasie bez końca: start na pierwszym, każdy
@@ -139,11 +139,11 @@ const PAINTS := {
 var OPTIONS: Array[Dictionary] = [
 	{
 		"key": "track_mode", "group": "track", "label": "Trasa",
-		"values": ["canyon", "autostrada"],
-		"names": ["Wąwóz", "Autostrada"],
+		"values": ["autostrada", "canyon"],
+		"names": ["Autostrada", "Wąwóz"],
 		"hints": [
-			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
 			"Autostrada 2+2 pasy przez setki km: łąki, pola, pustynia, góry, morze, miasta co 25 km.",
+			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
 		],
 	},
 	{
@@ -549,6 +549,13 @@ func load_settings() -> void:
 	if version < 7:
 		# Użytkownik po jeździe: "sedan najfajniejszy" - domyślny znowu sedan.
 		body_model = "sedan"
+	if version < 9:
+		# Użytkownik 2026-11-09 (przed snem): "cała trasa jest na
+		# autostradzie" - autostrada domyślna. Zapisany "canyon" był dotąd
+		# tylko domyślną wartością (wyboru trasy nie było w menu), więc
+		# jednorazowo przestawiamy; wąwóz dalej do wyboru w menu.
+		if track_mode == "canyon":
+			track_mode = "autostrada"
 	if version < 8:
 		# Do v7 gogle same zmniejszały obraz (dynamiczna rozdzielczość Meta,
 		# log VrApi SF=0.50 przy 160%) - zapisane 130-160% nie było prawdą.

@@ -1790,6 +1790,8 @@ func _safe_pose(d: float) -> Transform3D:
 		var smp: Array = track.samples_from(dd, 2.0)
 		var w: float = smp[0]["width"] if not smp.is_empty() else 9.0
 		var lane := (w - 1.0) / 3.0
+		if _endless and track.autostrada:
+			lane = hwy_lane_off(0)          # prawy pas autostrady, nie pas awaryjny
 		xf.origin += xf.basis.x * lane + xf.basis.y * 0.9
 		# Bryła auta 0,25-1,65 m nad jezdnią - jezdnia sama się nie liczy.
 		q.transform = Transform3D(xf.basis, xf.origin + xf.basis.y * 0.25)
