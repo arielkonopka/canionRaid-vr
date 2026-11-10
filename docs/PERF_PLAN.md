@@ -32,6 +32,12 @@ Kolejność prac ustalamy dopiero po pomiarze bazowym (etap 0).
 
 - Quest 3: 72 Hz = **13,9 ms** na klatkę (90 Hz = 11,1 ms). GPU i CPU
   pracują równolegle - każdy z nich musi zmieścić się w budżecie osobno.
+- **Pomiary sprzed 2026-11-09 są nieważne** (raport agenta
+  `docs/agent/outbox/2026-11-09-pomiar-bazowy.md`): była włączona
+  dynamiczna rozdzielczość Meta - gogle po cichu rysowały w połowie
+  rozdzielczości. Po jej wyłączeniu i kompresji VRAM + mipmapach tekstur
+  skał: S1 przy 100% GPU 22,6 → 10,0 ms (72 kl./s), przy 130% 32,2 → 15,8 ms.
+  Domyślnie teraz 110%, cel użytkownika 160%. Etap 0 do powtórzenia.
 - Ostatnie pomiary (HANDOVER sekcja 5): odcinek 10 - 56 kl./s, GPU
   13,6 ms; **odcinek 9 - GPU 35-65 ms przez dłuższą chwilę** (podejrzany
   tunel albo ulewa); gogle się grzeją. Po zmianach z sesji 3 (fizyka
