@@ -1923,6 +1923,7 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   zmienne między przebiegami) - ten sam problem co "przy 400 km/h szybko
   traci przyczepność"; do zbadania osobno (autopilot czy auto).
   Pełny `quest.sh test` OK (z liftoff_test i regen_highway_test).
+  Ocena użytkownika w goglach: **"jest widocznie lepiej"**.
 - **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
   `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
   włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr
