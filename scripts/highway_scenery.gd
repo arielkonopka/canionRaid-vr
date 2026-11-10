@@ -348,7 +348,10 @@ static func _sidewalks(samples: Array, a: float, b: float, edges: Vector2) -> No
 ## Czworokąt a-b-c-d (dwa trójkąty); kolejność zależna od strony, żeby
 ## ściany patrzyły na zewnątrz (dla prawej strony jak w Scenery._cone).
 static func _quad(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3, d: Vector3, side: int) -> void:
-	var tri := [a, b, c, a, c, d] if side < 0 else [a, c, b, a, d, c]
+	# Odwrócone względem pierwszej wersji (jak w _box): Godot - przód zgodnie
+	# z ruchem wskazówek zegara; wcześniej wierzch chodnika był odrzucany,
+	# a widać było tylko ściany (ciemne kliny przy budynkach na renderach).
+	var tri := [a, c, b, a, d, c] if side < 0 else [a, b, c, a, c, d]
 	for v in tri:
 		st.add_vertex(v)
 		faces.append(v)
@@ -477,16 +480,19 @@ static func _box(st: SurfaceTool, c: Vector3, s: Vector3, col: Color) -> void:
 		c + Vector3(-h.x, -h.y, -h.z), c + Vector3(h.x, -h.y, -h.z), c + Vector3(h.x, h.y, -h.z), c + Vector3(-h.x, h.y, -h.z),
 		c + Vector3(-h.x, -h.y, h.z), c + Vector3(h.x, -h.y, h.z), c + Vector3(h.x, h.y, h.z), c + Vector3(-h.x, h.y, h.z),
 	]
-	# Ściany (a, b, c, d): (b - a) × (c - a) wskazuje na zewnątrz - ta sama
-	# konwencja co Scenery._cone (sprawdzone na jej ścianach bocznych).
+	# Ściany (a, b, c, d) wypisane przeciwnie do ruchu wskazówek zegara
+	# patrząc z zewnątrz; Godot uznaje za przód trójkąty zgodne z ruchem
+	# wskazówek, więc wierzchołki idą w odwrotnej kolejności (a, c, b).
+	# Wcześniej (a, b, c): wszystkie ściany pudeł odrzucane jako tylne -
+	# budynki z renderów wyglądały jak otwarte "L" z ukośnymi daszkami.
 	var faces := [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]]
 	for f in faces:
 		var a: Vector3 = v[f[0]]
 		var b: Vector3 = v[f[1]]
 		var cc: Vector3 = v[f[2]]
 		var d: Vector3 = v[f[3]]
-		st.add_vertex(a); st.add_vertex(b); st.add_vertex(cc)
-		st.add_vertex(a); st.add_vertex(cc); st.add_vertex(d)
+		st.add_vertex(a); st.add_vertex(cc); st.add_vertex(b)
+		st.add_vertex(a); st.add_vertex(d); st.add_vertex(cc)
 
 
 ## Palma: lekko pochylony pień z kilku walców i 6 opadających liści.

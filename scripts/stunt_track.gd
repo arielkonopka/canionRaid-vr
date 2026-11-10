@@ -163,6 +163,7 @@ func build() -> void:
 
 	# Ściany do kolizji, osobno dla każdej nawierzchni.
 	var road_faces := {}
+	_road_layout = 1 if hwy_plan else 0
 	var mesh := _build_mesh(road_faces)
 
 	var mi := MeshInstance3D.new()
@@ -579,15 +580,21 @@ static var _shared_mats := {}
 ## Materiał wierzchu jezdni: shader asfaltu (linie, krawężniki, ziarno),
 ## mokra i lód jako parametry. Jawnie podane wet_material / ice_material
 ## mają pierwszeństwo.
+## Układ pasów w road.gdshader dla budowanej właśnie siatki jezdni:
+## 0 wąwóz, 1 autostrada (nasza jezdnia), 2 autostrada z naprzeciwka.
+var _road_layout := 0
+
+
 func _surface_material(surf: String) -> Material:
-	if surf == "wet" and wet_material:
+	if surf == "wet" and wet_material and _road_layout == 0:
 		return wet_material
-	if surf == "ice" and ice_material:
+	if surf == "ice" and ice_material and _road_layout == 0:
 		return ice_material
-	var key := "road_" + surf
+	var key := "road_%s_%d" % [surf, _road_layout]
 	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/road.gdshader")
+		m.set_shader_parameter("layout", _road_layout)
 		m.set_shader_parameter("wetness", 1.0 if surf == "wet" else 0.0)
 		m.set_shader_parameter("ice", 1.0 if surf == "ice" else 0.0)
 		# Kolory ustalone z użytkownikiem: sucha #404040, mokra #101010,
@@ -2036,7 +2043,9 @@ func _build_highway() -> void:
 	var keep := _samples
 	_samples = shifted
 	var opp_faces := {}
+	_road_layout = 2 if hwy_plan else 0
 	var opp_mesh := _build_mesh(opp_faces)
+	_road_layout = 1 if hwy_plan else 0
 	_samples = keep
 	var omi := MeshInstance3D.new()
 	omi.name = "OppositeRoad"
@@ -2082,7 +2091,17 @@ func _build_highway() -> void:
 			# Pobocze między jezdnią a barierą.
 			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
 		}
-		if not prev.is_empty():
+		# W zabudowie miasta (tryb Autostrada) zamiast barier energochłonnych,
+		# trawy i nasypu - chodnik z krawężnikiem (HighwayScenery._sidewalks);
+		# bariera w pasie rozdziału zostaje (spec. pkt 4).
+		var in_city := hwy_plan != null and not hwy_plan.city_at(float(smp["dist"])).is_empty()
+		if not prev.is_empty() and in_city:
+			var q2 := prev
+			_quad_facing(concrete, faces, q2["jb_l0"], p["jb_l0"], p["jb_l1"], q2["jb_l1"], -rh)
+			_quad_facing(concrete, faces, q2["jb_r0"], p["jb_r0"], p["jb_r1"], q2["jb_r1"], rh)
+			_quad_facing(concrete, faces, q2["jb_l1"], p["jb_l1"], p["jb_r1"], q2["jb_r1"], Vector3.UP)
+			_quad_facing(grass, faces, q2["md_r"], p["md_r"], p["md_l"], q2["md_l"], Vector3.UP)
+		elif not prev.is_empty():
 			var q := prev
 			_quad_facing(concrete, faces, q["jb_l0"], p["jb_l0"], p["jb_l1"], q["jb_l1"], -rh)
 			_quad_facing(concrete, faces, q["jb_r0"], p["jb_r0"], p["jb_r1"], q["jb_r1"], rh)

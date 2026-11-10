@@ -33,6 +33,9 @@ var plan: HighwayPlan
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""
+## Dystans startu trasy Autostrada (leniwa generacja: plan i kawałki liczą
+## się od tego miejsca bez budowania wcześniejszych km - rendery, testy).
+var start_dist := 0.0
 
 var rng := RandomNumberGenerator.new()
 var _chunks: Array[StuntTrack] = []
@@ -91,6 +94,9 @@ func _add_section() -> void:
 
 func _add_highway_chunk() -> void:
 	var start: Dictionary = HighwayGenerator.first_state() if _chunks.is_empty() else _chunks[-1].end_state()
+	if _chunks.is_empty() and start_dist > 0.0:
+		start["dist"] = start_dist
+		start["limit"] = plan.limit_at(start_dist)
 	# end_state() daje pozycję w układzie świata (to_global) - po przesunięciu
 	# świata też poprawną; localize robi z niej położenie węzła kawałka.
 	var loc := HighwayGenerator.localize(start)

@@ -27,7 +27,11 @@ func _initialize() -> void:
 	var gs = root.get_node("GameSettings")
 	gs.persist = false
 	gs.track_mode = "autostrada"
-	var plan := HighwayPlan.new(SEED)
+	# Ten sam plan co w EndlessTrack: ziarno planu to pierwsze randi() z RNG
+	# trasy (EndlessTrack._ready).
+	var r := RandomNumberGenerator.new()
+	r.seed = SEED
+	var plan := HighwayPlan.new(r.randi())
 	# Miasta: małe na 25 km, duże na 100 km (plan: co 25 km, co 4. duże).
 	var small: Dictionary = plan.city(1)
 	var big: Dictionary = plan.city(4)
@@ -39,6 +43,7 @@ func _initialize() -> void:
 		["miasto_male_z_gory", s0 - 700.0, s0 + 150.0, 60.0, 90.0, s0 + 600.0, 0.0, 0.0],
 		["miasto_duze_centrum", b0 + 1800.0, b0 + 2400.0, 0.75, 1.4, b0 + 2650.0, 0.0, 6.0],
 		["miasto_duze_z_gory", b0 + 1800.0, b0 + 2200.0, 120.0, 160.0, b0 + 2900.0, 0.0, 0.0],
+		["miasto_duze_detal", b0 + 1800.0, b0 + 2400.0, 28.0, 30.0, b0 + 2440.0, 8.0, 0.0],
 		["warsztat_w_miescie", s0 - 700.0, s0 + 230.0, 0.75, 1.6, s0 + 420.0, 12.0, 1.5],
 	]
 	var st: Array = plan.stations_between(0.0, 60000.0)
