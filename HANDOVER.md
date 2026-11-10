@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 6 (wieczór: wielka skocznia, Autostrada etap 1, rekuperacja, nowe boty, tekstury poza repo)
+Ostatnia aktualizacja: 2026-11-10, sesja 7 (noc: Autostrada domyślna, biomy, ruch, waśnie botów, pula botów, przegląd renderów)
 
 ---
 
@@ -120,7 +120,7 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - **Sterowanie: prawy drążek = kierownica, lewy drążek = biegi**
     (w górę wyżej, w dół niżej). Opcja "Kierownica" zamienia strony.
   - **Przyciski w jeździe (gogle)**: klik prawego drążka = nowe auto
-    (strata życia), klik lewego = wolna kamera, A = ABS, B = ESP,
+    (strata życia), klik lewego = klakson (szał aut w promieniu 250 m, użytkownik 2026-11-09; wolna kamera tylko F na klawiaturze), A = ABS, B = ESP,
     X = TCS, Y krótko = ograniczenie skrętu (`steer_assist`, teraz też
     w menu "Systemy wspomagania"); "pozostałe przyciski zostają" -
     spusty, gripy, Menu, Y przytrzymany (centrowanie) bez zmian.
@@ -408,8 +408,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - geometria: osobna siatka i kolizja dla B, tunel wokół obu, ściany
     rozdzielające.
 - **STAN NAJNOWSZYCH USTALEŃ (zrobione i wgrane 2026-11-07):**
-  - Wąwóz z łupku jest domyślną trasą ("Wąwóz"); estakady (dawny tor na
-    filarach) i trasa pokazowa zostały jako opcje.
+  - **Domyślna trasa: Autostrada** (użytkownik do chmury 2026-11-09:
+    "cała trasa jest na autostradzie"; `SETTINGS_VERSION` 9 jednorazowo
+    przestawia zapisany "canyon" na "autostrada"). Wąwóz z łupku,
+    estakady i trasa pokazowa zostały jako opcje.
   - **Życia = auta** (ustalenie późniejsze niż "bez dźwigów"): życie
     traci się, gdy auto **skończy na dachu** (nie da się jechać), gdy jest
     **rozbite (uszkodzenia 100%)** albo (estakady) spadnie. **Każda utrata
@@ -454,13 +456,33 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   skrzynia, hamulce, zawieszenie, struktura) z uderzeń i lądowań.
   Wgniecenia blachy celowo bez zmian (widać, jak groźne było uderzenie).
   Boty zawsze x1.
-- **Menu pauzy = menu główne ustawień** (użytkownik 2026-11-09): w pauzie
-  te same grupy opcji co na ekranie tytułowym; radio, wspomagania,
-  sterowanie, wygląd, szał botów działają od razu; zmiana samochodu /
-  nadwozia / trasy **resetuje jazdę, ale najpierw ostrzeżenie** (A: zacznij
-  od nowa, B: cofnij zmiany). **Ustawienia radia w ustawieniach gry**
-  (grupa "Radio": radio przy starcie, stacja, głośność, Jamendo online),
-  wspólne z menu pauzy. Do zrobienia (sekcja 8).
+- **Menu pauzy = menu ustawień gry** (użytkownik 2026-11-09, zrobione):
+  w pauzie te same grupy co na ekranie tytułowym (`PauseMenu` buduje się
+  z `GameSettings.GROUPS/OPTIONS`); radio, wspomagania, sterowanie, wygląd,
+  szał botów działają od razu (`setting_changed` -> `xr_main.
+  _on_setting_changed`); trasa / samochód / nadwozie (`RESTART_GROUPS`)
+  przy powrocie do jazdy pytają: A/spust - nowa jazda (reload sceny),
+  B - cofnij zmiany. **Grupa "Radio"** w ustawieniach (radio przy starcie,
+  stacja, głośność, Jamendo online) - wspólna dla tytułu i pauzy.
+- **Spójne sterowanie menu** (użytkownik: "całe menu obsługuje się
+  manetką i spustem, a nagle zatwierdzenie wymaga A"): w pauzie
+  i warsztacie zatwierdza spust **albo** A, B wraca/cofa. W warsztacie
+  spust działa po 0,4 s od wjazdu (gaz trzymany przy wjeździe nie kupuje).
+- **Warsztat = sklep za punkty** (użytkownik: "powinny być punkty za każdą
+  rzecz, wymianę silnika, naprawę"; "za rzadko można wymienić punkty na
+  naprawę"; "naprawa poszczególnych uszkodzeń zależnie od typu
+  samochodu"): `WorkshopShop` (cennik chmury) podłączony - naprawy
+  strefami (silnik, skrzynia, karoseria, hamulce, zawieszenie), pełna
+  naprawa z rabatem, zapasowe auto, większy bak; wymiana silnika
+  300 pkt x próg (z odliczeniem za stary silnik); menu otwarte do
+  "Wyjazd". Cennik z chmury: `WorkshopShop.car_spec` (typ auta: napęd,
+  rodzaj silnika, masa, moc) x `zone_factor`, na stacji narzut x1,25.
+  Nie przywracać lokalnego `car_multipliers` (zastąpiony).
+  **Naprawy także na stacjach** (postój < 3 km/h na pasie stacji, sam
+  serwis bez silnika). Bez dźwigu w menu. Test: `shop_test`.
+- **Klakson** (użytkownik 2026-11-09): klik lewego drążka (H na
+  klawiaturze) - szał wszystkich botów w promieniu 250 m (`player_horn`,
+  pochodzenie "horn" w ScoreKeeper). Wolna kamera tylko pod F.
 - **Rekuperacja elektryka** (użytkownik 2026-11-09): opcja menu
   "Rekuperacja" wył./słaba/normalna/mocna (`StuntCar.REGEN_LEVELS` 0 /
   0,07 / 0,15 / 0,30 maks. momentu), energia wraca do baterii ze
@@ -501,7 +523,7 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
-- **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
+- **TRYB AUTOSTRADA (ustalony 2026-11-09, etapy 1-3 zrobione, domyślna trasa - sekcja 8)**:
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
     jezdnie za barierą, na drugiej ruch z naprzeciwka.
@@ -582,6 +604,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **"Auto nagle staje jak przed barierą na prostej pod górkę"** (jazda
+  2026-11-09): to **wysepka rozwidlenia** (`IslandBody`) tuż za
+  wzniesieniem - skalny klin z niskim, pochyłym czubkiem wyglądał jak
+  podjazd. Teraz: tępe, wysokie czoło, żółto-czarna tablica, znak C-11,
+  trójkąt "rozwidlenie" 120 m przed. **Linia INCYDENT "kontakt: brak"
+  wprowadza w błąd** - impuls pojedynczego kontaktu bywa < 200 N·s (próg
+  `last_hit`), choć auto stoi na przeszkodzie; w testach sprawdzać
+  `car.get_colliding_bodies()` (endless_test z `DBG_STOP=1`).
 
 - **Nie edytuj `quest.sh` w miejscu, gdy działa** (`./quest.sh test` trwa
   ~25 min): bash czyta skrypt na bieżąco, a zapis z obcięciem pliku
@@ -1653,6 +1684,34 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   topspeed (poza zestawem), regen, highway_plan/gen, world_origin,
   bot_drive, feud, endless autostrada).
 
+### 2026-11-10, sesja 7 (noc, użytkownik śpi, praca z chmurą)
+
+- **Autostrada etap 2-3**: biomy (paleta terenu `HighwayScenery.
+  BIOME_GROUND` w shaderze `ground` i w trawie przy jezdni per kawałek,
+  horyzont wg biomu, morze), ruch na obu jezdniach (`TrafficZone`,
+  pojawianie/znikanie poza wzrokiem), miasto jako ulica (bez barier
+  i nasypu, chodniki, oznakowanie autostrady). Autostrada domyślna.
+- **Pula botów** (`BOT_POOL_WARM` 6): pojawienie się bota bez ~170 ms
+  przycięcia. **Budowa kawałka trasy w 3 klatkach** (`await _slice()`):
+  szczyt 22 -> 4,3 ms.
+- **Waśnie botów wpięte** (`FeudDirector`): 3 gangi z kolorem, potyczki
+  tylko w zasięgu wzroku, najwyżej 2 naraz, uderzenie gracza w bota
+  z potyczki = sojusz przeciw graczowi. Test `feud_play_test`.
+- **Przegląd renderów chmury** (outbox `2026-11-10-noc-agent-lokalny.md`):
+  - zabudowa `HighwayScenery` płasko cieniowana
+    (`set_smooth_group(0xFFFFFFFF)` - bez tego `generate_normals`
+    uśredniał normalne narożników budynków i ściany były w smugach);
+  - chodnik jaśniejszy (0,42), trawa przy jezdni w kolorze biomu;
+  - **nawierzchnia "kicker"** na wielkiej skoczni (pasy czerwono-białe,
+    layout 3 w `road.gdshader`), znak "danger" z tabliczką "SKOCZNIA"
+    (`road_plate`); opony traktują nieznaną nawierzchnię jak suchą;
+  - ujęcia w `render_tour.gd` przybliżone. Uwaga: wiata stacji stoi
+    ~150-250 m za `station.start` z planu (40 m dobiegu + pas), skocznia
+    zaczyna się 120 m za `jump.start` - ujęcia są ustawione pod to.
+- Testy: pełny `./quest.sh test` OK (2026-11-10, po przeglądzie
+  renderów; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
+  3 odrodzenia - autopilot nie omija botów).
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -1681,10 +1740,25 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    z botami, autopilot ich nie omija). Autopilot testu: wzmocnienie
    kierownicy maleje z prędkością (przy 220 km/h stałe rozbujało go) i
    w trybie Autostrada trzyma ograniczenia.
-   Dalej: etap 2 (biomy: teren w shaderze, horyzont, `world_wrap`
-   w shaderach - jezdnia ma dystans w UV.y jako float32!), etap 3
-   (ruch `TrafficZone`, auta z epoki), etap 4 (objazdy). Pomiar na
-   Queście (`hwy_scenery`, PERF+) przed paczkami modeli.
+   **Etapy 2-3 zrobione (2026-11-10)**: biomy, horyzont, morze,
+   `world_origin_wrap` w shaderach, ruch na obu jezdniach, waśnie.
+   Dalej (kolejność proponowana):
+   - **Żetony waśni** (odpowiedź chmury: K=4 żetony pościgu, potyczka
+     fizyczna tylko w `LOD_NEAR` 120 m i w stożku widzenia, koniec po
+     2 s poza wzrokiem, szał bez żetonu jedzie po szynie) - nie zrobione.
+   - **`OncomingSkirmish`** (moduł chmury, niewpięty): jedna scena naraz,
+     co 1,2-2,5 km, kolory gangów.
+   - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
+     parametry policzone przez chmurę - outbox
+     `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.
+   - **Głębia miast** (przegląd renderów pkt 1): tylne rzędy, miejski
+     grunt, przecznice; potem `CityGraph` etap 5 (inbox
+     `miasta-leniwy-graf`).
+   - Z przeglądu renderów: ciemne trójkąty u podstaw budynków (cień?),
+     oświetlenie stożków drzew (`Scenery._cone`), nazwa biomu "wąwóz".
+   - Etap 4 (objazdy zamiast skoczni na jezdni głównej), refaktor
+     estakad (inbox `2026-11-09-pozostalosci-estakad.md`).
+   - Pomiar na Queście (`hwy_scenery`, PERF+), wgranie APK z użytkownikiem.
 00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
    2026-11-09)** - stan dochodzenia:
    - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -
@@ -1836,8 +1910,6 @@ Propozycje (do uzgodnienia):
 - Etap 5: przeciwnik AI (punkt wyjścia: autopilot z `drive_test`).
 - Wydajność na Queście: 4 sfery + `get_rest_info` × 240 Hz, liniowe
   `nearest_sample`. Zmierzyć na sprzęcie.
-- Przełączanie ABS i ESP w trakcie jazdy, jak TCS (wolny jest jeszcze
-  klik lewego drążka).
 
 ## 9. Otwarte pytania do użytkownika
 
@@ -1848,5 +1920,5 @@ Propozycje (do uzgodnienia):
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.
 - Czy ABS i ESP też przełączać w trakcie jazdy, i pod jakimi przyciskami?
-- Trasa generowana: skończona liczba odcinków czy bez końca? Trudność
-  zależna od mocy wybranego auta czy stała?
+- Trudność trasy zależna od mocy wybranego auta czy stała? (Trasa jest
+  bez końca - ustalone.)

@@ -32,7 +32,7 @@ class_name ScoreKeeper
 ## stłuczki" -> wybór "bez mandatu, punkty za wszystko") bez mandatu, a taki
 ## pościg płaci jak każdy inny. Wcześniej: mandat -100 i pościg bez punktów. "reinforce": posiłki.
 ## "overtake": furia po wyprzedzeniu. "self": bot sam zaczął (na przyszłość).
-const ORIGINS := ["player_hit", "reinforce", "overtake", "self"]
+const ORIGINS := ["player_hit", "reinforce", "overtake", "self", "horn"]   # horn: klakson gracza
 
 ## Punkty bazowe. Strojenie tylko tutaj (albo nadpisanie `base` w instancji).
 const BASE := {

@@ -157,17 +157,43 @@ static func _too_close(samples: Array, p: Vector3, clear: float) -> bool:
 
 ## Pierścień gór na horyzoncie (promień ~1,5-2,5 km). Jeden węzeł; scena
 ## jazdy przesuwa go za autem w poziomie, jak tło.
-static func horizon(rng: RandomNumberGenerator) -> MeshInstance3D:
+## Horyzont dla biomu (tryb Autostrada, etap 2). Domyślnie góry jak w wąwozie.
+##   mountains - wysokie, ze śniegiem; meadow/fields - niskie zielone wzgórza;
+##   desert - mesy z płaskim szczytem w kolorze piasku; canyon - rude skały;
+##   seaside - jak łąka, ale tylko po prawej (z lewej morze; trasa jedzie
+##   w -Z, więc lewa strona to -X).
+const HORIZON_STYLES := {
+	"mountains": {"h": Vector2(120, 420), "r": Vector2(250, 520), "snow": 300.0, "flat": false,
+			"c0": Color(0.38, 0.42, 0.38), "c1": Color(0.45, 0.43, 0.4)},
+	"meadow": {"h": Vector2(40, 130), "r": Vector2(400, 750), "snow": 9999.0, "flat": false,
+			"c0": Color(0.30, 0.40, 0.24), "c1": Color(0.38, 0.44, 0.28)},
+	"fields": {"h": Vector2(30, 100), "r": Vector2(450, 800), "snow": 9999.0, "flat": false,
+			"c0": Color(0.45, 0.45, 0.28), "c1": Color(0.36, 0.42, 0.25)},
+	"desert": {"h": Vector2(60, 180), "r": Vector2(250, 600), "snow": 9999.0, "flat": true,
+			"c0": Color(0.72, 0.55, 0.38), "c1": Color(0.80, 0.64, 0.45)},
+	"canyon": {"h": Vector2(150, 320), "r": Vector2(250, 520), "snow": 9999.0, "flat": true,
+			"c0": Color(0.55, 0.33, 0.22), "c1": Color(0.64, 0.42, 0.28)},
+	"seaside": {"h": Vector2(50, 160), "r": Vector2(350, 650), "snow": 9999.0, "flat": false,
+			"c0": Color(0.34, 0.42, 0.28), "c1": Color(0.44, 0.46, 0.34), "right_only": true},
+}
+
+
+static func horizon(rng: RandomNumberGenerator, style := "mountains") -> MeshInstance3D:
+	var cfg: Dictionary = HORIZON_STYLES.get(style, HORIZON_STYLES["mountains"])
+	var hr: Vector2 = cfg["h"]
+	var rr: Vector2 = cfg["r"]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n := 36
 	for i in range(n):
 		var a := TAU * i / n + rng.randf_range(-0.05, 0.05)
+		if cfg.get("right_only", false) and cos(a) < 0.15:
+			continue
 		var dist := rng.randf_range(1500.0, 2500.0)
-		var h := rng.randf_range(120.0, 420.0)
-		var r := rng.randf_range(250.0, 520.0)
+		var h := rng.randf_range(hr.x, hr.y)
+		var r := rng.randf_range(rr.x, rr.y)
 		var c := Vector3(cos(a) * dist, -10.0, sin(a) * dist)
-		var rock_c := Color(0.38, 0.42, 0.38).lerp(Color(0.45, 0.43, 0.4), rng.randf())
+		var rock_c: Color = (cfg["c0"] as Color).lerp(cfg["c1"], rng.randf())
 		var sides := 6
 		var rot := rng.randf() * TAU
 		var tip := c + Vector3(rng.randf_range(-40, 40), h, rng.randf_range(-40, 40))
@@ -176,13 +202,24 @@ static func horizon(rng: RandomNumberGenerator) -> MeshInstance3D:
 			var a1 := TAU * (k + 1) / sides + rot
 			var p0 := c + Vector3(cos(a0) * r, 0, sin(a0) * r)
 			var p1 := c + Vector3(cos(a1) * r, 0, sin(a1) * r)
-			# Śnieg na wysokich szczytach: górna część ściany jasna.
 			var mid0 := p0.lerp(tip, 0.72)
 			var mid1 := p1.lerp(tip, 0.72)
+			if cfg["flat"]:
+				# Mesa: strome ściany i płaski szczyt.
+				mid0 = Vector3(p0.x, 0.0, p0.z).lerp(Vector3(c.x, 0.0, c.z), 0.35) + Vector3.UP * (h - 10.0)
+				mid1 = Vector3(p1.x, 0.0, p1.z).lerp(Vector3(c.x, 0.0, c.z), 0.35) + Vector3.UP * (h - 10.0)
+				st.set_color(rock_c)
+				st.add_vertex(p0); st.add_vertex(mid0); st.add_vertex(mid1)
+				st.add_vertex(p0); st.add_vertex(mid1); st.add_vertex(p1)
+				st.set_color(rock_c.lightened(0.12))
+				var top := Vector3(c.x, h - 10.0, c.z)
+				st.add_vertex(mid0); st.add_vertex(top); st.add_vertex(mid1)
+				continue
+			# Śnieg na wysokich szczytach: górna część ściany jasna.
 			st.set_color(rock_c)
 			st.add_vertex(p0); st.add_vertex(mid0); st.add_vertex(mid1)
 			st.add_vertex(p0); st.add_vertex(mid1); st.add_vertex(p1)
-			st.set_color(Color(0.92, 0.93, 0.95) if h > 300.0 else rock_c.lightened(0.1))
+			st.set_color(Color(0.92, 0.93, 0.95) if h > float(cfg["snow"]) else rock_c.lightened(0.1))
 			st.add_vertex(mid0); st.add_vertex(tip); st.add_vertex(mid1)
 	st.generate_normals()
 	st.set_material(_vc_material())

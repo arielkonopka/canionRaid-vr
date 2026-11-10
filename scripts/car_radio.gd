@@ -188,6 +188,16 @@ func next_station(dir: int = 1) -> void:
 	_burst(true)
 
 
+## Wybór stacji offline (ustawienie "Stacja" z menu).
+func set_station(i: int) -> void:
+	_setup()
+	if catalog.station_count() == 0:
+		return
+	station = clampi(i, 0, catalog.station_count() - 1)
+	if is_on:
+		_burst(true)
+
+
 ## Następny utwór tej samej stacji, od początku.
 func skip() -> void:
 	if is_on and station_total() > 0:

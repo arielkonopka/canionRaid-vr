@@ -17,6 +17,18 @@ class_name HighwayScenery
 ## (StuntTrack._build_highway: przesunięcie o szerokość + HIGHWAY_MEDIAN).
 ## Moduł odizolowany: nic go jeszcze nie używa (wpina agent lokalny).
 
+## Palety ziemi biomów (ground.gdshader): trawa A, trawa B, ziemia/odmiana,
+## pasy pól. Używa xr_main (teren za autem) i StuntTrack (pobocza, pas
+## rozdziału - na pustyni nie zielona trawa, przegląd renderów).
+const BIOME_GROUND := {
+	"meadow": [Color(0.27, 0.40, 0.18), Color(0.42, 0.47, 0.22), Color(0.42, 0.36, 0.25), 0.0],
+	"fields": [Color(0.62, 0.54, 0.25), Color(0.40, 0.46, 0.20), Color(0.36, 0.28, 0.18), 1.0],
+	"desert": [Color(0.80, 0.68, 0.47), Color(0.72, 0.58, 0.38), Color(0.62, 0.48, 0.32), 0.0],
+	"mountains": [Color(0.30, 0.36, 0.24), Color(0.42, 0.42, 0.36), Color(0.48, 0.46, 0.42), 0.0],
+	"seaside": [Color(0.40, 0.48, 0.25), Color(0.62, 0.60, 0.42), Color(0.80, 0.74, 0.56), 0.0],
+	"canyon": [Color(0.55, 0.36, 0.22), Color(0.62, 0.44, 0.28), Color(0.46, 0.30, 0.20), 0.0],
+}
+
 const SIDEWALK := 3.5            # chodnik od krawędzi asfaltu [m]
 ## Utwardzony pas od krawędzi asfaltu do budynków (chodnik + cofnięcie +
 ## zapas) - jezdnia stoi 1 m nad terenem, bez tego między chodnikiem
@@ -214,7 +226,9 @@ static func _biome_props(samples: Array, plan: HighwayPlan, edges: Vector2, d0: 
 			continue
 		var bl := plan.biome_blend(d)
 		var biome: String = bl["b"] if rng.randf() < float(bl["t"]) else bl["a"]
-		for side in [-1, 1]:
+		# Nad morzem obiekty tylko po prawej - z lewej (za jezdnią
+		# z naprzeciwka) jest woda (xr_main._update_biome).
+		for side in ([1] if biome == "seaside" else [-1, 1]):
 			var edge := edges.y if side > 0 else -edges.x
 			for entry in BIOME_PROPS.get(biome, []):
 				if rng.randf() > float(entry[1]) * PROP_STEP / 6.0 * 0.5:
@@ -296,7 +310,9 @@ static func _sidewalks(samples: Array, a: float, b: float, edges: Vector2) -> No
 	root.name = "HwySidewalks"
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_color(Color(0.62, 0.61, 0.58))
+	st.set_smooth_group(0xFFFFFFFF)
+	# Szary beton jak bariera środkowa (był prawie biały, przegląd renderów).
+	st.set_color(Color(0.42, 0.42, 0.41))
 	var faces := PackedVector3Array()
 	var prev := {}
 	var d := a
@@ -346,7 +362,10 @@ static func _sidewalks(samples: Array, a: float, b: float, edges: Vector2) -> No
 ## Czworokąt a-b-c-d (dwa trójkąty); kolejność zależna od strony, żeby
 ## ściany patrzyły na zewnątrz (dla prawej strony jak w Scenery._cone).
 static func _quad(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3, d: Vector3, side: int) -> void:
-	var tri := [a, b, c, a, c, d] if side < 0 else [a, c, b, a, d, c]
+	# Odwrócone względem pierwszej wersji (jak w _box): Godot - przód zgodnie
+	# z ruchem wskazówek zegara; wcześniej wierzch chodnika był odrzucany,
+	# a widać było tylko ściany (ciemne kliny przy budynkach na renderach).
+	var tri := [a, c, b, a, d, c] if side < 0 else [a, b, c, a, c, d]
 	for v in tri:
 		st.add_vertex(v)
 		faces.append(v)
@@ -422,6 +441,11 @@ static func mesh(kind: String) -> Mesh:
 		_:
 			var st := SurfaceTool.new()
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			# Płaskie cieniowanie: bez tego generate_normals uśrednia normalne
+			# wierzchołków w tym samym miejscu - pudła wyglądały na zaokrąglone,
+			# a facade.gdshader (oś ściany z normalnej) dzielił okna po
+			# przekątnej (przegląd renderów 2026-11-10).
+			st.set_smooth_group(0xFFFFFFFF)
 			match kind:
 				"building":
 					_box(st, Vector3(0, 0.5, 0), Vector3(1, 1, 1), Color.WHITE)
@@ -475,16 +499,19 @@ static func _box(st: SurfaceTool, c: Vector3, s: Vector3, col: Color) -> void:
 		c + Vector3(-h.x, -h.y, -h.z), c + Vector3(h.x, -h.y, -h.z), c + Vector3(h.x, h.y, -h.z), c + Vector3(-h.x, h.y, -h.z),
 		c + Vector3(-h.x, -h.y, h.z), c + Vector3(h.x, -h.y, h.z), c + Vector3(h.x, h.y, h.z), c + Vector3(-h.x, h.y, h.z),
 	]
-	# Ściany (a, b, c, d): (b - a) × (c - a) wskazuje na zewnątrz - ta sama
-	# konwencja co Scenery._cone (sprawdzone na jej ścianach bocznych).
+	# Ściany (a, b, c, d) wypisane przeciwnie do ruchu wskazówek zegara
+	# patrząc z zewnątrz; Godot uznaje za przód trójkąty zgodne z ruchem
+	# wskazówek, więc wierzchołki idą w odwrotnej kolejności (a, c, b).
+	# Wcześniej (a, b, c): wszystkie ściany pudeł odrzucane jako tylne -
+	# budynki z renderów wyglądały jak otwarte "L" z ukośnymi daszkami.
 	var faces := [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]]
 	for f in faces:
 		var a: Vector3 = v[f[0]]
 		var b: Vector3 = v[f[1]]
 		var cc: Vector3 = v[f[2]]
 		var d: Vector3 = v[f[3]]
-		st.add_vertex(a); st.add_vertex(b); st.add_vertex(cc)
-		st.add_vertex(a); st.add_vertex(cc); st.add_vertex(d)
+		st.add_vertex(a); st.add_vertex(cc); st.add_vertex(b)
+		st.add_vertex(a); st.add_vertex(d); st.add_vertex(cc)
 
 
 ## Palma: lekko pochylony pień z kilku walców i 6 opadających liści.

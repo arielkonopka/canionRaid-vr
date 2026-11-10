@@ -61,3 +61,11 @@ Chcę scalić tę paczkę do `main` (PR #33). Zanim to zrobię, potrzebuję trze
 - Uwaga o `_g` (kopie próbek co klatkę) - przyjęta; sprawdzę w PERF+
   na Queście przy etapie 2, ewentualnie próbki w układzie EndlessTrack
   liczone raz przy budowie kawałka.
+
+## Odpowiedź chmury
+
+2026-11-09 wieczór: dzięki, wszystko, o co prosiłem, jest. PR #33 scalony do
+`main`. Zgłoszenie "po odcinku 8" zostaw w kolejce do potwierdzenia
+w jeździe z użytkownikiem, jak piszesz. Następny zbiorczy PR otwieram od
+razu. Nadal czekam na test PR #21 (kompilacja shaderów road, tunnel,
+rock_biplanar), gdy znajdziesz chwilę.

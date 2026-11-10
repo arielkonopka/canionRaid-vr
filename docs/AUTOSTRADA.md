@@ -1,6 +1,6 @@
 # Tryb "Autostrada" - specyfikacja
 
-Ostatnia aktualizacja: 2026-11-09. Autor: wątek w chmurze "Zaprojektuj tryb
+Ostatnia aktualizacja: 2026-11-10 (ruch na całej długości, pasy). Autor: wątek w chmurze "Zaprojektuj tryb
 Autostrada", na prośbę agenta lokalnego
 (`docs/agent/outbox/2026-11-09-niestabilnosc-i-autostrada.md`, prośby 2 i 3).
 Ustalenia użytkownika: `HANDOVER.md`, sekcja 2 ("TRYB AUTOSTRADA"). To jest
@@ -185,10 +185,15 @@ w kawałku, `visibility_range_end` 450-3000 m.
 - Koszt (szacunek): małe miasto ~120 budynków, duże ~1200 w 4-5 kawałkach;
   1 wywołanie rysowania na kawałek. Do zmierzenia `Perf.add("hwy_scenery")`
   i linii PERF+ na Queście.
+- Pasy: `HighwayGenerator.lane_center` (nasza jezdnia +0,75 / -3,0 m,
+  druga -15,0 / -11,25 m) - nie wzór (w - 1) / 3 z wąwozu (kładzie auta
+  na pasie awaryjnym).
 - Ruch (`TrafficZone.step`, co ~0,5 s): okno -300…+1500 m od gracza,
-  gęstość z planu na obie jezdnie, nowe auta 700-1500 m przed graczem,
+  gęstość z planu na obie jezdnie (miasto 3-5/km, poza nim 0,5-1/km),
+  nowe auta 700-1500 m przed graczem,
   najwyżej 1 nowe na jezdnię na wywołanie. Auto bez furii znika, gdy jest
-  niewidoczne i (poza oknem albo poza strefą 5 km). Widoczność zgrubna:
+  niewidoczne i poza oknem, albo jako nadmiar ponad gęstość (wyjazd ze
+  strefy miasta; najdalsze najpierw). Widoczność zgrubna:
   stożek 140° od głowy do 900 m + lusterka (stożek 50° do tyłu, 200 m) -
   lepiej nie usunąć niż usunąć na oczach.
 - Auta ruchu: na naszej jezdni BotDriver w trybie spokojnym (szyna daleko
@@ -229,11 +234,13 @@ w każdym mieście** (co 25 km). Bez tego gracz stanie po 12 km.
 Lista i skrypt: `docs/MEDIA_AUTOSTRADA.md`, `tools/fetch_highway_media.py`.
 Pobieranie dopiero po akceptacji listy przez użytkownika.
 
-## 11. Otwarte pytania do użytkownika
+## 11. Ustalenia z użytkownikiem (dawne pytania, 2026-11-09)
 
-1. Ruch: rozumiem "nie-szalone znikają do 5 km od miasta" jako: w promieniu
-   5 km gęstość jest utrzymywana, dalej auta bez furii rozpływają się, gdy
-   ich nie widać - między miastami pusta autostrada (sami furiaci). Dobrze?
-2. Stopniowanie ograniczeń przed miastem (140 → 70 → 50 → 30)?
-3. Stacja co ~10 km i warsztat w każdym mieście (paliwo na ~12 km)?
-4. Jezdnia na niskim nasypie 1 m (dziś na autostradzie w wąwozie 4 m)?
+1. Ruch: przy mieście (5 km) 3-5 aut/km, **między miastami rzadki ruch
+   0,5-1 auta/km** (`HighwayPlan.base_traffic`, rośnie z dystansem).
+2. Stopniowanie przed miastem 140 → 70 → 50 → 30 - tak.
+3. Stacje **co ~20 km** (paliwo ma być wyzwaniem), warsztat w każdym
+   mieście; bak w tym trybie ~100 km (agent lokalny).
+4. Nasyp 1 m - przyjęty.
+5. (Noc 2026-11-09/10) **Autostrada na całej trasie, ruch w obie strony,
+   furia także między botami** - plan: `docs/agent/inbox/2026-11-10-autostrada-cala-trasa.md`.
