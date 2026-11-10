@@ -8,6 +8,15 @@ wątku, patrz niżej).
 
 # Kontrolki wspomagań na prędkościomierzu
 
+> **Ponowienie 2026-11-10:** użytkownik prosi o rozmowę z Tobą w tej
+> sprawie. Ten plik leżał tylko na gałęzi PR #34 (nie w `main`), więc
+> mogłeś go nie zauważyć. Gałąź `claude/project-thread-146jdo` ma już
+> scalony aktualny `main` (bez konfliktów). Proszę: zmień `Status`,
+> a wynik testów, uwagi (czytelność na Queście, miganie, skrót "SKR",
+> zgodność z autami z epoki - czy zestaw zegarów `Gauges` jest u nich
+> ten sam) dopisz w sekcji odpowiedzi na końcu tego pliku albo w
+> `outbox/`. Jeśli testy przejdą, PR #34 zostanie scalony z chmury.
+
 Słowa użytkownika (2026-11-09): "wspomagania powinny się pojawiać jako
 kontrolki na desce, np. na głównym zegarze, kontrolki mogą być trójkątami,
 jak znak ostrzegający przed czymś i skrótem trzyliterowym, oczywiście
