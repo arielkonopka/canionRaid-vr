@@ -55,6 +55,10 @@ var odometer := 0.0                       # przejechana droga [m]
 var _history: Array[Vector2i] = []        # pary (a, b) poprzednich krawędzi, płasko
 var _built := {}                          # klucz -> {a, b, len (pełna = -1)}
 var _last_pos := Vector2.INF
+var _cur_s := 0.0                         # dystans wzdłuż bieżącej krawędzi (od a)
+var _back := 0.0                          # ile metrów z rzędu auto jedzie wstecz
+## Ile metrów jazdy wstecz po tej samej krawędzi oznacza zawrócenie.
+const TURN_BACK := 3.0
 
 
 func _init(p_seed := 0, p_bounds := Rect2i()) -> void:
@@ -251,6 +255,8 @@ func start(a: Vector2i, b: Vector2i) -> Dictionary:
 	current_b = b
 	_history.clear()
 	_last_pos = Vector2.INF
+	_cur_s = 0.0
+	_back = 0.0
 	return _sync()
 
 
@@ -270,7 +276,8 @@ func wanted() -> Dictionary:
 
 
 ## Wołane z położeniem auta w układzie miasta (np. 5-10 razy na sekundę).
-## Zwraca {"add": [{key, a, b, len}], "remove": [key], "switched": bool}.
+## Zwraca {"add": [{key, a, b, len}], "remove": [key], "switched": bool}
+## (switched: skręt w inną ulicę albo zawrócenie na tej samej).
 ## Zalążek, który staje się pełną krawędzią, jest w "remove" i w "add".
 func update(pos: Vector2) -> Dictionary:
 	if _last_pos != Vector2.INF:
@@ -279,7 +286,9 @@ func update(pos: Vector2) -> Dictionary:
 	# Najbliższa zbudowana krawędź; przy remisie zostaje bieżąca.
 	var cur_key := edge_key(current_a, current_b)
 	var best_key := cur_key
-	var best_d := project(edge_points(current_a, current_b), pos).x
+	var cur_pts := edge_points(current_a, current_b)
+	var cur_proj := project(cur_pts, pos)
+	var best_d := cur_proj.x
 	for key in _built:
 		if key == cur_key:
 			continue
@@ -313,6 +322,23 @@ func update(pos: Vector2) -> Dictionary:
 		current_a = from
 		current_b = to
 		switched = true
+		_cur_s = project(edge_points(current_a, current_b), pos).y
+		_back = 0.0
+	else:
+		# Zawrócenie na tej samej ulicy (zgłoszenie agenta lokalnego
+		# 2026-11-10): auto jedzie wstecz dłużej niż TURN_BACK - kierunek
+		# bieżącej krawędzi się odwraca (current_a = węzeł, od którego teraz
+		# odjeżdża).
+		var ds := cur_proj.y - _cur_s
+		_back = _back - ds if ds < 0.0 else 0.0
+		_cur_s = cur_proj.y
+		if _back > TURN_BACK:
+			var t := current_a
+			current_a = current_b
+			current_b = t
+			_cur_s = polyline_length(cur_pts) - _cur_s
+			_back = 0.0
+			switched = true
 	var diff := _sync()
 	diff["switched"] = switched
 	return diff

@@ -77,3 +77,14 @@ pomysłu: `2026-11-09-pozostalosci-estakad.md`, dopisek pkt 2.
    miasto płaskie na wysokości jezdni przy wjeździe, ulice bez garbów.
 6. Zrzut ekranu (`tests/screenshot.gd`) i pomiar na Queście
    (`Perf.add("city")`) przed pierwszą jazdą z użytkownikiem.
+
+## Poprawka (chmura, 2026-11-10, po zgłoszeniu w outbox/2026-11-10-noc-agent-lokalny.md)
+
+Zawrócenie na tej samej ulicy nie odwracało `current_a`/`current_b`
+(30 błędów w `city_graph_test`). Przyczyna: przełączenie brało tylko
+**inną** najbliższą krawędź, a przy zawrotce auto zostaje na tej samej.
+Python tego nie złapał, bo porównywał tylko klucz krawędzi bez kierunku -
+po dodaniu sprawdzenia kierunku symulator pokazuje te same 30 błędów.
+Teraz `update` śledzi dystans wzdłuż bieżącej krawędzi i po `TURN_BACK`
+(3 m) jazdy wstecz odwraca kierunek (`switched = true`). Symulator po
+poprawce: 4 ziarna OK. Proszę o ponowne uruchomienie `city_graph_test`.

@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import car_sim as cs
+import prepare_period_cars as ppc
 
 AIR_RHO = 1.225
 
@@ -59,6 +60,21 @@ STYLES = {
                    bot_weight=(5, 10)),
 }
 
+# Geometria z brył CC0 (tools/prepare_period_cars.py geom): rozstaw osi
+# i kół, promień koła, wymiary i prześwit wynikają z siatki przeskalowanej
+# do długości auta - fizyka liczona dla tego, co gracz widzi.
+# Oczy kierowcy: wysokość dachu - 0,24 m (sedan: 1,39 -> 1,15), w tył od osi
+# przedniej o eye_back x rozstaw osi (sedan 0,63; furgon - kabina nad osią).
+EYE_BACK = {"furgon": 0.45}
+_GEOM_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "period_cars_geometry.json")
+if os.path.exists(_GEOM_PATH):
+    with open(_GEOM_PATH) as _f:
+        for _n, _g in json.load(_f).items():
+            _st = STYLES[_n]
+            _w = min(_g["width"], _g["track"] + _g["wheel_width"] + 0.12)   # bez lusterek
+            _st.update(wb=_g["wb"], track=_g["track"], r=_g["r"], clear=_g["clear"],
+                       dims=(_g["length"], round(_w, 2), _g["height"]), source=_g["source"])
+
 SEDAN_INERTIA = (480.0, 1750.0, 1950.0)   # przechył, pochylenie, odchylenie
 SEDAN_DIMS = (4.56, 1.78, 1.39)
 
@@ -101,6 +117,15 @@ def to_sim(name, st, tune=None):
         d["inertia"] = SEDAN_INERTIA
         d["body_bottom"] = -0.40
     d.update({k: v for k, v in tune.items() if k in cs.SEDAN})
+    # Do eksportu brył i danych gry (Car ignoruje te klucze).
+    d["origin_h"] = origin_h
+    d["static_spring"] = origin_h - st["r"]
+    H = st["dims"][2]
+    eye_h = 1.10 if name == "kabriolet" else H - 0.24
+    d["seat"] = (-0.38 * st["dims"][1] / 1.78, eye_h - origin_h,
+                 -front_x + EYE_BACK.get(name, 0.63) * wb)
+    if name == "sedan":
+        d["seat"] = (-0.38, 0.45, 0.30)
     return d
 
 
@@ -217,6 +242,8 @@ def main():
                                              "roll_deg_per_g", "ssf")}, flush=True)
     for name, st, sim, t, rep in rows:
         tuned[name] = t
+        if name in ppc.SOURCES:
+            ppc.export(name, sim["front_x"], sim["static_spring"])
     with open(tuned_path, "w") as f:
         json.dump(tuned, f, indent=1, sort_keys=True)
     write_md(rows)
@@ -286,6 +313,9 @@ def write_gd(rows):
          "## Układ jak w StuntCar: przód = -Z, mocowania kół na y = 0, com_offset",
          "## względem punktu odniesienia. inertia = (X pochylenie, Y odchylenie, Z przechył).",
          "## Mnożniki zawieszenia działają na zestaw z SUSPENSION_PRESETS (już skalowany masą).",
+         "## model/wheel_model: bryły CC0 w układzie auta (tools/prepare_period_cars.py) -",
+         "## karoseria bez kół, koło ze środkiem w zerze i zewnętrzną stroną na +X jak koło sedana.",
+         "## seat: oczy kierowcy (jak StuntCar.seat).",
          "", "const STYLES := {"]
     for name, st, sim, t, rep in rows:
         fx = sim["front_x"]
@@ -306,6 +336,11 @@ def write_gd(rows):
         L.append(f'\t\t"arb_front_mult": {t.get("arb_front_mult", 1.0)}, "arb_rear_mult": {t.get("arb_rear_mult", 1.0)},')
         L.append(f'\t\t"spring_mult": {t.get("spring_mult", 1.0)}, "damper_mult": {t.get("damper_mult", 1.0)},')
         L.append(f'\t\t"brake_front": {float(sim.get("brake_front", 1900.0))}, "brake_rear": {float(sim.get("brake_rear", 1050.0))},')
+        if name in ppc.SOURCES:
+            L.append(f'\t\t"model": "res://models/period_cars/{name}/body.obj",')
+            L.append(f'\t\t"wheel_model": "res://models/period_cars/{name}/wheel.obj",')
+            L.append(f'\t\t"source": "{st["source"]}",')
+        L.append(f'\t\t"seat": Vector3({sim["seat"][0]:.3f}, {sim["seat"][1]:.3f}, {sim["seat"][2]:.3f}),')
         L.append(f'\t\t"bot_weight": [{st["bot_weight"][0]}, {st["bot_weight"][1]}],   # wąwóz, autostrada')
         L.append("\t},")
     L.append("}")
