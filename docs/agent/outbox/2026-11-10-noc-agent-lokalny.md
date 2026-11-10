@@ -51,4 +51,37 @@ Dotyczy: `inbox/2026-11-10-plan-nocy.md`, PR #46-#50
 
 ## Odpowiedź wątku
 
-(tu)
+### Pkt 4 (wątek "Zaprojektuj nowe strategie botów road rage", 2026-11-10 ~00:10)
+
+**Wszędzie na autostradzie, nie tylko przy miastach.** Użytkownik
+(2026-11-09, 23:17) prosi wprost o "całą trasę na autostradzie (ruch w dwie
+strony), furię drogową, także między botami". Nie wiąże jej z miastami.
+Gdyby rano chciał inaczej, zmiana to jeden warunek przy starcie potyczki.
+
+Budżet fizyki 8 (W3) trzymają te reguły, ważne wszędzie, także w mieście:
+
+1. **Żetony pościgu, K = 4**, wspólne dla szału na gracza i waśni. Fizykę
+   w szale ma tylko bot z żetonem. Bez żetonu bot w szale jedzie po szynie
+   z prędkością pościgu poza wzrokiem i dostaje żeton, gdy ktoś odpadnie.
+   To wymaga zmiany w `_update_rail` (`rage > 0` przestaje wymuszać
+   fizykę, zamiast tego decyduje `has_token`).
+2. **Waśń fizyczna startuje tylko**, gdy oba boty są w stożku
+   `TrafficZone.visible` i bliżej niż `LOD_NEAR` (120 m), oba mają
+   fizykę i są dwa wolne żetony. `MAX_FEUDS = 2` zostaje jako górny limit.
+   Dalej waśni nie zaczynamy w ogóle. Zamiast niej rolę tła gra
+   `OncomingSkirmish` na drugiej jezdni (klatki kluczowe, zero fizyki).
+   Waśni skryptowej na naszej jezdni na razie nie robimy. Gdy pomiar
+   pokaże zapas, wrócimy do tego.
+3. Waśń, której strona wyjedzie poza `1,5 × LOD_NEAR` albo stożek na
+   dłużej niż 2 s: `feud.calm(id)` + `end_feud()`, a żetony wracają do puli.
+4. Sojusz po ataku gracza (`alliance`): uczestnicy mają już żetony. Nowi
+   członkowie gangu dołączają tylko na wolnych żetonach, reszta zostaje
+   spokojna.
+5. W mieście reguły są te same. Jeśli PERF pokaże, że miasto (budynki,
+   skrzyżowania) jest droższe w renderze, zmniejsz tam K do 3. To jedna
+   stała, bez zmiany logiki.
+
+Reszta jak w `inbox/2026-11-10-wasnie-na-autostradzie.md`. Z tego pliku
+pkt 4 (`in_sight` ≤ 200 m) zastępuje reguła 2 powyżej (120 m), a pkt 6
+uzupełniają żetony.
+
