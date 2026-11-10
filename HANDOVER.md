@@ -611,6 +611,13 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
+- **Test z autem gracza "pchanym" prędkością wypada z drogi na łukach**
+  (odrodzenie kasuje scenki, boty zostają daleko) → prowadź auto po
+  trasie: kierunek z `track.transform_at_distance(_last_safe_dist + 2)`,
+  prędkość z korektą do pasa. **Nie teleportuj** auta co klatkę: bez
+  kontaktu kół `_last_safe_dist` stoi w miejscu (objaw: boty "uciekają",
+  potyczki nie startują). Boty na autostradzie przyspieszają do limitu
+  140 km/h - test waśni trzyma się ~70 m za najbliższym (`feud_play_test`).
 - **Headless nie kompiluje shaderów** → błąd w `.gdshader` nie wychodzi
   w testach `--headless`. Sprawdzenie: krótki skrypt w oknie
   (`--xr-mode off --resolution 640x360`), który rysuje BoxMesh

@@ -41,9 +41,12 @@ func _physics_process(delta: float) -> bool:
 	t += delta
 	# Auto prowadzone po trasie (prosto pchane wypadało na łukach z drogi,
 	# a odrodzenie kasuje scenkę).
-	var cxf: Transform3D = main.track.transform_at_distance(main._last_safe_dist + 28.0 * delta)
-	main.car.global_transform = Transform3D(cxf.basis, cxf.origin + cxf.basis.x * main.hwy_lane_off(0) + cxf.basis.y * 0.8)
-	main.car.linear_velocity = -cxf.basis.z * 28.0
+	# Jedzie fizycznie (kontakt z jezdnią - gra liczy dystans gracza), test
+	# ustawia tylko kierunek wzdłuż trasy i prędkość z korektą do pasa.
+	var cxf: Transform3D = main.track.transform_at_distance(main._last_safe_dist + 2.0)
+	var off: float = (main.car.global_position - cxf.origin).dot(cxf.basis.x) - main.hwy_lane_off(0)
+	main.car.global_basis = cxf.basis
+	main.car.linear_velocity = -cxf.basis.z * 28.0 - cxf.basis.x * off * 2.0 + cxf.basis.y * minf(main.car.linear_velocity.dot(cxf.basis.y), 0.0)
 	main.car.angular_velocity = Vector3.ZERO
 	if main._osk != null:
 		if not seen:
