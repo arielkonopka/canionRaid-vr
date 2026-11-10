@@ -1899,6 +1899,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   inteligentnie, zsynchronizowane z ESP"): `_regen_wheel` - ESP zdejmuje
   odzysk tylko z tylnych kół, ABS według poślizgu każdego koła; przednie
   dalej hamują i ładują baterię.
+  **"Kontrola trakcji przy rekuperacji pozostawia wiele do życzenia"**
+  (jazda po tym): log - 213 km/h na prostej, gaz puszczony, koła 89-93%
+  poślizgu, skoki 3-6 g. Na równej drodze odzysk gładki (0,3 g, poślizg
+  10%); przyczyna - garby: ABS odzysku sprawdzał tylko koła z kontaktem,
+  koło odciążone/w powietrzu silnik zatrzymywał, po lądowaniu blokada.
+  `_regen_abs`: jak prawdziwy ABS - obroty koła a prędkość auta (od 4%
+  poślizgu wzdłużnego odzysk maleje, 12% = zero), też w powietrzu. Test
+  na garbach 0,35 m przy 213 km/h: poślizg 100% -> 12%, skok przy
+  lądowaniu 29 g -> 19 g (sam garb). Łuk: 9°, prosta 0,30 g. Pełny
+  `quest.sh test` OK.
 - **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
   `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
   włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr

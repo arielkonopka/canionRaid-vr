@@ -1185,13 +1185,23 @@ func _regen_factor() -> float:
 	if esp_enabled:
 		k = _esp_factor
 	if abs_enabled:
-		var sl := 0.0
 		for w in wheels:
-			if w.contact and _is_driven(w):
-				sl = maxf(sl, w.slip)
-		# Zapas jak w ABS: od 60% szczytu krzywej odzysk maleje do zera przy szczycie.
-		k = minf(k, clampf((1.0 - sl) / 0.4, 0.0, 1.0))
+			if _is_driven(w):
+				k = minf(k, _regen_abs(w))
 	return k
+
+
+## ABS dla odzysku: jak prawdziwy ABS porównuje obroty koła z prędkością auta
+## (nie kontakt z jezdnią - koło odciążone na garbie albo w powietrzu
+## hamowane silnikiem stawało, a po lądowaniu zablokowane szarpało autem;
+## jazda 2026-11-10, 213 km/h: poślizg 90%, skoki 3 g). Od 4% poślizgu
+## wzdłużnego odzysk maleje, przy 12% - zero.
+func _regen_abs(w: Wheel) -> float:
+	var v := absf(speed)
+	if v < 3.0:
+		return 1.0
+	var lock := 1.0 - absf(w.omega) * wheel_radius / v
+	return clampf(1.0 - (lock - 0.04) / 0.08, 0.0, 1.0)
 
 
 ## Odzysk na jednym kole (silniki w kołach, użytkownik 2026-11-10:
@@ -1202,8 +1212,8 @@ func _regen_wheel(w: Wheel) -> float:
 	var k := 1.0
 	if esp_enabled and not w.front:
 		k = _esp_factor
-	if abs_enabled and w.contact:
-		k = minf(k, clampf((1.0 - w.slip) / 0.4, 0.0, 1.0))
+	if abs_enabled:
+		k = minf(k, _regen_abs(w))
 	return k
 
 
