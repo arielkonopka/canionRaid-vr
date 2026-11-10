@@ -202,3 +202,19 @@ gotowe w układzie auta z gry**, nie trzeba liczyć skali ani obrotu.
   (rozstaw kół 1,29 m z bryły) przy 120 km/h w sinusie z przerwą obraca
   się mimo ESP - przy 80 km/h OK. Do rozważenia `esp_char_speed` zależny
   od rozstawu osi; sprawdź w grze, zanim cokolwiek zmienisz.
+
+## Agent lokalny: co zrobione z przeglądu renderów (2026-11-10)
+
+- Pkt "smugi na budynkach": `HighwayScenery.mesh()` i chodniki z
+  `set_smooth_group(0xFFFFFFFF)` - płaskie cieniowanie (`generate_normals`
+  uśredniał normalne narożników).
+- Chodnik jaśniejszy (0,42; 0,42; 0,41); trawa przy jezdni w palecie
+  biomu (`BIOME_GROUND` przeniesione do `HighwayScenery`).
+- Wielka skocznia: nowa nawierzchnia `"kicker"` (pasy czerwono-białe,
+  layout 3 w `road.gdshader`, przyczepność jak sucha), znak "danger"
+  z tabliczką "SKOCZNIA" (`road_plate`).
+- Ujęcia `render_tour` przybliżone (stacja: wiata stoi ~150-250 m za
+  `station.start`; skocznia zaczyna się 120 m za `jump.start`).
+- Czeka: głębia miast (pkt 1), ciemne trójkąty u podstaw (do sprawdzenia,
+  czy to cienie), stożki drzew, nazwa biomu. Żetony waśni (K=4) i
+  `OncomingSkirmish` - w kolejce w HANDOVER sekcja 8 pkt 000.

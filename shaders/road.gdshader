@@ -14,7 +14,8 @@ uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 uniform float ice : hint_range(0.0, 1.0) = 0.0;
 // Układ pasów: 0 = wąwóz (3 pasy, krawężniki), 1 = autostrada 2+2, nasza
 // jezdnia (opaska 0,75 m z lewej, pas awaryjny 3 m z prawej, bez
-// krawężników), 2 = autostrada, jezdnia z naprzeciwka (lustrzanie).
+// krawężników), 2 = autostrada, jezdnia z naprzeciwka (lustrzanie),
+// 3 = rozbieg i stół wielkiej skoczni (pasy poprzeczne).
 uniform int layout = 0;
 
 varying vec3 wpos;
@@ -46,7 +47,7 @@ void fragment() {
 	float paint = 0.0;
 	float curb = 0.0;
 	float stripe = 0.0;
-	if (layout > 0) {
+	if (layout == 1 || layout == 2) {
 		// Autostrada (HighwayGenerator: LANE_W 3,75, SHOULDER_L 0,75,
 		// SHOULDER_R 3,0). uu od lewej krawędzi (od pasa rozdziału).
 		float uu = (layout == 2 ? -u : u) + hw;
@@ -60,6 +61,11 @@ void fragment() {
 		float edge_r = step(w - 3.0, uu) * step(uu, w - 2.85);
 		float div = step(abs(uu - 4.5), 0.075) * step(mod(v, 12.0), 6.0);
 		paint = max(max(edge_l, edge_r), div) * (0.85 + 0.15 * grain);
+	} else if (layout == 3) {
+		// Wielka skocznia: biało-czerwone pasy poprzeczne co 2 m na całej
+		// szerokości - widoczna z daleka.
+		curb = 0.85;
+		stripe = step(mod(v, 4.0), 2.0);
 	} else {
 		// Koleiny: ciemniejsze pasy w środku każdego pasa ruchu.
 		float lane_w = (w - 1.0) / 3.0;

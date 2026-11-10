@@ -44,17 +44,17 @@ func _initialize() -> void:
 		["miasto_duze_centrum", b0 + 1800.0, b0 + 2400.0, 0.75, 1.4, b0 + 2650.0, 0.0, 6.0],
 		["miasto_duze_z_gory", b0 + 1800.0, b0 + 2200.0, 120.0, 160.0, b0 + 2900.0, 0.0, 0.0],
 		["miasto_duze_detal", b0 + 1800.0, b0 + 2400.0, 28.0, 30.0, b0 + 2440.0, 8.0, 0.0],
-		["warsztat_w_miescie", s0 - 700.0, s0 + 230.0, 0.75, 1.6, s0 + 420.0, 12.0, 1.5],
+		["warsztat_w_miescie", s0 - 700.0, s0 + 300.0 - 70.0, 0.75, 1.6, s0 + 300.0 + 60.0, 9.0, 1.5],
 	]
 	var st: Array = plan.stations_between(0.0, 60000.0)
 	if not st.is_empty():
 		var a: float = st[0]["start"]
-		shots.append(["stacja_paliw", a - 600.0, a - 70.0, 0.75, 1.6, a + 60.0, 10.0, 1.5])
+		shots.append(["stacja_paliw", a - 600.0, a + 90.0, 0.75, 1.6, a + 170.0, 12.0, 2.5])
 	var jumps: Array = plan.jumps_between(0.0, 200000.0)
 	if not jumps.is_empty():
 		var j: float = jumps[0]["start"]
-		shots.append(["wielka_skocznia_bok", j - 400.0, j + 230.0, 70.0, 12.0, j + 230.0, 0.0, 2.0])
-		shots.append(["wielka_skocznia_wjazd", j - 400.0, j + 40.0, 0.75, 1.4, j + 260.0, 0.0, 3.0])
+		shots.append(["wielka_skocznia_bok", j - 400.0, j + 220.0, 35.0, 2.5, j + 220.0, 0.0, 2.0])
+		shots.append(["wielka_skocznia_wjazd", j - 400.0, j + 60.0, 0.75, 1.4, j + 260.0, 0.0, 3.0])
 	_next()
 
 

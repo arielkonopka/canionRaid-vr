@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-09, sesja 6 (wieczór: wielka skocznia, Autostrada etap 1, rekuperacja, nowe boty, tekstury poza repo)
+Ostatnia aktualizacja: 2026-11-10, sesja 7 (noc: Autostrada domyślna, biomy, ruch, waśnie botów, pula botów, przegląd renderów)
 
 ---
 
@@ -408,8 +408,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - geometria: osobna siatka i kolizja dla B, tunel wokół obu, ściany
     rozdzielające.
 - **STAN NAJNOWSZYCH USTALEŃ (zrobione i wgrane 2026-11-07):**
-  - Wąwóz z łupku jest domyślną trasą ("Wąwóz"); estakady (dawny tor na
-    filarach) i trasa pokazowa zostały jako opcje.
+  - **Domyślna trasa: Autostrada** (użytkownik do chmury 2026-11-09:
+    "cała trasa jest na autostradzie"; `SETTINGS_VERSION` 9 jednorazowo
+    przestawia zapisany "canyon" na "autostrada"). Wąwóz z łupku,
+    estakady i trasa pokazowa zostały jako opcje.
   - **Życia = auta** (ustalenie późniejsze niż "bez dźwigów"): życie
     traci się, gdy auto **skończy na dachu** (nie da się jechać), gdy jest
     **rozbite (uszkodzenia 100%)** albo (estakady) spadnie. **Każda utrata
@@ -472,9 +474,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   samochodu"): `WorkshopShop` (cennik chmury) podłączony - naprawy
   strefami (silnik, skrzynia, karoseria, hamulce, zawieszenie), pełna
   naprawa z rabatem, zapasowe auto, większy bak; wymiana silnika
-  300 pkt x próg; menu otwarte do "Wyjazd". Ceny stref x
-  `WorkshopShop.car_multipliers` (moc, masa, elektryk: drogi silnik,
-  tania skrzynia, silniki w kołach drożej; diesel: droższa skrzynia).
+  300 pkt x próg (z odliczeniem za stary silnik); menu otwarte do
+  "Wyjazd". Cennik z chmury: `WorkshopShop.car_spec` (typ auta: napęd,
+  rodzaj silnika, masa, moc) x `zone_factor`, na stacji narzut x1,25.
+  Nie przywracać lokalnego `car_multipliers` (zastąpiony).
   **Naprawy także na stacjach** (postój < 3 km/h na pasie stacji, sam
   serwis bez silnika). Bez dźwigu w menu. Test: `shop_test`.
 - **Klakson** (użytkownik 2026-11-09): klik lewego drążka (H na
@@ -520,7 +523,7 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
-- **TRYB AUTOSTRADA (ustalony 2026-11-09, do zrobienia - sekcja 8)**:
+- **TRYB AUTOSTRADA (ustalony 2026-11-09, etapy 1-3 zrobione, domyślna trasa - sekcja 8)**:
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
     jezdnie za barierą, na drugiej ruch z naprzeciwka.
@@ -1681,6 +1684,34 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   topspeed (poza zestawem), regen, highway_plan/gen, world_origin,
   bot_drive, feud, endless autostrada).
 
+### 2026-11-10, sesja 7 (noc, użytkownik śpi, praca z chmurą)
+
+- **Autostrada etap 2-3**: biomy (paleta terenu `HighwayScenery.
+  BIOME_GROUND` w shaderze `ground` i w trawie przy jezdni per kawałek,
+  horyzont wg biomu, morze), ruch na obu jezdniach (`TrafficZone`,
+  pojawianie/znikanie poza wzrokiem), miasto jako ulica (bez barier
+  i nasypu, chodniki, oznakowanie autostrady). Autostrada domyślna.
+- **Pula botów** (`BOT_POOL_WARM` 6): pojawienie się bota bez ~170 ms
+  przycięcia. **Budowa kawałka trasy w 3 klatkach** (`await _slice()`):
+  szczyt 22 -> 4,3 ms.
+- **Waśnie botów wpięte** (`FeudDirector`): 3 gangi z kolorem, potyczki
+  tylko w zasięgu wzroku, najwyżej 2 naraz, uderzenie gracza w bota
+  z potyczki = sojusz przeciw graczowi. Test `feud_play_test`.
+- **Przegląd renderów chmury** (outbox `2026-11-10-noc-agent-lokalny.md`):
+  - zabudowa `HighwayScenery` płasko cieniowana
+    (`set_smooth_group(0xFFFFFFFF)` - bez tego `generate_normals`
+    uśredniał normalne narożników budynków i ściany były w smugach);
+  - chodnik jaśniejszy (0,42), trawa przy jezdni w kolorze biomu;
+  - **nawierzchnia "kicker"** na wielkiej skoczni (pasy czerwono-białe,
+    layout 3 w `road.gdshader`), znak "danger" z tabliczką "SKOCZNIA"
+    (`road_plate`); opony traktują nieznaną nawierzchnię jak suchą;
+  - ujęcia w `render_tour.gd` przybliżone. Uwaga: wiata stacji stoi
+    ~150-250 m za `station.start` z planu (40 m dobiegu + pas), skocznia
+    zaczyna się 120 m za `jump.start` - ujęcia są ustawione pod to.
+- Testy: pełny `./quest.sh test` OK (2026-11-10, po przeglądzie
+  renderów; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
+  3 odrodzenia - autopilot nie omija botów).
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -1709,10 +1740,25 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    z botami, autopilot ich nie omija). Autopilot testu: wzmocnienie
    kierownicy maleje z prędkością (przy 220 km/h stałe rozbujało go) i
    w trybie Autostrada trzyma ograniczenia.
-   Dalej: etap 2 (biomy: teren w shaderze, horyzont, `world_wrap`
-   w shaderach - jezdnia ma dystans w UV.y jako float32!), etap 3
-   (ruch `TrafficZone`, auta z epoki), etap 4 (objazdy). Pomiar na
-   Queście (`hwy_scenery`, PERF+) przed paczkami modeli.
+   **Etapy 2-3 zrobione (2026-11-10)**: biomy, horyzont, morze,
+   `world_origin_wrap` w shaderach, ruch na obu jezdniach, waśnie.
+   Dalej (kolejność proponowana):
+   - **Żetony waśni** (odpowiedź chmury: K=4 żetony pościgu, potyczka
+     fizyczna tylko w `LOD_NEAR` 120 m i w stożku widzenia, koniec po
+     2 s poza wzrokiem, szał bez żetonu jedzie po szynie) - nie zrobione.
+   - **`OncomingSkirmish`** (moduł chmury, niewpięty): jedna scena naraz,
+     co 1,2-2,5 km, kolory gangów.
+   - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
+     parametry policzone przez chmurę - outbox
+     `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.
+   - **Głębia miast** (przegląd renderów pkt 1): tylne rzędy, miejski
+     grunt, przecznice; potem `CityGraph` etap 5 (inbox
+     `miasta-leniwy-graf`).
+   - Z przeglądu renderów: ciemne trójkąty u podstaw budynków (cień?),
+     oświetlenie stożków drzew (`Scenery._cone`), nazwa biomu "wąwóz".
+   - Etap 4 (objazdy zamiast skoczni na jezdni głównej), refaktor
+     estakad (inbox `2026-11-09-pozostalosci-estakad.md`).
+   - Pomiar na Queście (`hwy_scenery`, PERF+), wgranie APK z użytkownikiem.
 00. **"Dziwne wypadki" i "auto wolno się rozpędza" (użytkownik
    2026-11-09)** - stan dochodzenia:
    - Log z gogli (linia "PERF tempo gry", co 5 s): **tempo 95-100%** -
@@ -1874,5 +1920,5 @@ Propozycje (do uzgodnienia):
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.
 - Czy ABS i ESP też przełączać w trakcie jazdy, i pod jakimi przyciskami?
-- Trasa generowana: skończona liczba odcinków czy bez końca? Trudność
-  zależna od mocy wybranego auta czy stała?
+- Trudność trasy zależna od mocy wybranego auta czy stała? (Trasa jest
+  bez końca - ustalone.)

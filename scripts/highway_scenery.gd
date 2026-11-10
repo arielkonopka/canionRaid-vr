@@ -17,6 +17,18 @@ class_name HighwayScenery
 ## (StuntTrack._build_highway: przesunięcie o szerokość + HIGHWAY_MEDIAN).
 ## Moduł odizolowany: nic go jeszcze nie używa (wpina agent lokalny).
 
+## Palety ziemi biomów (ground.gdshader): trawa A, trawa B, ziemia/odmiana,
+## pasy pól. Używa xr_main (teren za autem) i StuntTrack (pobocza, pas
+## rozdziału - na pustyni nie zielona trawa, przegląd renderów).
+const BIOME_GROUND := {
+	"meadow": [Color(0.27, 0.40, 0.18), Color(0.42, 0.47, 0.22), Color(0.42, 0.36, 0.25), 0.0],
+	"fields": [Color(0.62, 0.54, 0.25), Color(0.40, 0.46, 0.20), Color(0.36, 0.28, 0.18), 1.0],
+	"desert": [Color(0.80, 0.68, 0.47), Color(0.72, 0.58, 0.38), Color(0.62, 0.48, 0.32), 0.0],
+	"mountains": [Color(0.30, 0.36, 0.24), Color(0.42, 0.42, 0.36), Color(0.48, 0.46, 0.42), 0.0],
+	"seaside": [Color(0.40, 0.48, 0.25), Color(0.62, 0.60, 0.42), Color(0.80, 0.74, 0.56), 0.0],
+	"canyon": [Color(0.55, 0.36, 0.22), Color(0.62, 0.44, 0.28), Color(0.46, 0.30, 0.20), 0.0],
+}
+
 const SIDEWALK := 3.5            # chodnik od krawędzi asfaltu [m]
 ## Utwardzony pas od krawędzi asfaltu do budynków (chodnik + cofnięcie +
 ## zapas) - jezdnia stoi 1 m nad terenem, bez tego między chodnikiem
@@ -298,7 +310,9 @@ static func _sidewalks(samples: Array, a: float, b: float, edges: Vector2) -> No
 	root.name = "HwySidewalks"
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_color(Color(0.62, 0.61, 0.58))
+	st.set_smooth_group(0xFFFFFFFF)
+	# Szary beton jak bariera środkowa (był prawie biały, przegląd renderów).
+	st.set_color(Color(0.42, 0.42, 0.41))
 	var faces := PackedVector3Array()
 	var prev := {}
 	var d := a
@@ -427,6 +441,11 @@ static func mesh(kind: String) -> Mesh:
 		_:
 			var st := SurfaceTool.new()
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			# Płaskie cieniowanie: bez tego generate_normals uśrednia normalne
+			# wierzchołków w tym samym miejscu - pudła wyglądały na zaokrąglone,
+			# a facade.gdshader (oś ściany z normalnej) dzielił okna po
+			# przekątnej (przegląd renderów 2026-11-10).
+			st.set_smooth_group(0xFFFFFFFF)
 			match kind:
 				"building":
 					_box(st, Vector3(0, 0.5, 0), Vector3(1, 1, 1), Color.WHITE)

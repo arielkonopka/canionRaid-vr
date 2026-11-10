@@ -917,7 +917,9 @@ func _probe_wheel(space: PhysicsDirectSpaceState3D, xf: Transform3D, w: Wheel) -
 		if obj:
 			w.grip = obj.get_meta("grip", 1.0)
 			w.surface = obj.get_meta("surface", "dry")
-		w.grip *= TIRE_COMPOUNDS[tires].get(w.surface, 1.0)
+		# Nawierzchnie bez własnej mieszanki (np. "kicker" - pasy na skoczni)
+		# jak sucha.
+		w.grip *= TIRE_COMPOUNDS[tires].get(w.surface, TIRE_COMPOUNDS[tires].get("dry", 1.0))
 		# Ułamek z cast_motion ma ograniczoną dokładność (rzędu centymetra),
 		# a tłumik różniczkuje ugięcie przy 240 Hz: 1 cm szumu = kilka kN
 		# fałszywej siły i koło co kilka kroków traci docisk. Dlatego ugięcie
@@ -957,7 +959,9 @@ func _probe_wheel_ray(space: PhysicsDirectSpaceState3D, xf: Transform3D, w: Whee
 	var obj: Object = hit["collider"]
 	w.grip = obj.get_meta("grip", 1.0) if obj else 1.0
 	w.surface = obj.get_meta("surface", "dry") if obj else "dry"
-	w.grip *= TIRE_COMPOUNDS[tires].get(w.surface, 1.0)
+	# Nawierzchnie bez własnej mieszanki (np. "kicker" - pasy na skoczni)
+	# jak sucha.
+	w.grip *= TIRE_COMPOUNDS[tires].get(w.surface, TIRE_COMPOUNDS[tires].get("dry", 1.0))
 	var un := up.dot(w.normal)
 	var s := rest_length
 	if un > 0.2:

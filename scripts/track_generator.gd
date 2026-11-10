@@ -657,14 +657,15 @@ static func _big_jump(out: Array, state: Dictionary, meta := {}) -> void:
 	var l_in := ceilf(BIG_JUMP_VMAX * BIG_JUMP_VMAX * th / G)
 	var base_y: float = (state["pos"] as Vector3).y
 	var m := {"sign": "SKOCZNIA DO 400 km/h", "v_sign": 0.0,
-			"jump_kind": "WIELKA SKOCZNIA", "big_jump": true}
+			"jump_kind": "WIELKA SKOCZNIA", "big_jump": true,
+			"road_sign": "danger", "road_plate": "SKOCZNIA"}
 	m.merge(meta)
-	_push(out, state, {"len": 120.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0, "surface": "dry",
+	_push(out, state, {"len": 120.0, "pitch": 0.0, "bank": 0.0, "curve": 0.0, "surface": "kicker",
 			"limit": LIMIT_HIGHWAY, "meta": m})
-	_push(out, state, {"len": l_in, "pitch": BIG_JUMP_DEG, "surface": "dry"})
+	_push(out, state, {"len": l_in, "pitch": BIG_JUMP_DEG, "surface": "kicker"})
 	# Krótki grzbiet: za nim tor lotu odrywa się od jezdni (v² > g·L/θ).
-	_push(out, state, {"len": 4.0, "pitch": 0.0, "surface": "dry"})
-	_push(out, state, {"len": BIG_JUMP_TABLE, "pitch": 0.0, "surface": "dry"})
+	_push(out, state, {"len": 4.0, "pitch": 0.0, "surface": "kicker"})
+	_push(out, state, {"len": BIG_JUMP_TABLE, "pitch": 0.0, "surface": "kicker"})
 	# Łagodny zjazd ze stołu do wysokości sprzed skoczni (bez drugiego
 	# wybicia przy 400 km/h): dwa odcinki po 90 m, nachylenie narasta
 	# i maleje liniowo, spadek ≈ 90 m · p.

@@ -38,6 +38,10 @@ const SURFACES := {
 	"dry": {"label": "sucha", "grip": 1.0},
 	"wet": {"label": "mokra", "grip": 0.7},
 	"ice": {"label": "lód", "grip": 0.12},
+	# Rozbieg i stół wielkiej skoczni: jak sucha, ale w biało-czerwone pasy
+	# poprzeczne (road.gdshader layout 3) - widoczna z daleka przy 400 km/h
+	# (przegląd renderów 2026-11-10: "wygląda jak zwykła droga").
+	"kicker": {"label": "skocznia", "grip": 1.0},
 }
 
 const DEFAULT_TRACK: Array[Dictionary] = [
@@ -258,7 +262,7 @@ func build() -> void:
 		# Znak drogowy z generatora (autostrada / koniec) - "sign" to już
 		# napis z prędkością przed skocznią (inne znaczenie).
 		if meta.has("road_sign"):
-			_road_sign(float(smp["dist"]) + 8.0, meta["road_sign"])
+			_road_sign(float(smp["dist"]) + 8.0, meta["road_sign"], 0, str(meta.get("road_plate", "")))
 		if meta.get("overpass", false):
 			_build_overpass(float(smp["dist"]) + 50.0)
 	# Ograniczenia prędkości: B-33 przy każdym nowym ograniczeniu, B-34
@@ -267,7 +271,7 @@ func build() -> void:
 	var prev_surf := "dry"
 	for smp in _samples:
 		var sf: String = smp["surface"]
-		if sf != "dry" and prev_surf == "dry":
+		if sf != "dry" and sf != "kicker" and prev_surf == "dry":
 			_road_sign(maxf(float(smp["dist"]) - 30.0, float(_samples[0]["dist"]) + 1.0), "slippery")
 		prev_surf = sf
 	# Kontynuacja: ograniczenie z końca poprzedniego kawałka (bez zbędnego
@@ -297,7 +301,7 @@ func _build_road_collision(road_faces: Dictionary) -> void:
 			continue
 		var body := StaticBody3D.new()
 		# Nazwa "TrackBody" dla suchej zostaje dla zgodności z testami.
-		body.name = "TrackBody" if surf == "dry" else "TrackBody_" + surf
+		body.name = "TrackBody" if surf == "dry" or surf == "kicker" else "TrackBody_" + surf
 		body.set_meta("surface", surf)
 		body.set_meta("grip", SURFACES[surf]["grip"])
 		var shape := ConcavePolygonShape3D.new()
@@ -601,12 +605,13 @@ func _surface_material(surf: String) -> Material:
 	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/road.gdshader")
-		m.set_shader_parameter("layout", _road_layout)
+		m.set_shader_parameter("layout", 3 if surf == "kicker" else _road_layout)
 		m.set_shader_parameter("wetness", 1.0 if surf == "wet" else 0.0)
 		m.set_shader_parameter("ice", 1.0 if surf == "ice" else 0.0)
 		# Kolory ustalone z użytkownikiem: sucha #404040, mokra #101010,
 		# oblodzona #304070.
-		var colors := {"dry": Color("#404040"), "wet": Color("#101010"), "ice": Color("#304070")}
+		var colors := {"dry": Color("#404040"), "wet": Color("#101010"), "ice": Color("#304070"),
+				"kicker": Color("#404040")}
 		m.set_shader_parameter("asphalt", colors[surf])
 		_shared_mats[key] = m
 	return _shared_mats[key]
@@ -2214,8 +2219,16 @@ func _metal_material() -> Material:
 
 
 func _grass_material() -> Material:
-	if not _shared_mats.has("grass"):
+	# Autostrada: paleta biomu kawałka (pustynia - piasek, nie trawa).
+	var biome := hwy_plan.biome_at(float(_samples[0]["dist"])) if hwy_plan and not _samples.is_empty() else ""
+	var key := "grass_" + biome
+	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/ground.gdshader")
-		_shared_mats["grass"] = m
-	return _shared_mats["grass"]
+		if biome != "":
+			var pal: Array = HighwayScenery.BIOME_GROUND.get(biome, HighwayScenery.BIOME_GROUND["meadow"])
+			m.set_shader_parameter("grass_a", pal[0])
+			m.set_shader_parameter("grass_b", pal[1])
+			m.set_shader_parameter("dirt", pal[2])
+		_shared_mats[key] = m
+	return _shared_mats[key]

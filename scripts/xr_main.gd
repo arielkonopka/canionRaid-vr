@@ -522,15 +522,7 @@ func _physics_process(delta: float) -> void:
 ## w miejscu auta) - paleta ziemi (ground.gdshader, przejście 2 km),
 ## horyzont biomu (wymieniany przy zmianie biomu, 1,5-2,5 km od auta)
 ## i morze po lewej w biomie nadmorskim.
-## Palety: trawa A, trawa B, ziemia/odmiana, pasy pól.
-const BIOME_GROUND := {
-	"meadow": [Color(0.27, 0.40, 0.18), Color(0.42, 0.47, 0.22), Color(0.42, 0.36, 0.25), 0.0],
-	"fields": [Color(0.62, 0.54, 0.25), Color(0.40, 0.46, 0.20), Color(0.36, 0.28, 0.18), 1.0],
-	"desert": [Color(0.80, 0.68, 0.47), Color(0.72, 0.58, 0.38), Color(0.62, 0.48, 0.32), 0.0],
-	"mountains": [Color(0.30, 0.36, 0.24), Color(0.42, 0.42, 0.36), Color(0.48, 0.46, 0.42), 0.0],
-	"seaside": [Color(0.40, 0.48, 0.25), Color(0.62, 0.60, 0.42), Color(0.80, 0.74, 0.56), 0.0],
-	"canyon": [Color(0.55, 0.36, 0.22), Color(0.62, 0.44, 0.28), Color(0.46, 0.30, 0.20), 0.0],
-}
+## Palety ziemi biomów: HighwayScenery.BIOME_GROUND.
 var _biome := ""
 var _biome_key := ""
 var _sea: MeshInstance3D
@@ -546,8 +538,8 @@ func _update_biome() -> void:
 		_biome_key = key
 		var mat := ($Ground/GroundMesh as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 		if mat:
-			var pa: Array = BIOME_GROUND.get(a, BIOME_GROUND["meadow"])
-			var pb: Array = BIOME_GROUND.get(b, BIOME_GROUND["meadow"])
+			var pa: Array = HighwayScenery.BIOME_GROUND.get(a, HighwayScenery.BIOME_GROUND["meadow"])
+			var pb: Array = HighwayScenery.BIOME_GROUND.get(b, HighwayScenery.BIOME_GROUND["meadow"])
 			mat.set_shader_parameter("grass_a", pa[0])
 			mat.set_shader_parameter("grass_b", pa[1])
 			mat.set_shader_parameter("dirt", pa[2])
@@ -1401,7 +1393,7 @@ func _update_warning(delta: float) -> void:
 		elif m.has("grade"):
 			kind = "climb" if m["grade"] > 0 else "descent"
 			value = absi(m["grade"])
-		elif prev_surf == "dry" and s["surface"] != "dry":
+		elif prev_surf == "dry" and s["surface"] != "dry" and s["surface"] != "kicker":
 			kind = "slippery"
 		if kind != "":
 			break
