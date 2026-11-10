@@ -80,7 +80,7 @@ func _physics_process(delta: float) -> bool:
 		var gap: float = (bot.global_position - car.global_position).length()
 		var bs: Dictionary = trk.lateral_offset(bot.global_position).get("sample", {})
 		var bh := 0.0 if bs.is_empty() else rad_to_deg((-bot.global_basis.z).signed_angle_to(bs["fwd"], Vector3.UP))
-		print("    bot: kąt %.0f°, koła %d, bieg %d, gaz %.1f, hamulec %.1f, obr %.0f, skrzynia %d%%, cofanie %.1f, wrecked %s" % [bh, bot.wheels_on_ground, bot.gear, bot.throttle, bot.brake, bot.engine_rpm, roundi(bot.damage["gearbox"] * 100), drv._reverse_t, bot.is_wrecked])
+		print("    bot %s: kąt %.0f°, koła %d, bieg %d, gaz %.1f, hamulec %.1f, obr %.0f, skrzynia %d%%, cofanie %.1f, wrecked %s" % [bot.style, bh, bot.wheels_on_ground, bot.gear, bot.throttle, bot.brake, bot.engine_rpm, roundi(bot.damage["gearbox"] * 100), drv._reverse_t, bot.is_wrecked])
 		print("t=%4.1f gracz %3.0f km/h (ogr. %3.0f, przepisowo: %s)  bot %3.0f km/h, odległość %4.0f m, szał %.2f" % [
 			t, kmh, main.current_limit, main.player_compliant(), bot.speed * 3.6, gap, drv.rage])
 	return t > 60.0 or (hit_t > 0.0 and drv.rage <= 0.0 and t - hit_t > 18.0)

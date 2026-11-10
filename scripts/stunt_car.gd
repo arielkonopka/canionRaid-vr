@@ -355,6 +355,9 @@ var engine_power_kw := 0.0
 var _base_mass := 1150.0
 var _base_com := Vector3.ZERO
 var _base_inertia := Vector3.ONE
+## Masa, dla której podana jest _base_inertia (model z epoki: masa modelu;
+## 0 = _base_mass). Hamulce i zawieszenie dalej względem _base_mass (1150 kg).
+var _inertia_mass := 0.0
 
 var _steer_input_smoothed := 0.0
 var _shift_timer := 0.0
@@ -472,11 +475,11 @@ func _ready() -> void:
 ## Światła w szale drogowym: przednie lampy pulsują na czerwono (0 = normalnie).
 func set_rage_lights(t: float) -> void:
 	var g: Dictionary = _dent_groups.get("head", {})
-	if g.is_empty():
-		return
-	var m: StandardMaterial3D = g["mat"]
-	m.emission = Color(1.0, 0.92, 0.75).lerp(Color(1.0, 0.1, 0.05), t)
-	m.emission_energy_multiplier = 0.6 + 3.0 * t
+	for m in [g.get("mat"), _style_head]:
+		if m == null:
+			continue
+		m.emission = Color(1.0, 0.92, 0.75).lerp(Color(1.0, 0.1, 0.05), t)
+		m.emission_energy_multiplier = 0.6 + 3.0 * t
 
 
 ## Ustawia rodzaj napędu i moc maksymalną [kW]. Krzywa momentu jest
@@ -495,7 +498,7 @@ func apply_engine(type_name: String, power_kw: float) -> void:
 	redline_rpm = e["redline"]
 	engine_inertia = e["inertia"]
 	gear_ratios = PackedFloat32Array(e["gears"])
-	final_drive = e["final"]
+	final_drive = e["final"] * float(CarStyles.STYLES.get(style, {}).get("final_mult", 1.0))
 	reverse_ratio = e["reverse"]
 	upshift_rpm = e["up"]
 	downshift_rpm = e["down"]
@@ -609,6 +612,12 @@ func set_paint(c: Color) -> void:
 		_paint_mat.albedo_color = Color(c, _paint_mat.albedo_color.a)
 	for m in _concept_paint_mats:
 		m.albedo_color = Color(c, m.albedo_color.a)
+	for m in _style_paint:
+		if m is ShaderMaterial:
+			m.set_shader_parameter("paint", Color(c.r, c.g, c.b))
+		else:
+			var k: float = m.get_meta("shade", 1.0)
+			m.albedo_color = Color(c.r * k, c.g * k, c.b * k, m.albedo_color.a)
 
 
 ## Ustawia sprężyny, tłumiki i stabilizatory z zestawu SUSPENSION_PRESETS.
@@ -621,11 +630,13 @@ func apply_suspension_preset(preset_name: String) -> void:
 	# Zestawy strojone dla 1150 kg - przy innej masie ta sama częstotliwość
 	# drgań: sprężyny, tłumiki i stabilizatory proporcjonalnie do masy.
 	var k := car_mass / (_base_mass + _extra_mass) if _base_mass > 0.0 else 1.0
-	spring_k = p["spring_k"] * k
-	damper_bump = p["damper_bump"] * k
-	damper_rebound = p["damper_rebound"] * k
-	anti_roll_front = p["anti_roll_front"] * k
-	anti_roll_rear = p["anti_roll_rear"] * k
+	# Model z epoki (apply_style): mnożniki z symulacji chmury, po masie.
+	var sm: Dictionary = CarStyles.STYLES.get(style, {})
+	spring_k = p["spring_k"] * k * float(sm.get("spring_mult", 1.0))
+	damper_bump = p["damper_bump"] * k * float(sm.get("damper_mult", 1.0))
+	damper_rebound = p["damper_rebound"] * k * float(sm.get("damper_mult", 1.0))
+	anti_roll_front = p["anti_roll_front"] * k * float(sm.get("arb_front_mult", 1.0))
+	anti_roll_rear = p["anti_roll_rear"] * k * float(sm.get("arb_rear_mult", 1.0))
 
 
 ## Masa nadwozia [kg]: przelicza masę, bezwładność i zawieszenie.
@@ -639,7 +650,7 @@ func _apply_mass() -> void:
 	car_mass = body_mass + _extra_mass
 	mass = car_mass
 	# _base_mass to masa odniesienia (1150 kg z _ready), dla niej body_inertia.
-	inertia = _base_inertia * (car_mass / maxf(_base_mass, 1.0))
+	inertia = _base_inertia * (car_mass / maxf(_inertia_mass if _inertia_mass > 0.0 else _base_mass, 1.0))
 	_brake_scale = maxf(car_mass / maxf(_base_mass, 1.0), 1.0)
 
 
@@ -2668,14 +2679,9 @@ var _model_com := Vector3.ZERO
 func set_body_model(kind: String) -> void:
 	if kind == body_model and (kind == "concept") == (_concept != null):
 		return
-	if _sedan.is_empty():
-		var mounts := []
-		for w in wheels:
-			mounts.append(w.mount)
-		_sedan = {"mounts": mounts, "radius": wheel_radius, "seat": seat.position,
-				"body": [(get_node("BodyShape").shape as BoxShape3D).size, (get_node("BodyShape") as Node3D).position],
-				"cabin": [(get_node("CabinShape").shape as BoxShape3D).size, (get_node("CabinShape") as Node3D).position],
-				"gauges": gauges.position if gauges else Vector3.ZERO}
+	if kind == "concept" and style != "sedan":
+		apply_style("sedan")
+	_snapshot_sedan()
 	if _concept:
 		for m in _concept_cockpit_mats:
 			_cockpit_mats.erase(m)
@@ -2725,6 +2731,8 @@ func set_body_model(kind: String) -> void:
 			(c as Node3D).visible = not concept
 	if not concept:
 		set_spoiler(spoiler)
+		if style != "sedan":
+			_style_visuals(true)
 	for w in wheels:
 		for c in w.node.get_children():
 			if not c.has_meta("concept"):
@@ -2834,3 +2842,209 @@ func _fix_concept_material(m: BaseMaterial3D, nm: String) -> void:
 	elif nm.begins_with("Paint"):
 		m.metallic = minf(m.metallic, 0.35)
 		m.roughness = maxf(m.roughness, 0.3)
+
+
+# --------------------------------------------------------------------------
+# Modele z epoki (CarStyles, inbox 2026-11-09-auta-z-epoki)
+# --------------------------------------------------------------------------
+
+## Bieżący model (klucz CarStyles.STYLES). "sedan" = własny sedan z kodu.
+var style := "sedan"
+var _style_body: MeshInstance3D
+var _style_wheels: Array[MeshInstance3D] = []
+var _style_paint: Array = []          # materiały lakieru modelu (Standard albo Shader)
+## Lampy przednie modelu (pulsują w szale jak w sedanie - sygnał dla gracza).
+var _style_head: StandardMaterial3D
+static var _style_cache := {}          # model -> {body, wheel, mats, boxes}
+
+
+## Zapamiętuje wymiary sedana z kodu (raz) - do powrotu z concept cara
+## i z modeli z epoki.
+func _snapshot_sedan() -> void:
+	if not _sedan.is_empty():
+		return
+	var mounts := []
+	for w in wheels:
+		mounts.append(w.mount)
+	_sedan = {"mounts": mounts, "radius": wheel_radius, "seat": seat.position,
+			"body": [(get_node("BodyShape").shape as BoxShape3D).size, (get_node("BodyShape") as Node3D).position],
+			"cabin": [(get_node("CabinShape").shape as BoxShape3D).size, (get_node("CabinShape") as Node3D).position],
+			"gauges": gauges.position if gauges else Vector3.ZERO,
+			"rest": rest_length, "com": _base_com, "inertia": _base_inertia,
+			"mass": body_mass, "brakes": Vector2(brake_torque_front, brake_torque_rear)}
+
+
+## Model z epoki: wymiary, fizyka (dane z symulacji chmury, przeniesione 1:1
+## jak w tools/car_sim.py) i bryła CC0. Silnik, napęd i zawieszenie ustawia
+## wołający (bot: 250 kW; gracz: fabryczne z modelu albo z menu) - tu tylko
+## przeliczenie bieżących. Działa na sedanie z kodu (concept car wraca do
+## sedana).
+func apply_style(name_s: String) -> void:
+	if not CarStyles.STYLES.has(name_s):
+		name_s = "sedan"
+	if name_s == style:
+		return
+	if body_model == "concept":
+		set_body_model("sedan")
+	_snapshot_sedan()
+	var st: Dictionary = CarStyles.STYLES[name_s]
+	var sedan := name_s == "sedan"
+	if not sedan and not ResourceLoader.exists(st["model"]):
+		push_warning("StuntCar: brak bryły modelu '%s'." % name_s)
+		return
+	style = name_s
+	# Fizyka: mocowania, promień, skok zawieszenia, rozstawy.
+	for i in range(4):
+		wheels[i].mount = _sedan["mounts"][i] if sedan else st["mounts"][i]
+		wheels[i].spring_len = rest_length
+	wheel_radius = _sedan["radius"] if sedan else float(st["wheel_radius"])
+	rest_length = _sedan["rest"] if sedan else float(st["rest_length"])
+	for w in wheels:
+		w.spring_len = rest_length
+	_sphere.radius = wheel_radius
+	_wheelbase = absf(wheels[0].mount.z - wheels[2].mount.z)
+	_track_width = absf(wheels[1].mount.x - wheels[0].mount.x)
+	# Środek masy: wartość z danych to pełny offset (bez _model_com);
+	# rodzaj silnika (com_y) i FWD dokłada apply_engine jak w sedanie.
+	_model_com = Vector3.ZERO
+	_base_com = _sedan["com"] if sedan else st["com_offset"]
+	_base_inertia = _sedan["inertia"] if sedan else st["inertia"]
+	_inertia_mass = 0.0 if sedan else float(st["mass"])
+	var b: Vector2 = _sedan["brakes"] if sedan else Vector2(st["brake_front"], st["brake_rear"])
+	brake_torque_front = b.x
+	brake_torque_rear = b.y
+	if sedan:
+		set_aero(aero)
+	else:
+		aero_drag = 0.5 * AIR_RHO * float(st["cd"]) * float(st["area"])
+	# Kolizja: dół nadwozia i kabina z bryły (body_bottom z danych).
+	var bs := get_node("BodyShape") as CollisionShape3D
+	var cs := get_node("CabinShape") as CollisionShape3D
+	var c: Dictionary = {} if sedan else _style_data(name_s)
+	var bb: Array = _sedan["body"] if sedan else c["body_box"]
+	var cb: Array = _sedan["cabin"] if sedan else c["cabin_box"]
+	(bs.shape as BoxShape3D).size = bb[0]
+	bs.position = bb[1]
+	(cs.shape as BoxShape3D).size = cb[0]
+	cs.position = cb[1]
+	# Kabriolet bez dachu - bez bryły kabiny (dachowanie kończy się gorzej).
+	cs.disabled = not sedan and name_s == "kabriolet"
+	if not is_bot:
+		seat.position = _sedan["seat"] if sedan else st["seat"]
+		cockpit_offset = seat.position - _sedan["seat"]
+	# Wygląd.
+	_style_visuals(not sedan)
+	# Masa, bezwładność, hamulce, zawieszenie, przełożenie od nowa.
+	set_body_mass(_sedan["mass"] if sedan else float(st["mass"]))
+	if engine_type != "":
+		apply_engine(engine_type, engine_power_kw)
+
+
+## Bryły modelu: siatki z OBJ (raz na grę), materiały lakieru i pudła
+## kolizji policzone z siatki.
+func _style_data(name_s: String) -> Dictionary:
+	if _style_cache.has(name_s):
+		return _style_cache[name_s]
+	var st: Dictionary = CarStyles.STYLES[name_s]
+	var body := load(st["model"]) as Mesh
+	var wheel := load(st["wheel_model"]) as Mesh
+	# Pudła: dół od body_bottom do linii okien (52% wysokości, jak w sedanie),
+	# kabina z wierzchołków wyraźnie nad tą linią (bez maski, bagażnika
+	# i lusterek), nie szersza niż 80% auta.
+	var lo := float(st["body_bottom"])
+	var top := body.get_aabb().end.y
+	var belt := lo + (top - lo) * 0.52
+	var size: Vector3 = st["size"]
+	var mn := Vector3(INF, INF, INF)
+	var mx := -mn
+	var glass := belt + (top - belt) * 0.4
+	for si in range(body.get_surface_count()):
+		for v in body.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
+			if v.y > glass:
+				mn = mn.min(v)
+				mx = mx.max(v)
+	var a := body.get_aabb()
+	var body_box := [Vector3(size.x * 0.97, belt - lo, a.size.z * 0.97),
+			Vector3(0.0, (lo + belt) * 0.5, a.get_center().z)]
+	var cabin_box := [Vector3(minf(mx.x - mn.x, size.x * 0.8), maxf(top - belt, 0.1), clampf(mx.z - mn.z, 0.8, a.size.z * 0.9)),
+			Vector3(0.0, (belt + top) * 0.5, (mn.z + mx.z) * 0.5)]
+	var d := {"body": body, "wheel": wheel, "body_box": body_box, "cabin_box": cabin_box}
+	_style_cache[name_s] = d
+	return d
+
+
+## Pokazuje bryłę modelu (on) albo sedana z kodu. Materiały lakieru są
+## własne dla auta (kolor gangu), reszta wspólna z siatki.
+func _style_visuals(on: bool) -> void:
+	if _style_body:
+		_style_body.queue_free()
+		_style_body = null
+	for mi in _style_wheels:
+		mi.queue_free()
+	_style_wheels.clear()
+	_style_paint.clear()
+	# Sedan z kodu: karoseria, wnętrze (bot), koła, spojlery, wycieraczki.
+	# Gracz w modelu z epoki zostaje w kokpicie sedana (inbox: "kokpit
+	# z sedana przesunięty do seat") - etap 3, na razie tylko boty.
+	for ch in get_children():
+		if ch is MeshInstance3D or ch.name in ["SteeringColumn", "Windshield", "SpoilerSmall", "SpoilerLarge"]:
+			(ch as Node3D).visible = not on
+	if not on:
+		set_spoiler(spoiler)
+	for w in wheels:
+		for ch in w.node.get_children():
+			if not ch.has_meta("concept"):
+				(ch as Node3D).visible = not on
+	if not on:
+		return
+	var d := _style_data(style)
+	_style_body = MeshInstance3D.new()
+	_style_body.name = "StyleBody"
+	_style_body.mesh = d["body"]
+	add_child(_style_body)
+	var body: Mesh = d["body"]
+	var mask_path := (CarStyles.STYLES[style]["model"] as String).get_base_dir() + "/paint_mask.png"
+	for si in range(body.get_surface_count()):
+		var m := body.surface_get_material(si) as StandardMaterial3D
+		if m == null:
+			continue
+		if m.albedo_texture and ResourceLoader.exists(mask_path):
+			var sm := ShaderMaterial.new()
+			sm.shader = preload("res://shaders/period_paint.gdshader")
+			sm.set_shader_parameter("tex", m.albedo_texture)
+			sm.set_shader_parameter("mask", load(mask_path))
+			_style_body.set_surface_override_material(si, sm)
+			_style_paint.append(sm)
+		elif m.resource_name in ["White", "Orange", "DarkOrange"]:
+			var pm := m.duplicate() as StandardMaterial3D
+			pm.metallic = 0.1
+			pm.roughness = 0.35
+			pm.set_meta("shade", 0.75 if m.resource_name == "DarkOrange" else 1.0)
+			_style_body.set_surface_override_material(si, pm)
+			_style_paint.append(pm)
+	# Przednie lampy: płaskie, świecące prostokąty tuż przed przodem bryły
+	# (w teksturze GGBotNet lampy są tylko narysowane i nie świecą).
+	if _style_head == null:
+		_style_head = _make_head_mat()
+	var a: AABB = body.get_aabb()
+	var lo := float(CarStyles.STYLES[style]["body_bottom"])
+	var hy := lo + (a.end.y - lo) * 0.3
+	for sx in [-1.0, 1.0]:
+		var lm := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(a.size.x * 0.16, 0.08, 0.02)
+		lm.mesh = bm
+		lm.material_override = _style_head
+		lm.position = Vector3(sx * a.size.x * 0.33, hy, a.position.z - 0.005)
+		lm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_style_body.add_child(lm)
+	for w in wheels:
+		var wm := MeshInstance3D.new()
+		wm.name = "StyleWheel"
+		wm.mesh = d["wheel"]
+		# Zewnętrzna strona koła (+X siatki) na zewnątrz auta, jak w sedanie.
+		if w.left:
+			wm.rotation = Vector3(0.0, PI, 0.0)
+		w.node.add_child(wm)
+		_style_wheels.append(wm)
+	set_paint(_paint_color)

@@ -49,6 +49,9 @@ godot_cli() { godot --headless --xr-mode off "$@" </dev/null; }
 do_import() {
 	say "Import zasobów"
 	local out
+	# build/media_in ma źródłowe paczki z .blend - bez .gdignore import
+	# bez okna przerywa się na nich i nowe modele (OBJ) się nie importują.
+	mkdir -p build && touch build/.gdignore
 	out=$(godot_cli --import 2>&1) || true
 	if grep -qE "SCRIPT ERROR|Parse Error" <<<"$out"; then
 		grep -E "SCRIPT ERROR|Parse Error|at: " <<<"$out" | head -20

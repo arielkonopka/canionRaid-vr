@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-10, sesja 7 (noc: Autostrada domyślna, biomy, ruch, waśnie botów, pula botów, przegląd renderów)
+Ostatnia aktualizacja: 2026-11-10, sesja 7 (popołudnie: biomy co ~5 km z powolnym przejściem, boty i ruch w modelach aut z epoki)
 
 ---
 
@@ -527,8 +527,14 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
     jezdnie za barierą, na drugiej ruch z naprzeciwka.
-  - Sceneria zmienia się **co 50 km ± losowo 10 km**: wąwóz, góry,
-    nad morzem, równiny (pola, łąki, pustynia).
+  - Sceneria zmienia się **co ~5 km (5 odcinków) ± 1 km** (użytkownik
+    2026-11-10: "co 5 odcinek, niech się powoli zmieniają"; było 50 km
+    i przy jeździe na 16 km widać było tylko łąkę): wąwóz, góry, nad
+    morzem, równiny (pola, łąki, pustynia). **Przejście 2,8 km**
+    (`HighwayPlan.BIOME_BLEND`) - ziemia, trawa przy jezdni (paleta
+    mieszana co 0,1) i obiekty mieszają się płynnie; morze przysuwa się
+    z ~1,8 km dalej w miarę przejścia. Horyzont (góry w tle) dalej
+    wymieniany naraz w połowie przejścia.
   - **Miasta**: co 25 km małe (jedzie się przez ~1 km), co 100 km duże
     (~5 km). Droga przechodzi w **ulicę w zabudowie** (ta sama droga,
     domy, chodniki), **strefa 30 km/h**. Wokół miasta zawsze **3-5 aut
@@ -610,6 +616,12 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Nowe modele (OBJ) się nie importują, `load()` daje "No loader found
+  for resource ...obj"**, a w logu importu "Blender path is invalid" →
+  Godot skanuje `build/media_in` (źródłowe paczki z `.blend`) i import
+  bez okna przerywa się na nich. `build/.gdignore` (tworzy go
+  `quest.sh` przed importem; `build/` jest poza gitem).
 
 - **Test z autem gracza "pchanym" prędkością wypada z drogi na łukach**
   (odrodzenie kasuje scenki, boty zostają daleko) → prowadź auto po
@@ -1167,6 +1179,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 ### Samochód (`stunt_car.gd`) - realistyczny model
 - `RigidBody3D`, jawny środek masy i tensor bezwładności. Przód = -Z.
   **Celowo bez `VehicleBody3D`.**
+- **Modele z epoki** (`apply_style`, klucze `CarStyles.STYLES`; "sedan"
+  = sedan z kodu): mocowania, promień, `rest_length`, masa, bezwładność
+  (`_inertia_mass` = masa modelu; hamulce i zawieszenie dalej względem
+  1150 kg - jak w symulatorze), `_base_com` = `com_offset` z danych (silnik
+  i FWD dokłada `apply_engine`), hamulce, `cd·area`, mnożniki zawieszenia
+  (`apply_suspension_preset`) i `final_mult` (`apply_engine`). Kolizja:
+  dół od `body_bottom` do 52% wysokości bryły, kabina z wierzchołków
+  nad szybami (max 80% szerokości); kabriolet bez `CabinShape`. Bryły
+  sedana ukryte (wgniecenia, światła szału - nie działają w modelach;
+  `set_rage_lights` do przeniesienia). Lakier: GGBotNet - maska z różnicy
+  wariantów koloru tekstury; Quaternius - materiały White/Orange/
+  DarkOrange. Bot: model + fabryczny napęd i zawieszenie, moc 250 kW.
+  Zrzut wszystkich modeli: skrypt jak `style_shot` (BoxMesh nie trzeba -
+  okno, `--resolution`).
 - **Koło** = sfera rzucana w dół z mocowania (`cast_motion`, potem
   `get_rest_info`). Ugięcie analityczne. Nawierzchnia z metadanych ciała,
   w które trafiło koło (`w.grip`, `w.surface`), więc każde koło może
@@ -1785,6 +1811,29 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   x1. Diagnostyka pokazała "kontakt: brak" - `last_hit` nie łapie
   kontaktów ze stacją (do poprawy: `get_colliding_bodies`).
 
+### 2026-11-10, sesja 7 - popołudnie (użytkownik z telefonu)
+
+- **Biomy co ~5 km z powolnym przejściem** (prośba użytkownika, sekcja 2
+  tryb Autostrada). `highway_plan_test` sprawdza długości 4-6 km, czysty
+  środek biomu i ciągłe przejście.
+- **Auta z epoki - etapy 1 i 2** (pytanie "a inne modele samochodów?"):
+  `StuntCar.apply_style(name)` (dane `CarStyles`, przeniesienie 1:1 jak
+  `tools/car_sim.py`), boty i ruch z naprzeciwka losują model z
+  `bot_weight` (`XrMain._pick_style`, ziarno `_bot_rng`). Lakier modeli
+  z teksturą przez maskę (`tools/make_paint_masks.py`,
+  `shaders/period_paint.gdshader`) - kolory gangów działają. Gracz dalej
+  w sedanie (etap 3: menu + kokpit - do oceny w goglach).
+- Pułapka importu OBJ (`build/.gdignore`) - sekcja 3. `docs/.gdignore`
+  (zrzuty z `docs/renders` importowały się i szły do APK), eksport bez
+  źródłowych OBJ i nieużywanych wariantów tekstur GGBotNet.
+- Testy: pełny `quest.sh test` OK (w tym drive_test, title_test,
+  feud/oncoming_play, endless autostrada 10 km). Przejazd 16 km:
+  biomy łąka -> góry 4,3 km -> pustynia 9,8 -> wąwóz 14,3. `bot_rage_test`
+  (sam log, bez werdyktu) jest **niedeterministyczny** - zderzenie przy
+  120 km/h raz zostawia bota przy graczu, raz obraca i bot zostaje
+  50-200 m w tyle; tak samo przed zmianą (3 przebiegi starego kodu).
+  Do zrobienia: werdykt i stały scenariusz.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -1818,7 +1867,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    Dalej (kolejność proponowana):
    - Scenki na drugiej jezdni: dodać efekty "sparks" i "smoke" (teraz
      bez efektu), "wreck" częściej w późnych odcinkach (waga), render.
-   - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
+   - **Auta z epoki: etapy 1-2 zrobione (2026-11-10)** - patrz
+     "Samochód" w sekcji 5. Został etap 3 (gracz) - opis niżej.
+     Historia planu: (`models/period_cars/<model>/body.obj+wheel.obj`,
      parametry policzone przez chmurę - outbox
      `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.
      Proponowane etapy: (1) `StuntCar.apply_style(name)` - mocowania,

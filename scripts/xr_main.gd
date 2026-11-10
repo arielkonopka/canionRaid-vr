@@ -520,7 +520,7 @@ func _physics_process(delta: float) -> void:
 
 
 ## Tryb Autostrada, etap 2: sceneria z planu (HighwayPlan.biome_blend
-## w miejscu auta) - paleta ziemi (ground.gdshader, przejście 2 km),
+## w miejscu auta) - paleta ziemi (ground.gdshader, przejście 2,8 km),
 ## horyzont biomu (wymieniany przy zmianie biomu, 1,5-2,5 km od auta)
 ## i morze po lewej w biomie nadmorskim.
 ## Palety ziemi biomów: HighwayScenery.BIOME_GROUND.
@@ -561,7 +561,9 @@ func _update_biome() -> void:
 		add_child(_horizon)
 		print("BIOM: %s (%.1f km)" % [a, _last_safe_dist / 1000.0])
 	# Morze po lewej (za jezdnią z naprzeciwka) przez cały biom nadmorski.
-	var sea_on := a == "seaside" or (b == "seaside" and t > 0.25)
+	# W przejściu brzeg powoli przysuwa się z daleka (sea_k: udział morza).
+	var sea_k := (1.0 - t) if a == "seaside" else (t if b == "seaside" else 0.0)
+	var sea_on := sea_k > 0.02
 	if sea_on and _sea == null:
 		_sea = MeshInstance3D.new()
 		_sea.name = "Sea"
@@ -581,7 +583,7 @@ func _update_biome() -> void:
 				var c: Vector3 = track.to_global(s["pos"])
 				var r: Vector3 = ((s["right"] as Vector3) * Vector3(1, 0, 1)).normalized()
 				# Brzeg ~90 m za lewą krawędzią jezdni z naprzeciwka.
-				var shore := float(s["width"]) * 1.5 + TrackGenerator.HIGHWAY_MEDIAN + 90.0
+				var shore := float(s["width"]) * 1.5 + TrackGenerator.HIGHWAY_MEDIAN + 90.0 + (1.0 - sea_k) * 1800.0
 				var mid := c - r * (shore + 2000.0)
 				_sea.global_transform = Transform3D(Basis(Vector3.UP, atan2(r.x, r.z)), Vector3(mid.x, 0.05, mid.z))
 
@@ -680,6 +682,33 @@ func _new_bot_car() -> StuntCar:
 	# realnie dogonić gracza (przy 130 kW zostawały w tyle).
 	bot.apply_engine("petrol", 250)
 	return bot
+
+
+## Model z epoki dla bota / auta z naprzeciwka: losowany z wag
+## CarStyles.STYLES[..]["bot_weight"] ([wąwóz, autostrada]) ziarnem
+## _bot_rng (odrodzenie odtwarza ten sam rozkład).
+func _pick_style() -> String:
+	var col := 1 if track and track.get("autostrada") == true else 0
+	var total := 0.0
+	for k in CarStyles.STYLES:
+		total += float(CarStyles.STYLES[k]["bot_weight"][col])
+	var r := _bot_rng.randf() * total
+	for k in CarStyles.STYLES:
+		r -= float(CarStyles.STYLES[k]["bot_weight"][col])
+		if r < 0.0:
+			return k
+	return "sedan"
+
+
+## Bot w modelu: fabryczny napęd i zawieszenie modelu, moc botów bez zmian
+## (250 kW - chmura sprawdziła symulacją, że każdy model jest sterowny).
+func _bot_style(bot: StuntCar, st: String) -> void:
+	if bot.style == st:
+		return
+	var d: Dictionary = CarStyles.STYLES[st]
+	bot.drive_layout = d["drive"]
+	bot.apply_style(st)
+	bot.apply_suspension_preset(d["suspension"])
 
 
 func _warm_bot_pool() -> void:
@@ -1068,6 +1097,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	var lim := float(smp[0]["limit"])
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
+	_bot_style(bot, _pick_style())
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		# Gang bota (FeudDirector): kolor gangu, żeby było widać, kto z kim.
@@ -2647,8 +2677,9 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 		c.add_to_group(WorldOrigin.GROUP)
 		c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 		c.freeze = true
-		for w in c.wheels:
-			w.spring_len = 0.41
+	c.apply_style(_pick_style())
+	for w in c.wheels:
+		w.spring_len = c.rest_length - 0.04
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
 		var keys: Array = gs.PAINTS.keys()
