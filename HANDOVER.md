@@ -1771,6 +1771,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   scalony - scalony do gałęzi. `gauges_test` OK i w zestawie, zrzut
   kokpitu z ESP wył. (`screenshot.gd -- KATALOG esp_off`): trójkąty nie
   wchodzą na liczby. Czytelność w goglach do oceny.
+- **Bieg w okienku LCD obrotomierza** (użytkownik: napis pod zegarami to
+  "resztka starego interfejsu", "dodaj to jako wskaźnik na desce"):
+  `Gauges.set_gear` ("A3", "M2", "R", "N"), okienko po lewej stronie
+  tarczy (górę zasłania wieniec kierownicy z fotela - sprawdzone zrzutem),
+  "x1000 obr" pod piastą. `dash_label` usunięty całkiem.
+- 400 km/h: "da się jechać, chociaż trudno, szybko traci przyczepność";
+  zaproponowany duży spojler (docisk ~8 kN przy 400 km/h) - bez opinii.
 - Log z jazdy (`build/logs/jazda_2026-11-10.log`): tempo gry 99-100%;
   **przy stacji 67-68 kl./s, proces ~24 ms, GPU ~13 ms** (do zbadania).
   INCYDENT 9,5 g przy 41 km/h na pasie stacji = uderzenie w dystrybutor

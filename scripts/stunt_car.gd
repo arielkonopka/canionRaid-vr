@@ -382,7 +382,6 @@ var _abs_mod: Array[float] = [1.0, 1.0, 1.0, 1.0]
 ## Punkt oczu kierowcy, kamera z tyłu i deska rozdzielcza.
 var seat: Marker3D
 var chase_point: Marker3D
-var dash_label: Label3D
 var gauges: Gauges
 var _steering_wheel: Node3D
 var _tail_mat: StandardMaterial3D
@@ -1514,28 +1513,11 @@ func _visual_step(delta: float) -> void:
 		# Światła pozycyjne słabo, stop mocno.
 		var stop := maxf(brake if not (gear < 0 and automatic) else throttle, handbrake)
 		_tail_mat.emission_energy_multiplier = 0.4 + 2.6 * stop
-	if dash_label:
+	if gauges:
 		var shown := _pending_gear if _shift_timer > 0.0 else gear
 		var g := "R" if shown < 0 else ("N" if shown == 0 else str(shown))
-		var mode := "A" if automatic else "M"
-		# Kontrolki wspomagań są na prędkościomierzu (Gauges.set_assist).
-		# Kontrolki uszkodzeń: tylko układy powyżej 10%.
-		var dmg := PackedStringArray()
-		if damage["engine"] > 0.1:
-			dmg.append("silnik %d%%" % roundi(damage["engine"] * 100.0))
-		var b_max: float = damage["brakes"].max()
-		if b_max > 0.1:
-			dmg.append("hamulce %d%%" % roundi(b_max * 100.0))
-		var s_max: float = damage["suspension"].max()
-		if s_max > 0.1:
-			dmg.append("zawieszenie %d%%" % roundi(s_max * 100.0))
-		if damage["gearbox"] > 0.1:
-			dmg.append("skrzynia %d%%" % roundi(damage["gearbox"] * 100.0))
-		var dmg_line := ""
-		if damage["structure"] > 0.02:
-			dmg_line = "\nstan auta %d%%  %s" % [roundi((1.0 - damage["structure"]) * 100.0), "  ".join(dmg)]
-		# Prędkość i obroty pokazują tarcze, uszkodzenia - obrys auta.
-		dash_label.text = "%s%s" % [mode, g]
+		# Tryb i bieg w okienku obrotomierza (dawny napis pod zegarami).
+		gauges.set_gear(("A" if automatic else "M") + g if shown > 0 else g)
 	if gauges:
 		gauges.update_values(absf(speed) * 3.6, engine_rpm, damage)
 		gauges.set_fuel(fuel)
@@ -1741,17 +1723,8 @@ func _build_body() -> void:
 	add_child(gauges)
 	gauges.build(SEDAN_CLUSTER, 30.0)
 	gauges.set_rpm_range(redline_rpm + 800.0, redline_rpm)
-	# Pod tarczami: bieg i kontrolki systemów (ABS/TCS/ESP).
-	dash_label = Label3D.new()
-	dash_label.name = "Dashboard"
-	dash_label.text = ""
-	dash_label.font_size = 28
-	dash_label.pixel_size = 0.0008
-	dash_label.position = Vector3(-0.38, 0.172, -0.33)
-	dash_label.rotation = Vector3(deg_to_rad(-30.0), 0.0, 0.0)
-	dash_label.modulate = Color(1.0, 0.75, 0.2)
-	dash_label.shaded = false
-	add_child(dash_label)
+	# Bieg: okienko w obrotomierzu (Gauges.set_gear), kontrolki wspomagań
+	# na prędkościomierzu - dawny napis pod zegarami (dash_label) usunięty.
 
 
 ## Koło jako jedna siatka (oś obrotu = X, kołpak po stronie +X):
@@ -2702,8 +2675,7 @@ func set_body_model(kind: String) -> void:
 		_sedan = {"mounts": mounts, "radius": wheel_radius, "seat": seat.position,
 				"body": [(get_node("BodyShape").shape as BoxShape3D).size, (get_node("BodyShape") as Node3D).position],
 				"cabin": [(get_node("CabinShape").shape as BoxShape3D).size, (get_node("CabinShape") as Node3D).position],
-				"gauges": gauges.position if gauges else Vector3.ZERO,
-				"dash": dash_label.position if dash_label else Vector3.ZERO}
+				"gauges": gauges.position if gauges else Vector3.ZERO}
 	if _concept:
 		for m in _concept_cockpit_mats:
 			_cockpit_mats.erase(m)
@@ -2743,12 +2715,10 @@ func set_body_model(kind: String) -> void:
 	seat.position = g["seat"] if concept else _sedan["seat"]
 	cockpit_offset = seat.position - _sedan["seat"]
 	# Zestaw zegarów sedana stoi w (-0,38, 0,235, -0,37) - w concept carze
-	# na desce za kierownicą, napis (bieg, kontrolki) pod nim.
+	# na desce za kierownicą (bieg w okienku obrotomierza).
 	var gshift: Vector3 = (g["gauges"] - SEDAN_CLUSTER) if concept else Vector3.ZERO
 	if gauges:
 		gauges.position = _sedan["gauges"] + gshift
-	if dash_label:
-		dash_label.position = _sedan["dash"] + gshift
 	# Wygląd sedana: karoseria, kabina, koła, spojlery, wycieraczki.
 	for c in get_children():
 		if c is MeshInstance3D or c.name in ["SteeringColumn", "Windshield", "SpoilerSmall", "SpoilerLarge"]:

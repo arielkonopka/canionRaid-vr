@@ -36,6 +36,8 @@ var _mark_mat: StandardMaterial3D
 var _red_mat: StandardMaterial3D
 var _needle_mat: StandardMaterial3D
 var _chrome: StandardMaterial3D
+var _gear_label: Label3D                   # okienko biegu w obrotomierzu
+var _gear_text := ""
 var _lamps := {}                           # klucz -> [materiał obrysu, Label3D, świeci?]
 
 
@@ -88,9 +90,49 @@ func set_rpm_range(max_rpm: float, redline: float) -> void:
 		c.queue_free()
 	_rpm_max = ceilf(max_rpm / 1000.0) * 1000.0
 	var major := 1000.0 if _rpm_max <= 9000.0 else 2000.0
+	# "x1000 obr" pod piastą - nad nią okienko biegu.
 	_rpm_needle = _dial(_rpm_dial, Vector3.ZERO, 0.075, _rpm_max / 1000.0, major / 2000.0,
-			major / 1000.0, redline / 1000.0, "x1000 obr")
+			major / 1000.0, redline / 1000.0, "x1000 obr", GEAR_UNIT_Y)
 	_build_fuel(_rpm_dial)
+	_build_gear(_rpm_dial)
+
+
+## Okienko biegu (użytkownik 2026-11-10: bieg był napisem pod zegarami -
+## "resztka starego interfejsu"): LCD po lewej stronie obrotomierza, między
+## piastą a liczbami 1-2, tryb skrzyni + bieg ("A3", "M2", "R", "N"). Górę
+## tarczy z fotela zasłania wieniec kierownicy; wskazówka zasłania okienko
+## tylko na wolnych obrotach (w jeździe stoi u góry).
+const GEAR_LCD_POS := Vector2(-0.027, -0.004)   # środek okienka względem osi [m]
+const GEAR_LCD_SIZE := Vector2(0.020, 0.012)
+const GEAR_UNIT_Y := -0.24                 # "x1000 obr" w promieniach tarczy
+
+
+func _build_gear(parent: Node3D) -> void:
+	var lcd := Node3D.new()
+	lcd.name = "GearLCD"
+	lcd.position = Vector3(GEAR_LCD_POS.x, GEAR_LCD_POS.y, 0.0045)
+	parent.add_child(lcd)
+	_plate(lcd, GEAR_LCD_SIZE + Vector2(0.003, 0.003), Vector2.ZERO, -0.0015, _chrome)
+	_plate(lcd, GEAR_LCD_SIZE, Vector2.ZERO, 0.0, _unshaded(LCD_BG))
+	_gear_label = Label3D.new()
+	_gear_label.font_size = 48
+	_gear_label.pixel_size = 0.00018       # ~8 mm wysokości cyfr
+	_gear_label.outline_size = 0
+	_gear_label.shaded = false
+	_gear_label.modulate = Color(0.2, 0.8, 0.25)
+	_gear_label.position = Vector3(0, 0, 0.0012)
+	_gear_label.text = _gear_text
+	lcd.add_child(_gear_label)
+
+
+## Tryb skrzyni i bieg w okienku obrotomierza (zmiana tekstu tylko przy
+## zmianie biegu).
+func set_gear(text: String) -> void:
+	if text == _gear_text:
+		return
+	_gear_text = text
+	if _gear_label and is_instance_valid(_gear_label):
+		_gear_label.text = text
 
 
 ## Wskaźnik paliwa w dolnej części obrotomierza (jak w autach z epoki):
