@@ -130,6 +130,11 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 		_list = parse_tracks(body.get_string_from_utf8())
 		_list.shuffle()
 		if _list.is_empty():
+			# Diagnostyka (gogle: 200, a lista pusta - 2026-11-10): co przyszło.
+			var txt := body.get_string_from_utf8()
+			print("RADIO: Jamendo - odpowiedź %d B, nagłówki %s, początek: %s" % [body.size(),
+					str(_headers).replace(client_id, "***").substr(0, 300),
+					txt.substr(0, 300).replace(client_id, "***")])
 			failed.emit("pusta lista utworów")
 			return
 		prefetch()

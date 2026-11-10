@@ -542,11 +542,14 @@ func _fill_radio_stations() -> void:
 	var st: Array = preload("res://scripts/radio_stations.gd").STATIONS
 	for opt in OPTIONS:
 		if opt["key"] == "radio_station":
-			opt["values"] = range(st.size())
-			opt["names"] = st.map(func(x): return str(x["name"]))
+			# Ostatnia pozycja: stacja online (użytkownik 2026-11-10: "w menu,
+			# gdy Jamendo jest włączone, nie ma stacji Jamendo").
+			opt["values"] = range(st.size() + 1)
+			opt["names"] = st.map(func(x): return str(x["name"])) + ["Jamendo online"]
 			var hints := []
 			for x in st:
 				hints.append("Stacja, od której radio zaczyna.")
+			hints.append("Muzyka z internetu (Jamendo) - gra, gdy \"Radio online (Jamendo)\" jest Wł.; inaczej pierwsza stacja z gry.")
 			opt["hints"] = hints
 
 
