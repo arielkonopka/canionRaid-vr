@@ -1851,6 +1851,15 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   -> scenki co 3-6 km, iskry częściej (sekcja 2). feud_test,
   feud_play_test, oncoming_play_test, horn_test, title_test OK,
   drive_test 95 sport auto przy 100% i 130%.
+- **"Radio Jamendo jest niewłączalne"**: lista "Stacja" w menu miała tylko
+  stacje offline (Jamendo tylko przyciskiem zmiany stacji w jeździe) -
+  "Jamendo online" dopisane jako ostatnia pozycja (`_fill_radio_stations`,
+  `CarRadio.set_station`; przy wyłączonym online -> pierwsza stacja).
+  radio_test OK. **Otwarte**: na goglach Jamendo daje "pusta lista
+  utworów" (HTTP 200), a na PC ten sam kod i klucz - 50 utworów i MP3
+  pobrane. Dodana diagnostyka (log "RADIO: Jamendo - odpowiedź ... B,
+  nagłówki, początek") - czekam na log z jazdy z włączonym online.
+  PR #55 (wszystko powyżej) scalony przez chmurę do main.
 
 ## 8. Kolejka zadań
 
