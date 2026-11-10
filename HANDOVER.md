@@ -1909,6 +1909,20 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   na garbach 0,35 m przy 213 km/h: poślizg 100% -> 12%, skok przy
   lądowaniu 29 g -> 19 g (sam garb). Łuk: 9°, prosta 0,30 g. Pełny
   `quest.sh test` OK.
+  **"Nadal nie dostałoby atestów" / "na luzie z rekuperacją, już powyżej
+  setki widać, jest nadsterowny"**: przyczyna - odzysk w kołach dzielony
+  po równo (25% na koło); przy hamowaniu przód dociśnięty, tył odciążony,
+  więc tył hamowany za mocno (jak hamulce ustawione na tył). Teraz udział
+  koła = jego docisk / suma docisków (`_physics_step`, gałąź `_hub()`).
+  Łuk 120 km/h, skręt 0,18, mocny odzysk: 9,1° -> 3,8° (bez odzysku 5,2°),
+  hamowanie podobne. Testy w zestawie: `liftoff_test` (łuk, < 6°) i
+  `regen_highway_test` (autostrada, ustawienia użytkownika, cykl gaz do
+  150 km/h / 4 s bez gazu; 120-180 km/h: znoszenie < 2°).
+  **Otwarte - stabilność > 200 km/h**: autopilot testu przy 200-210 km/h
+  na prostej pływa 6° nawet bez odzysku (z odzyskiem 10-35°, wyniki
+  zmienne między przebiegami) - ten sam problem co "przy 400 km/h szybko
+  traci przyczepność"; do zbadania osobno (autopilot czy auto).
+  Pełny `quest.sh test` OK (z liftoff_test i regen_highway_test).
 - **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
   `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
   włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr

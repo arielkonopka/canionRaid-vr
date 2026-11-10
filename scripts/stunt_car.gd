@@ -796,6 +796,15 @@ func _physics_step(delta: float) -> void:
 					* 0.5 * center_coupling, -c_max, c_max)
 			t_front = axle_torque * AWD_FRONT_SHARE - visc
 			t_rear = axle_torque * (1.0 - AWD_FRONT_SHARE) + visc
+		# Odzysk w kołach rozdzielany według docisku (jak podział hamulców:
+		# przy hamowaniu przód dociśnięty, tył odciążony). Po równo hamował
+		# odciążony tył za mocno - auto nadsterowne po puszczeniu gazu
+		# (użytkownik 2026-11-10: "już powyżej setki widać, jest nadsterowny").
+		var load_sum := 0.0
+		if _hub() and axle_torque < 0.0:
+			for w in wheels:
+				if w.contact:
+					load_sum += w.load
 		for i in range(4):
 			var w := wheels[i]
 			var d: Array = dirs[i]
@@ -814,7 +823,11 @@ func _physics_step(delta: float) -> void:
 			var inertia_w := wheel_inertia
 			if _hub():
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
-				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else _regen_wheel(w))
+				if axle_torque > 0.0:
+					t_drive = axle_torque * 0.25 * _hub_tcs[i]
+				else:
+					var share := (w.load / load_sum) if (load_sum > 1.0 and w.contact) else 0.0
+					t_drive = axle_torque * share * _regen_wheel(w)
 				inertia_w += reflected
 			elif not _is_driven(w):
 				pass
