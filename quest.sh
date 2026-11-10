@@ -49,6 +49,9 @@ godot_cli() { godot --headless --xr-mode off "$@" </dev/null; }
 do_import() {
 	say "Import zasobów"
 	local out
+	# build/media_in ma źródłowe paczki z .blend - bez .gdignore import
+	# bez okna przerywa się na nich i nowe modele (OBJ) się nie importują.
+	mkdir -p build && touch build/.gdignore
 	out=$(godot_cli --import 2>&1) || true
 	if grep -qE "SCRIPT ERROR|Parse Error" <<<"$out"; then
 		grep -E "SCRIPT ERROR|Parse Error|at: " <<<"$out" | head -20
@@ -124,6 +127,10 @@ do_test() {
 	run_test horn_test ""               "klakson|horn_test"
 	run_test shop_test ""               "shop_test"
 	run_test feud_play_test ""          "feud_play_test|SOJUSZ"
+	run_test oncoming_play_test ""      "oncoming_play_test|Scenka"
+	run_test oncoming_skirmish_test ""  "oncoming_skirmish_test"
+	run_test city_graph_test ""         "city_graph_test|jazda:"
+	run_test gauges_test ""             "gauges_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

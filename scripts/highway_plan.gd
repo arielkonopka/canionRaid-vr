@@ -7,7 +7,8 @@ class_name HighwayPlan
 ## (CityBuilder), ruch (TrafficZone) i HUD pytają plan o dystans `d` [m]
 ## od startu.
 ##
-##   - sceneria (biom) zmienia się co 50 km ± 10 km (losowo), z przejściem
+##   - sceneria (biom) zmienia się co ~5 km (5 odcinków, ± 1 km, losowo;
+##     użytkownik 2026-11-10, było 50 km), z powolnym przejściem
 ##     BIOME_BLEND metrów;
 ##   - miasta: co 25 km małe (~1 km zabudowy), co 100 km duże (~5 km),
 ##     strefa 30 km/h, przed nią stopniowanie 70 / 50;
@@ -24,10 +25,12 @@ class_name HighwayPlan
 const BIOMES := ["fields", "meadow", "desert", "mountains", "seaside", "canyon"]
 ## Pierwszy biom (start gry): łagodny, z punktami odniesienia przy drodze.
 const FIRST_BIOME := "meadow"
-const BIOME_LEN := 50000.0
-const BIOME_JITTER := 10000.0
+const BIOME_LEN := 5000.0
+const BIOME_JITTER := 1000.0
 ## Długość przejścia między biomami [m] (mieszanie terenu i obiektów).
-const BIOME_BLEND := 2000.0
+## Użytkownik: "niech się powoli zmieniają" - ponad połowa biomu to
+## przejście (musi być < BIOME_LEN - BIOME_JITTER).
+const BIOME_BLEND := 2800.0
 
 const SMALL_CITY_EVERY := 25000.0
 const SMALL_CITY_LEN := 1000.0

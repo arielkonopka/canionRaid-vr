@@ -43,7 +43,21 @@ func _physics_process(delta: float) -> bool:
 		return false
 	t += delta
 	# Gracz jedzie za botami (prędkość wprost - test nie steruje gazem).
-	main.car.linear_velocity = -main.car.global_basis.z * 26.0
+	# Gracz prowadzony po trasie (pchany prosto wypadał na łukach z drogi
+	# i odradzał się - boty zostawały poza zasięgiem potyczki 120 m).
+	# Jedzie fizycznie (kontakt z jezdnią - gra liczy dystans gracza), test
+	# ustawia tylko kierunek wzdłuż trasy i prędkość z korektą do pasa.
+	var cxf: Transform3D = main.track.transform_at_distance(main._last_safe_dist + 2.0)
+	var off: float = (main.car.global_position - cxf.origin).dot(cxf.basis.x) - main.hwy_lane_off(0)
+	main.car.global_basis = cxf.basis
+	# Za botami (przyspieszają do limitu): ~70 m za najbliższym, w zasięgu
+	# potyczki (120 m).
+	var gap := INF
+	for b in main._bots:
+		gap = minf(gap, (b.get_node("Driver") as BotDriver).dist - main._last_safe_dist)
+	var v := clampf(28.0 + (gap - 70.0) * 0.5, 15.0, 50.0) if gap < INF else 28.0
+	main.car.linear_velocity = -cxf.basis.z * v - cxf.basis.x * off * 2.0 + cxf.basis.y * minf(main.car.linear_velocity.dot(cxf.basis.y), 0.0)
+	main.car.angular_velocity = Vector3.ZERO
 	for b in main._bots:
 		var id: int = b.get_instance_id()
 		var drv: BotDriver = b.get_node("Driver")

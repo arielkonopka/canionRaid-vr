@@ -2,6 +2,7 @@ extends SceneTree
 ## Zrzuty ekranu auta z kilku ujęć - do sprawdzania wyglądu bez gogli.
 ## Wymaga okna (nie --headless): na chwilę otwiera się okno Godota.
 ##   godot --xr-mode off --resolution 960x600 -s res://tests/screenshot.gd -- /ścieżka/do/katalogu [dent] </dev/null
+## Z "esp_off" świeci kontrolka ESP (wyłączony system).
 ## Z "rain" pada ulewa (krople, wycieraczki, smugi).
 ## Z "dent" auto dostaje kilka wgnieceń (przód z lewej, dach, prawy bok) przed zdjęciami.
 ## Zapisuje car_<ujęcie>.png. Ujęcia w układzie auta (przód = -Z).
@@ -53,6 +54,9 @@ func _process(_d: float) -> bool:
 		car.dent(Vector3(-0.75, 0.0, -2.25), Vector3(0.6, 0.0, 0.8), 0.15)
 		car.dent(Vector3(0.0, 0.69, 0.4), Vector3.DOWN, 0.14)
 		car.dent(Vector3(0.9, -0.1, 0.3), Vector3.LEFT, 0.10)
+	# Z "esp_off": ESP wyłączony - kontrolka ESP świeci na prędkościomierzu.
+	if f == 20 and OS.get_cmdline_user_args().has("esp_off"):
+		car.esp_enabled = false
 	# Z "rain": ulewa (krople na szybie, wycieraczki, smugi deszczu).
 	if OS.get_cmdline_user_args().has("rain"):
 		main._rain_target = 2.0

@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-10, sesja 7 (noc: Autostrada domyślna, biomy, ruch, waśnie botów, pula botów, przegląd renderów)
+Ostatnia aktualizacja: 2026-11-10, sesja 7 (popołudnie: biomy co ~5 km z powolnym przejściem, boty i ruch w modelach aut z epoki)
 
 ---
 
@@ -523,12 +523,31 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
+- **Tempo gry (użytkownik 2026-11-10: "czas gry powinien płynąć nieco
+  szybciej" -> wybrał "cała gra szybciej")**: opcja "Tempo gry" (Trasa)
+  100/110/120/130%, **domyślnie 110%** = `Engine.time_scale` w scenie jazdy
+  (menu tytułowe zawsze 100%). Fizyka bez zmian, krok fizyki dłuższy
+  o tyle samo (130%: drive_test jak przy 100%). Zmiana w pauzie działa od
+  razu (`"live": true` w OPTIONS - bez restartu mimo grupy Trasa).
+  **Testy bez okna zawsze 100%** (kalibracja); `CANION_TIME_SCALE=1.3`
+  wymusza tempo w teście.
+- **Waśnie: mniej scenek z naprzeciwka, więcej na naszej jezdni**
+  (użytkownik 2026-11-10): scenki na drugiej jezdni co 3-6 km
+  (`OSK_GAP_MIN/MAX`, było 1,2-2,5 km); samoistna iskra między wrogami
+  0,2/s do 60 m (`FeudDirector`, było 0,08/s do 40 m). Limity budżetu
+  (MAX_FEUDS 2, żetony 4) bez zmian.
 - **TRYB AUTOSTRADA (ustalony 2026-11-09, etapy 1-3 zrobione, domyślna trasa - sekcja 8)**:
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
     jezdnie za barierą, na drugiej ruch z naprzeciwka.
-  - Sceneria zmienia się **co 50 km ± losowo 10 km**: wąwóz, góry,
-    nad morzem, równiny (pola, łąki, pustynia).
+  - Sceneria zmienia się **co ~5 km (5 odcinków) ± 1 km** (użytkownik
+    2026-11-10: "co 5 odcinek, niech się powoli zmieniają"; było 50 km
+    i przy jeździe na 16 km widać było tylko łąkę): wąwóz, góry, nad
+    morzem, równiny (pola, łąki, pustynia). **Przejście 2,8 km**
+    (`HighwayPlan.BIOME_BLEND`) - ziemia, trawa przy jezdni (paleta
+    mieszana co 0,1) i obiekty mieszają się płynnie; morze przysuwa się
+    z ~1,8 km dalej w miarę przejścia. Horyzont (góry w tle) dalej
+    wymieniany naraz w połowie przejścia.
   - **Miasta**: co 25 km małe (jedzie się przez ~1 km), co 100 km duże
     (~5 km). Droga przechodzi w **ulicę w zabudowie** (ta sama droga,
     domy, chodniki), **strefa 30 km/h**. Wokół miasta zawsze **3-5 aut
@@ -559,6 +578,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   później" - stacja radia z Jamendo): `~/.config/canion-raid/jamendo.env`
   (`JAMENDO_CLIENT_ID`, `JAMENDO_CLIENT_SECRET`, chmod 600). **Nigdy do
   gita** ani do plików w repo; skrypty mają je czytać z tego pliku.
+- **Rozmowy przez chmurę** (użytkownik 2026-11-10: "łatwiej mi
+  rozmawiać z agentem w chmurze, bo potrzebny mi do tego telefon"):
+  gdy użytkownik jest z dala od komputera, odpowiedzi i pytania pisz do
+  `docs/agent/outbox/` (i w plikach zleceń w inbox, sekcja odpowiedzi)
+  i wypychaj - wątek w chmurze przekazuje je na telefon. Pisz je tak,
+  żeby były zrozumiałe bez tej sesji.
 - **Docelowy sprzęt: Meta Quest 3.** Wszystko (dźwięk, grafika) musi
   być rozsądne wydajnościowo na Queście.
 - **Repozytorium git** (od 2026-11-08, prośba użytkownika):
@@ -604,6 +629,26 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   w goglach. Zbieranie logu w tle przerywa się wtedy z kodem 255.
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
+
+- **Nowe modele (OBJ) się nie importują, `load()` daje "No loader found
+  for resource ...obj"**, a w logu importu "Blender path is invalid" →
+  Godot skanuje `build/media_in` (źródłowe paczki z `.blend`) i import
+  bez okna przerywa się na nich. `build/.gdignore` (tworzy go
+  `quest.sh` przed importem; `build/` jest poza gitem).
+
+- **Test z autem gracza "pchanym" prędkością wypada z drogi na łukach**
+  (odrodzenie kasuje scenki, boty zostają daleko) → prowadź auto po
+  trasie: kierunek z `track.transform_at_distance(_last_safe_dist + 2)`,
+  prędkość z korektą do pasa. **Nie teleportuj** auta co klatkę: bez
+  kontaktu kół `_last_safe_dist` stoi w miejscu (objaw: boty "uciekają",
+  potyczki nie startują). Boty na autostradzie przyspieszają do limitu
+  140 km/h - test waśni trzyma się ~70 m za najbliższym (`feud_play_test`).
+- **Headless nie kompiluje shaderów** → błąd w `.gdshader` nie wychodzi
+  w testach `--headless`. Sprawdzenie: krótki skrypt w oknie
+  (`--xr-mode off --resolution 640x360`), który rysuje BoxMesh
+  z ShaderMaterial przez kilka klatek, i szukanie "SHADER ERROR" w wyjściu.
+  W świeżym worktree bez `.godot/` autoloady sypią "Could not find type
+  StuntCar" - to brak cache klas, nie błąd shadera.
 
 - **"Auto nagle staje jak przed barierą na prostej pod górkę"** (jazda
   2026-11-09): to **wysepka rozwidlenia** (`IslandBody`) tuż za
@@ -1147,6 +1192,20 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 ### Samochód (`stunt_car.gd`) - realistyczny model
 - `RigidBody3D`, jawny środek masy i tensor bezwładności. Przód = -Z.
   **Celowo bez `VehicleBody3D`.**
+- **Modele z epoki** (`apply_style`, klucze `CarStyles.STYLES`; "sedan"
+  = sedan z kodu): mocowania, promień, `rest_length`, masa, bezwładność
+  (`_inertia_mass` = masa modelu; hamulce i zawieszenie dalej względem
+  1150 kg - jak w symulatorze), `_base_com` = `com_offset` z danych (silnik
+  i FWD dokłada `apply_engine`), hamulce, `cd·area`, mnożniki zawieszenia
+  (`apply_suspension_preset`) i `final_mult` (`apply_engine`). Kolizja:
+  dół od `body_bottom` do 52% wysokości bryły, kabina z wierzchołków
+  nad szybami (max 80% szerokości); kabriolet bez `CabinShape`. Bryły
+  sedana ukryte (wgniecenia, światła szału - nie działają w modelach;
+  `set_rage_lights` do przeniesienia). Lakier: GGBotNet - maska z różnicy
+  wariantów koloru tekstury; Quaternius - materiały White/Orange/
+  DarkOrange. Bot: model + fabryczny napęd i zawieszenie, moc 250 kW.
+  Zrzut wszystkich modeli: skrypt jak `style_shot` (BoxMesh nie trzeba -
+  okno, `--resolution`).
 - **Koło** = sfera rzucana w dół z mocowania (`cast_motion`, potem
   `get_rest_info`). Ugięcie analityczne. Nawierzchnia z metadanych ciała,
   w które trafiło koło (`w.grip`, `w.surface`), więc każde koło może
@@ -1697,6 +1756,30 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - **Waśnie botów wpięte** (`FeudDirector`): 3 gangi z kolorem, potyczki
   tylko w zasięgu wzroku, najwyżej 2 naraz, uderzenie gracza w bota
   z potyczki = sojusz przeciw graczowi. Test `feud_play_test`.
+- **Żetony pościgu** (reguły chmury, outbox `2026-11-10-noc-agent-
+  lokalny.md` pkt 4): `CHASE_TOKENS` 4 wspólne dla szału i waśni
+  (`xr_main._assign_tokens`, 4 Hz; posiadacz trzyma żeton, póki jest
+  w szale/waśni, wolne dostają najbliżsi). Szał bez żetonu nie wymusza
+  fizyki (`BotDriver.has_token`), na szynie bot dogania gracza
+  (prędkość gracza +12 m/s, maks. 70 m/s). Potyczka startuje tylko
+  w 120 m (`BotLod.NEAR_R`) i w stożku, przy 2 wolnych żetonach; gaśnie
+  po 2 s poza stożkiem / 180 m; sojusz dobiera tylko na wolnych
+  żetonach. Klakson przy 7 botach: 7 w szale, 4 z żetonem (`horn_test`).
+- **Potyczki na drugiej jezdni wpięte** (`OncomingSkirmish`, xr_main
+  `_update_skirmish`): jedna naraz, następna po 1,2-2,5 km jazdy, nie
+  w mieście i nie przy pasie stacji, kolory dwóch wrogich gangów
+  (`FeudDirector.gangs_hostile`), start przy `trigger_gap` (klimaks 180 m
+  przed graczem), zdarzenia: klakson, wgniecenie, wybuch; auta wracają do
+  puli naprawione. Jezdnia autostrady (11,25 m) jest węższa niż
+  `MIN_ROAD_W` scenek, więc pasy scenki mapuje `hwy_from_median`
+  (L=-1 2 m od krawędzi przy pasie rozdziału, L=1,45 0,9 m od krawędzi
+  pobocza, 3,41 m/jednostkę); w "pit" A podjeżdża na -0,5 zamiast -0,45
+  (inaczej auta nachodziły na siebie przed uderzeniem). Testy
+  `oncoming_skirmish_test` (z szerokością autostrady),
+  `oncoming_play_test`.
+- `city_graph_test` OK i dodany do zestawu (prośba chmury). PR #21
+  (tunel bez świateł, biplanar): scala się z gałęzią bez konfliktu,
+  shadery kompilują się w oknie (sposób sprawdzenia: sekcja 3, pułapki).
 - **Przegląd renderów chmury** (outbox `2026-11-10-noc-agent-lokalny.md`):
   - zabudowa `HighwayScenery` płasko cieniowana
     (`set_smooth_group(0xFFFFFFFF)` - bez tego `generate_normals`
@@ -1708,9 +1791,66 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   - ujęcia w `render_tour.gd` przybliżone. Uwaga: wiata stacji stoi
     ~150-250 m za `station.start` z planu (40 m dobiegu + pas), skocznia
     zaczyna się 120 m za `jump.start` - ujęcia są ustawione pod to.
-- Testy: pełny `./quest.sh test` OK (2026-11-10, po przeglądzie
-  renderów; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
+- Testy: pełny `./quest.sh test` OK (2026-11-10, po żetonach i scenkach
+  na drugiej jezdni; w zestawie doszły `oncoming_play_test`
+  i `oncoming_skirmish_test`; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
   3 odrodzenia - autopilot nie omija botów).
+
+### 2026-11-10, sesja 7 - rano (użytkownik jeździ na kablu)
+
+- Wrażenia: "całkiem ładnie"; scenka "pit" na drugiej jezdni zadziałała.
+- **"Za mało botów jeżdżących w moją stronę"**: przy tej samej gęstości
+  auta z naprzeciwka mija się co kilkanaście sekund, a te w naszą stronę
+  dogania się powoli (w oknie 1,8 km było 1-2). `TrafficZone.
+  SAME_DIR_MULT` 2,5 na naszej jezdni między miastami (w strefie miasta
+  bez zmian, 3-5/km). `highway_plan_test`: między miastami średnio 3 auta
+  w oknie (było ~1).
+- **Kontrolki wspomagań**: PR #34 chmury (trójkąty ABS/TCS/ESP/SKR na
+  prędkościomierzu, świeci = wyłączony, miga = ingeruje) nigdy nie był
+  scalony - scalony do gałęzi. `gauges_test` OK i w zestawie, zrzut
+  kokpitu z ESP wył. (`screenshot.gd -- KATALOG esp_off`): trójkąty nie
+  wchodzą na liczby. Czytelność w goglach do oceny.
+- **Bieg w okienku LCD obrotomierza** (użytkownik: napis pod zegarami to
+  "resztka starego interfejsu", "dodaj to jako wskaźnik na desce"):
+  `Gauges.set_gear` ("A3", "M2", "R", "N"), okienko po lewej stronie
+  tarczy (górę zasłania wieniec kierownicy z fotela - sprawdzone zrzutem),
+  "x1000 obr" pod piastą. `dash_label` usunięty całkiem.
+- 400 km/h: "da się jechać, chociaż trudno, szybko traci przyczepność";
+  zaproponowany duży spojler (docisk ~8 kN przy 400 km/h) - bez opinii.
+- Log z jazdy (`build/logs/jazda_2026-11-10.log`): tempo gry 99-100%;
+  **przy stacji 67-68 kl./s, proces ~24 ms, GPU ~13 ms** (do zbadania).
+  INCYDENT 9,5 g przy 41 km/h na pasie stacji = uderzenie w dystrybutor
+  (potwierdził użytkownik), silnik 43 -> 93% - zgodne z wytrzymałością
+  x1. Diagnostyka pokazała "kontakt: brak" - `last_hit` nie łapie
+  kontaktów ze stacją (do poprawy: `get_colliding_bodies`).
+
+### 2026-11-10, sesja 7 - popołudnie (użytkownik z telefonu)
+
+- **Biomy co ~5 km z powolnym przejściem** (prośba użytkownika, sekcja 2
+  tryb Autostrada). `highway_plan_test` sprawdza długości 4-6 km, czysty
+  środek biomu i ciągłe przejście.
+- **Auta z epoki - etapy 1 i 2** (pytanie "a inne modele samochodów?"):
+  `StuntCar.apply_style(name)` (dane `CarStyles`, przeniesienie 1:1 jak
+  `tools/car_sim.py`), boty i ruch z naprzeciwka losują model z
+  `bot_weight` (`XrMain._pick_style`, ziarno `_bot_rng`). Lakier modeli
+  z teksturą przez maskę (`tools/make_paint_masks.py`,
+  `shaders/period_paint.gdshader`) - kolory gangów działają. Gracz dalej
+  w sedanie (etap 3: menu + kokpit - do oceny w goglach).
+- Pułapka importu OBJ (`build/.gdignore`) - sekcja 3. `docs/.gdignore`
+  (zrzuty z `docs/renders` importowały się i szły do APK), eksport bez
+  źródłowych OBJ i nieużywanych wariantów tekstur GGBotNet.
+- Testy: pełny `quest.sh test` OK (w tym drive_test, title_test,
+  feud/oncoming_play, endless autostrada 10 km). Przejazd 16 km:
+  biomy łąka -> góry 4,3 km -> pustynia 9,8 -> wąwóz 14,3. `bot_rage_test`
+  (sam log, bez werdyktu) jest **niedeterministyczny** - zderzenie przy
+  120 km/h raz zostawia bota przy graczu, raz obraca i bot zostaje
+  50-200 m w tyle; tak samo przed zmianą (3 przebiegi starego kodu).
+  Do zrobienia: werdykt i stały scenariusz.
+- Po jeździe (wieczór): "czas gry powinien płynąć szybciej" -> opcja Tempo
+  gry (domyślnie 110%); "mniej walk z przeciwka, więcej w tę samą stronę"
+  -> scenki co 3-6 km, iskry częściej (sekcja 2). feud_test,
+  feud_play_test, oncoming_play_test, horn_test, title_test OK,
+  drive_test 95 sport auto przy 100% i 130%.
 
 ## 8. Kolejka zadań
 
@@ -1743,14 +1883,24 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    **Etapy 2-3 zrobione (2026-11-10)**: biomy, horyzont, morze,
    `world_origin_wrap` w shaderach, ruch na obu jezdniach, waśnie.
    Dalej (kolejność proponowana):
-   - **Żetony waśni** (odpowiedź chmury: K=4 żetony pościgu, potyczka
-     fizyczna tylko w `LOD_NEAR` 120 m i w stożku widzenia, koniec po
-     2 s poza wzrokiem, szał bez żetonu jedzie po szynie) - nie zrobione.
-   - **`OncomingSkirmish`** (moduł chmury, niewpięty): jedna scena naraz,
-     co 1,2-2,5 km, kolory gangów.
-   - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
+   - Scenki na drugiej jezdni: dodać efekty "sparks" i "smoke" (teraz
+     bez efektu), "wreck" częściej w późnych odcinkach (waga), render.
+   - **Auta z epoki: etapy 1-2 zrobione (2026-11-10)** - patrz
+     "Samochód" w sekcji 5. Został etap 3 (gracz) - opis niżej.
+     Historia planu: (`models/period_cars/<model>/body.obj+wheel.obj`,
      parametry policzone przez chmurę - outbox
      `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.
+     Proponowane etapy: (1) `StuntCar.apply_style(name)` - mocowania,
+     promień, masa, środek masy, bezwładność, kolizja z `size` /
+     `body_bottom`, mnożniki zawieszenia/stabilizatorów, hamulce,
+     `final_mult`, cd/area; siatki `model`/`wheel_model` zamiast brył
+     sedana (wzór: `set_body_model` dla concept cara). Najpierw sprawdzić
+     w `tools/car_sim.py`, jak symulator chmury przekłada te pola na
+     parametry auta - przeniesienie musi się zgadzać 1:1. (2) Boty
+     losują styl z `bot_weight` (pula botów: styl przy `_take_bot`).
+     (3) Gracz: wybór w menu, fotel `seat`, kokpit - wymaga gogli
+     i oceny użytkownika. Uwaga chmury: hatchback przy 120 km/h obraca
+     się w sinusie mimo ESP.
    - **Głębia miast** (przegląd renderów pkt 1): tylne rzędy, miejski
      grunt, przecznice; potem `CityGraph` etap 5 (inbox
      `miasta-leniwy-graf`).

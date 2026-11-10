@@ -2219,16 +2219,22 @@ func _metal_material() -> Material:
 
 
 func _grass_material() -> Material:
-	# Autostrada: paleta biomu kawałka (pustynia - piasek, nie trawa).
-	var biome := hwy_plan.biome_at(float(_samples[0]["dist"])) if hwy_plan and not _samples.is_empty() else ""
-	var key := "grass_" + biome
+	# Autostrada: paleta biomu kawałka (pustynia - piasek, nie trawa),
+	# w przejściu między biomami zmieszana (udział co 0,1 - wspólne materiały).
+	var bl := hwy_plan.biome_blend(float(_samples[0]["dist"])) if hwy_plan and not _samples.is_empty() else {}
+	var key := "grass"
+	var t := 0.0
+	if not bl.is_empty():
+		t = snappedf(float(bl["t"]), 0.1)
+		key = "grass_%s_%s_%.1f" % [bl["a"], bl["b"], t] if t > 0.0 else "grass_" + str(bl["a"])
 	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/ground.gdshader")
-		if biome != "":
-			var pal: Array = HighwayScenery.BIOME_GROUND.get(biome, HighwayScenery.BIOME_GROUND["meadow"])
-			m.set_shader_parameter("grass_a", pal[0])
-			m.set_shader_parameter("grass_b", pal[1])
-			m.set_shader_parameter("dirt", pal[2])
+		if not bl.is_empty():
+			var pa: Array = HighwayScenery.BIOME_GROUND.get(bl["a"], HighwayScenery.BIOME_GROUND["meadow"])
+			var pb: Array = HighwayScenery.BIOME_GROUND.get(bl["b"], HighwayScenery.BIOME_GROUND["meadow"])
+			m.set_shader_parameter("grass_a", (pa[0] as Color).lerp(pb[0], t))
+			m.set_shader_parameter("grass_b", (pa[1] as Color).lerp(pb[1], t))
+			m.set_shader_parameter("dirt", (pa[2] as Color).lerp(pb[2], t))
 		_shared_mats[key] = m
 	return _shared_mats[key]

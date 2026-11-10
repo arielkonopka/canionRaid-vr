@@ -29,9 +29,11 @@ const PLAYER := 0
 const NONE := -1
 
 const SIGHT_R := 200.0          # [m] potyczki tylko tak blisko gracza
-const NEAR_SPARK_R := 40.0      # [m] wrogowie tak blisko mogą zacząć sami
+const NEAR_SPARK_R := 60.0      # [m] wrogowie tak blisko mogą zacząć sami (było 40)
 const OVERTAKE_CHANCE := 0.5    # wyprzedzony wróg wpada w szał na wyprzedzającego
-const SPARK_CHANCE_PER_S := 0.08  # samoistna potyczka wrogów obok siebie, na sekundę
+## Samoistna potyczka wrogów obok siebie, na sekundę. Użytkownik 2026-11-10:
+## więcej walk na naszej jezdni (było 0,08).
+const SPARK_CHANCE_PER_S := 0.2
 const CONTACT_NEUTRAL_CHANCE := 0.3  # zderzenie botów z gangów neutralnych
 const ALLIANCE_TIME := 45.0     # [s] sojusznicy nie walczą ze sobą
 const PROVOKE_TIME := 3.0       # [s] potyczka po kontakcie gracza = prowokacja
@@ -71,6 +73,11 @@ func set_hostile(g1: int, g2: int, on: bool) -> void:
 		_hostile[_key(g1, g2)] = true
 	else:
 		_hostile.erase(_key(g1, g2))
+
+
+## Czy gangi są wrogie w tym odcinku (bez sojuszy - do kolorów scenek).
+func gangs_hostile(g1: int, g2: int) -> bool:
+	return g1 != g2 and _hostile.has(_key(g1, g2))
 
 
 func hostile(a: int, b: int, now: float) -> bool:

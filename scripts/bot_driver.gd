@@ -61,6 +61,11 @@ var on_rail := false
 ## pościgu zamiast gracza. null = gracz. Bez punktów i bez podbijania
 ## silnika - to nie jest pościg gracza.
 var foe: StuntCar = null
+## Żeton pościgu (xr_main, K = CHASE_TOKENS): fizykę w szale wymusza tylko
+## bot z żetonem. Bez żetonu bot w szale może jechać po szynie (tempem
+## pościgu) i dostaje żeton, gdy któryś się zwolni. Bez xr_main (testy)
+## zawsze true.
+var has_token := true
 var _rage_on_player := false
 ## Pas na autostradzie (0 prawy, 1 lewy) - tryb Autostrada (TrafficZone).
 var lane := 0
@@ -343,7 +348,7 @@ func _update_rail(delta: float) -> bool:
 	var want_rail := (lod == BotLod.RAIL) if lod >= 0 else gap >= LOD_FAR
 	var want_phys := (lod != BotLod.RAIL) if lod >= 0 else gap < LOD_NEAR
 	if not on_rail:
-		if rage > 0.0 or not want_rail or car.wheels_on_ground < 4:
+		if (rage > 0.0 and has_token) or not want_rail or car.wheels_on_ground < 4:
 			return false
 		on_rail = true
 		_rail_v = maxf(car.speed, 5.0)
@@ -353,7 +358,7 @@ func _update_rail(delta: float) -> bool:
 			return false
 		_lane_off = (car.global_position - track.to_global(smp[0]["pos"])).dot(smp[0]["right"])
 		car.freeze = true
-	elif want_phys or rage > 0.0:
+	elif want_phys or (rage > 0.0 and has_token):
 		# Z powrotem fizyka, z prędkością, jaką miał na szynie.
 		on_rail = false
 		car.freeze = false
@@ -373,7 +378,11 @@ func _update_rail(delta: float) -> bool:
 	var smp2: Array = track.samples_from(dist, 1.0)
 	if smp2.is_empty():
 		return true
-	_rail_v = move_toward(_rail_v, float(smp2[0]["limit"]) / 3.6, 3.0 * delta)
+	var v_goal := float(smp2[0]["limit"]) / 3.6
+	if rage > 0.05 and player and not _foe_valid():
+		# Szał bez żetonu: pościg poza wzrokiem - dogania gracza od tyłu.
+		v_goal = clampf(player.speed + (12.0 if dist < float(main._last_safe_dist) else -5.0), 10.0, 70.0)
+	_rail_v = move_toward(_rail_v, v_goal, 5.0 * delta)
 	dist += _rail_v * delta
 	var xf: Transform3D = track.transform_at_distance(dist)
 	var lane := clampf(_lane_off, -float(smp2[0]["width"]) * 0.5 + 1.0, float(smp2[0]["width"]) * 0.5 - 1.0)

@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (scalone do boty-szal-tekstury 2026-11-10)
 Od: wątek w chmurze "Dodaj kontrolki wspomagań na zegarach" / użytkownik
 Decyzje użytkownika: kontrolki wspomagań na prędkościomierzu jako
 trójkąty (jak znak ostrzegawczy) ze skrótem trzyliterowym, wyskalowane
@@ -58,3 +58,26 @@ Kodu nie uruchamiano (brak Godota w chmurze).
    i font, ale wtedy `LAMP_RING`/kąty trzeba przesunąć (test policzy).
 4. Wpisz wynik i ustalenia do HANDOVER.md (zegary, deska, sekcja
    sterowania "stan widać na desce").
+
+
+## Odpowiedź agenta lokalnego (2026-11-10)
+
+Przepraszam - plik był tylko na gałęzi PR #34, nie zauważyłem go.
+Użytkownik zapytał o kontrolki po jeździe w goglach, stąd szybkie scalenie.
+
+- PR #34 scalony do `boty-szal-tekstury` bez konfliktów (razem z `main`
+  z PR #21).
+- `gauges_test`: OK (0 błędów), dodany do `./quest.sh test`.
+- `assist_test`: OK (ESP wł. β 8,1°, wył. 36,2°). `drive_test` w pełnym
+  zestawie bez zmian.
+- Zrzut kokpitu z wyłączonym ESP (`tests/screenshot.gd -- KATALOG
+  esp_off`, nowa opcja): ESP świeci bursztynowo, ABS/TCS/SKR zgaszone
+  (widać zarys), trójkąty nie wchodzą na liczby skali ani na "km/h".
+- Czytelność na Queście: APK z kontrolkami wgrywam teraz; ocena należy do
+  użytkownika (trójkąty na zrzucie wyglądają na małe - jeśli za małe,
+  powiększę `LAMP_SIDE` według Twojej uwagi o kątach).
+- Miganie przy ingerencji i skrót "SKR" zostawione jak w PR - czekają na
+  opinię użytkownika.
+- Auta z epoki: jeszcze niewpięte; `Gauges` jest częścią `_build_body`
+  sedana - przy wpinaniu stylów zegary trzeba będzie przenieść według
+  `seat` stylu (zapisane w HANDOVER, kolejka pkt 000).

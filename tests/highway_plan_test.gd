@@ -1,6 +1,6 @@
 extends SceneTree
 ## Test planu trybu Autostrada (HighwayPlan) i decyzji ruchu (TrafficZone):
-## biomy co 50 ± 10 km, miasta co 25 / 100 km, ograniczenia, objazdy,
+## biomy co 5 ± 1 km (płynne przejścia), miasta co 25 / 100 km, ograniczenia, objazdy,
 ## słupki, gęstość ruchu i znikanie aut tylko poza wzrokiem. Bez sceny,
 ## sekundy.
 ##   godot --headless --xr-mode off -s res://tests/highway_plan_test.gd -- [ziarno] </dev/null
@@ -40,8 +40,8 @@ func _biomes(plan: HighwayPlan, seed_v: int) -> void:
 	for k in range(12):
 		var r := plan.biome_range(k)
 		var len_km := (r.y - r.x) / 1000.0
-		line.append("%s %.0f" % [plan.biome_at(r.x + 1.0), len_km])
-		if len_km < 39.999 or len_km > 60.001:
+		line.append("%s %.1f" % [plan.biome_at(r.x + 1.0), len_km])
+		if len_km < 3.999 or len_km > 6.001:
 			_fail("biom %d ma %.1f km" % [k, len_km])
 		if k > 0 and plan.biome_at(r.x + 1.0) == plan.biome_at(r.x - 1.0):
 			_fail("biom %d taki sam jak poprzedni" % k)
@@ -50,6 +50,17 @@ func _biomes(plan: HighwayPlan, seed_v: int) -> void:
 		var bl := plan.biome_blend(r.x)
 		if k > 0 and absf(float(bl["t"]) - 0.5) > 0.01:
 			_fail("mieszanie na granicy %d: t %.2f" % [k, bl["t"]])
+		# Przejście ciągłe: t rośnie płynnie do granicy, w środku biomu 0.
+		var mid := plan.biome_blend((r.x + r.y) * 0.5)
+		if float(mid["t"]) > 0.0:
+			_fail("biom %d bez czystego środka (t %.2f)" % [k, mid["t"]])
+		var prev_t := -1.0
+		for i in range(11):
+			var dd := r.y - HighwayPlan.BIOME_BLEND * 0.5 + HighwayPlan.BIOME_BLEND * 0.05 * i
+			var bt: float = plan.biome_blend(dd)["t"]
+			if bt < prev_t - 1e-6:
+				_fail("przejście %d nie rośnie (%.2f km)" % [k, dd / 1000.0])
+			prev_t = bt
 	print("biomy [km]: ", ", ".join(line))
 	var diff := HighwayPlan.new(seed_v + 1)
 	var same := true
@@ -182,7 +193,7 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 			for c in cars:
 				if not c["oncoming"] and float(c["dist"]) > pd - 300.0 and float(c["dist"]) < pd + 1500.0:
 					n += 1
-			if n < tz.wanted(pd) - 3:
+			if n < tz.wanted(pd, true) - 3:
 				in_zone_short += 1
 		if pd > 37000.0 and pd < 42000.0:      # strefa miasta 1 do 31 km, miasta 2 od 45 km
 			var n_far := 0
@@ -195,11 +206,11 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 		t += dt
 	var far_avg := float(far_sum) / maxf(far_checks, 1)
 	print("ruch: aut łącznie %d, w strefie za mało w %d/%d krokach, między miastami średnio %.1f (najwięcej %d, chciane %d)" % [
-			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0)])
+			next_id, in_zone_short, in_zone_checks, far_avg, far_cars, tz.wanted(40000.0, true)])
 	if in_zone_checks == 0 or in_zone_short > in_zone_checks / 5:
 		_fail("za mało aut w strefie miasta")
 	# Między miastami rzadki ruch 0,5-1/km (nie pusto i nie jak w mieście).
-	if far_avg < 0.3 or far_cars > tz.wanted(40000.0) + TrafficZone.SURPLUS + 2:
+	if far_avg < 0.3 or far_cars > tz.wanted(40000.0, true) + TrafficZone.SURPLUS + 2:
 		_fail("ruch między miastami: średnio %.1f, najwięcej %d" % [far_avg, far_cars])
 	# Gęstości z planu.
 	if not is_equal_approx(plan.base_traffic(0.0), HighwayPlan.BASE_TRAFFIC_MIN) \
