@@ -1697,6 +1697,27 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - **Waśnie botów wpięte** (`FeudDirector`): 3 gangi z kolorem, potyczki
   tylko w zasięgu wzroku, najwyżej 2 naraz, uderzenie gracza w bota
   z potyczki = sojusz przeciw graczowi. Test `feud_play_test`.
+- **Żetony pościgu** (reguły chmury, outbox `2026-11-10-noc-agent-
+  lokalny.md` pkt 4): `CHASE_TOKENS` 4 wspólne dla szału i waśni
+  (`xr_main._assign_tokens`, 4 Hz; posiadacz trzyma żeton, póki jest
+  w szale/waśni, wolne dostają najbliżsi). Szał bez żetonu nie wymusza
+  fizyki (`BotDriver.has_token`), na szynie bot dogania gracza
+  (prędkość gracza +12 m/s, maks. 70 m/s). Potyczka startuje tylko
+  w 120 m (`BotLod.NEAR_R`) i w stożku, przy 2 wolnych żetonach; gaśnie
+  po 2 s poza stożkiem / 180 m; sojusz dobiera tylko na wolnych
+  żetonach. Klakson przy 7 botach: 7 w szale, 4 z żetonem (`horn_test`).
+- **Potyczki na drugiej jezdni wpięte** (`OncomingSkirmish`, xr_main
+  `_update_skirmish`): jedna naraz, następna po 1,2-2,5 km jazdy, nie
+  w mieście i nie przy pasie stacji, kolory dwóch wrogich gangów
+  (`FeudDirector.gangs_hostile`), start przy `trigger_gap` (klimaks 180 m
+  przed graczem), zdarzenia: klakson, wgniecenie, wybuch; auta wracają do
+  puli naprawione. Jezdnia autostrady (11,25 m) jest węższa niż
+  `MIN_ROAD_W` scenek, więc pasy scenki mapuje `hwy_from_median`
+  (L=-1 2 m od krawędzi przy pasie rozdziału, L=1,45 0,9 m od krawędzi
+  pobocza, 3,41 m/jednostkę); w "pit" A podjeżdża na -0,5 zamiast -0,45
+  (inaczej auta nachodziły na siebie przed uderzeniem). Testy
+  `oncoming_skirmish_test` (z szerokością autostrady),
+  `oncoming_play_test`.
 - **Przegląd renderów chmury** (outbox `2026-11-10-noc-agent-lokalny.md`):
   - zabudowa `HighwayScenery` płasko cieniowana
     (`set_smooth_group(0xFFFFFFFF)` - bez tego `generate_normals`
@@ -1708,8 +1729,9 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   - ujęcia w `render_tour.gd` przybliżone. Uwaga: wiata stacji stoi
     ~150-250 m za `station.start` z planu (40 m dobiegu + pas), skocznia
     zaczyna się 120 m za `jump.start` - ujęcia są ustawione pod to.
-- Testy: pełny `./quest.sh test` OK (2026-11-10, po przeglądzie
-  renderów; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
+- Testy: pełny `./quest.sh test` OK (2026-11-10, po żetonach i scenkach
+  na drugiej jezdni; w zestawie doszły `oncoming_play_test`
+  i `oncoming_skirmish_test`; endless autostrada 10,05 km w 240 s, 4 przesunięcia świata,
   3 odrodzenia - autopilot nie omija botów).
 
 ## 8. Kolejka zadań
@@ -1743,11 +1765,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    **Etapy 2-3 zrobione (2026-11-10)**: biomy, horyzont, morze,
    `world_origin_wrap` w shaderach, ruch na obu jezdniach, waśnie.
    Dalej (kolejność proponowana):
-   - **Żetony waśni** (odpowiedź chmury: K=4 żetony pościgu, potyczka
-     fizyczna tylko w `LOD_NEAR` 120 m i w stożku widzenia, koniec po
-     2 s poza wzrokiem, szał bez żetonu jedzie po szynie) - nie zrobione.
-   - **`OncomingSkirmish`** (moduł chmury, niewpięty): jedna scena naraz,
-     co 1,2-2,5 km, kolory gangów.
+   - Scenki na drugiej jezdni: dodać efekty "sparks" i "smoke" (teraz
+     bez efektu), "wreck" częściej w późnych odcinkach (waga), render.
    - **Auta z epoki** (`models/period_cars/<model>/body.obj+wheel.obj`,
      parametry policzone przez chmurę - outbox
      `2026-11-10-noc-agent-lokalny.md` pkt 3): `CarStyles`, menu, boty.

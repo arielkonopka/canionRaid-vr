@@ -46,6 +46,25 @@ const V_REF := 35.0
 ## w podejściu do pita nachodzą na siebie. Na węższej - nie startować.
 const MIN_ROAD_W := 13.0
 
+## Autostrada 2+2 (HighwayGenerator, jezdnia 11,25 m - węższa niż
+## MIN_ROAD_W): pas scenki L liczony od krawędzi przy pasie rozdziału -
+## L = -1 środek auta HWY_EDGE_IN m od tej krawędzi, L = 1,45 HWY_EDGE_OUT m
+## od krawędzi pobocza, liniowo (przy 11,25 m: 3,41 m na jednostkę L,
+## sprawdzane w oncoming_skirmish_test).
+const HWY_EDGE_IN := 2.0
+const HWY_EDGE_OUT := 0.9
+
+
+## Odległość środka auta od krawędzi jezdni przy pasie rozdziału [m].
+static func hwy_from_median(lane: float, road_w: float) -> float:
+	return HWY_EDGE_IN + (lane + 1.0) * hwy_unit(road_w)
+
+
+## Metry na jednostkę pasa scenki na autostradzie.
+static func hwy_unit(road_w: float) -> float:
+	return (road_w - HWY_EDGE_IN - HWY_EDGE_OUT) / 2.45
+
+
 ## Scenki: klatki kluczowe [t, a_lane, a_v, a_yaw, a_roll, b_lane, b_v, b_yaw, b_roll],
 ## pasy drugiej jezdni jak w xr_main (-1 przy pasie rozdziału, 1 przy
 ## poboczu, 1,45 = przy barierze zewnętrznej); v = mnożnik prędkości
@@ -85,7 +104,7 @@ const SCENES := {
 		"offset_a": 4.5, "climax": 2.8, "weight": 2.0,
 		"keys": [
 			[0.0, -0.8, 1.06, 0, 0, 0.0, 1.0, 0, 0],
-			[1.4, -0.45, 1.06, 8, 0, 0.0, 1.0, 0, 0],
+			[1.4, -0.5, 1.06, 8, 0, 0.0, 1.0, 0, 0],
 			[1.7, -0.6, 1.0, 0, 0, 0.15, 0.9, 30, 3],
 			[2.8, -0.4, 1.05, 0, 0, 0.9, 0.5, 150, 6],
 			[3.8, -0.2, 1.1, 0, 0, 1.35, 0.15, 200, 0],

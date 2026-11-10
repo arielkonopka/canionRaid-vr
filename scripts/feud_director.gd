@@ -73,6 +73,11 @@ func set_hostile(g1: int, g2: int, on: bool) -> void:
 		_hostile.erase(_key(g1, g2))
 
 
+## Czy gangi są wrogie w tym odcinku (bez sojuszy - do kolorów scenek).
+func gangs_hostile(g1: int, g2: int) -> bool:
+	return g1 != g2 and _hostile.has(_key(g1, g2))
+
+
 func hostile(a: int, b: int, now: float) -> bool:
 	if not gang.has(a) or not gang.has(b):
 		return false

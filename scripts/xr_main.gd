@@ -728,6 +728,16 @@ func _retire_bot(b: StuntCar, dead := false) -> void:
 ## w potyczce = sojusz przeciw graczowi.
 const GANGS := 3
 const MAX_FEUDS := 2
+## Żetony pościgu (odpowiedź chmury, outbox 2026-11-10-noc-agent-lokalny
+## pkt 4): wspólne dla szału na gracza i waśni. Fizykę w szale wymusza
+## tylko bot z żetonem (budżet fizyki Questa); reszta w szale jedzie po
+## szynie i czeka na wolny żeton. Gdyby miasto okazało się droższe
+## w renderze - zmniejszyć do 3.
+const CHASE_TOKENS := 4
+## Waśń gaśnie, gdy strona jest poza stożkiem / dalej niż 1,5 x NEAR_R
+## dłużej niż tyle sekund.
+const FEUD_OOS_MAX := 2.0
+var _feud_oos := {}                  # instance_id -> czas poza wzrokiem [s]
 var feud := FeudDirector.new()
 var _bot_gang := {}                  # instance_id -> gang
 var _feud_order := {}                # instance_id -> indeks w kolejności (dist)
@@ -749,9 +759,41 @@ func _bot_by_id(id: int) -> StuntCar:
 	return null
 
 
-func _in_sight(b: StuntCar) -> bool:
+## Żetony pościgu: posiadacze zachowują żeton, dopóki są w szale albo
+## waśni; wolne dostają najbliżsi graczowi.
+func _assign_tokens() -> void:
+	var held := 0
+	var want := []
+	for b in _bots:
+		var drv: BotDriver = b.get_node("Driver")
+		if not (drv.rage > 0.0 or feud.in_feud(b.get_instance_id())):
+			drv.has_token = false
+		elif drv.has_token:
+			held += 1
+		else:
+			want.append(b)
+	want.sort_custom(func(a, b): return absf((a.get_node("Driver") as BotDriver).dist - _last_safe_dist) \
+			< absf((b.get_node("Driver") as BotDriver).dist - _last_safe_dist))
+	for b in want:
+		if held >= CHASE_TOKENS:
+			break
+		(b.get_node("Driver") as BotDriver).has_token = true
+		held += 1
+
+
+func _free_tokens() -> int:
+	var held := 0
+	for b in _bots:
+		if (b.get_node("Driver") as BotDriver).has_token:
+			held += 1
+	return CHASE_TOKENS - held
+
+
+## Bot w zasięgu potyczki: z fizyką, bliżej niż `r` (domyślnie NEAR_R
+## 120 m) i w stożku widzenia gracza.
+func _in_sight(b: StuntCar, r := BotLod.NEAR_R) -> bool:
 	var drv: BotDriver = b.get_node("Driver")
-	if drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > FeudDirector.SIGHT_R:
+	if drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > r:
 		return false
 	return TrafficZone.visible(camera.global_position, -camera.global_basis.z, -car.global_basis.z, b.global_position)
 
@@ -773,15 +815,23 @@ func _feud_scan() -> void:
 	for b in _bots:
 		var drv: BotDriver = b.get_node("Driver")
 		var id := b.get_instance_id()
-		# Waśń poza wzrokiem (dalej niż 1,5 x SIGHT_R albo na szynie) gaśnie.
-		if feud.in_feud(id) and feud.target_of(id) != FeudDirector.PLAYER \
-				and (drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > FeudDirector.SIGHT_R * 1.5):
-			feud.calm(id)
-			drv.end_feud()
+		# Waśń, której strona jest poza wzrokiem (stożek, 1,5 x NEAR_R)
+		# dłużej niż FEUD_OOS_MAX, gaśnie; żeton wraca do puli.
+		if feud.in_feud(id) and feud.target_of(id) != FeudDirector.PLAYER:
+			if _in_sight(b, BotLod.NEAR_R * 1.5):
+				_feud_oos.erase(id)
+			else:
+				_feud_oos[id] = float(_feud_oos.get(id, 0.0)) + 0.25
+				if float(_feud_oos[id]) > FEUD_OOS_MAX:
+					_feud_oos.erase(id)
+					feud.calm(id)
+					drv.end_feud()
+		else:
+			_feud_oos.erase(id)
 		if drv.lod != BotLod.RAIL:
 			phys.append(b)
 	phys.sort_custom(func(a, b): return (a.get_node("Driver") as BotDriver).dist < (b.get_node("Driver") as BotDriver).dist)
-	var room := _feud_count() < MAX_FEUDS
+	var room := _feud_count() < MAX_FEUDS and _free_tokens() >= 2
 	var order := {}
 	for i in range(phys.size()):
 		var a: StuntCar = phys[i]
@@ -818,7 +868,18 @@ func _feud_events(evs: Array) -> void:
 			"skirmish":
 				var a := _bot_by_id(int(ev["a"]))
 				var b := _bot_by_id(int(ev["b"]))
+				# Potyczka potrzebuje żetonu dla każdej strony bez żetonu.
+				var need := 0
+				for x in [a, b]:
+					if x and not (x.get_node("Driver") as BotDriver).has_token:
+						need += 1
+				if a and b and need > _free_tokens():
+					feud.calm(int(ev["a"]))
+					feud.calm(int(ev["b"]))
+					continue
 				if a and b:
+					for x in [a, b]:
+						(x.get_node("Driver") as BotDriver).has_token = true
 					(a.get_node("Driver") as BotDriver).feud_with(b)
 					if feud.target_of(int(ev["b"])) == int(ev["a"]):
 						(b.get_node("Driver") as BotDriver).feud_with(a)
@@ -826,10 +887,19 @@ func _feud_events(evs: Array) -> void:
 				if ev.get("provoked", false) and int(ev.get("points", 0)) > 0:
 					_score_pay(score.award_free("feud", int(ev["points"]), race_time, "PROWOKACJA"))
 			"alliance":
+				# Uczestnicy potyczki mają żetony; nowi członkowie gangu
+				# dołączają tylko na wolnych, reszta zostaje spokojna.
 				for id in ev["ids"]:
 					var bb := _bot_by_id(int(id))
-					if bb:
-						(bb.get_node("Driver") as BotDriver).enrage("alliance")
+					if bb == null:
+						continue
+					var bd: BotDriver = bb.get_node("Driver")
+					if not bd.has_token and _free_tokens() > 0:
+						bd.has_token = true
+					if bd.has_token:
+						bd.enrage("alliance")
+					else:
+						feud.calm(int(id))
 				_show_popup("SOJUSZ!", true)
 				print("Waśń: SOJUSZ przeciw graczowi (%d aut)" % (ev["ids"] as Array).size())
 			"feud_end":
@@ -863,12 +933,13 @@ func _update_bot_lod(delta: float) -> void:
 	if _lod_t > 0.0 or _bots.is_empty():
 		return
 	_lod_t = 0.25
+	_assign_tokens()
 	var dists := PackedFloat32Array()
 	var raging := []
 	for b in _bots:
 		var drv: BotDriver = b.get_node("Driver")
 		dists.append(absf(drv.dist - _last_safe_dist))
-		raging.append(drv.rage > 0.0 or feud.in_feud(b.get_instance_id()))
+		raging.append(drv.has_token)
 	if _lod_prev.size() != _bots.size():
 		_lod_prev = PackedInt32Array()
 	var lv := BotLod.assign(dists, raging, _lod_prev, BOT_PHYS_BUDGET)
@@ -1022,6 +1093,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	drv.main = self
 	drv.dist = d
 	drv.lane = maxi(lane_i, 0)
+	drv.has_token = false                 # żetony rozdaje _assign_tokens
 	bot.add_child(drv)
 	_bots.append(bot)
 	feud.add_bot(bot.get_instance_id(), int(_bot_gang.get(bot.get_instance_id(), 0)))
@@ -2062,6 +2134,7 @@ func _restart_section() -> void:
 	for o in _oncoming:
 		(o["car"] as Node).queue_free()
 	_oncoming.clear()
+	_osk = null
 	for c in _oncoming_pool:
 		c.queue_free()
 	_oncoming_pool.clear()
@@ -2318,7 +2391,11 @@ func _update_oncoming(delta: float) -> void:
 		var d := _last_safe_dist + _bot_rng.randf_range(500.0, 900.0)
 		if _oncoming.size() < ONCOMING_MAX and _is_highway_at(d):
 			_spawn_oncoming(d)
+	if _endless and track.autostrada:
+		_update_skirmish(delta)
 	for o in _oncoming.duplicate():
+		if o.has("osk"):
+			continue                           # scenka: _update_skirmish
 		var c: StuntCar = o["car"]
 		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
 		var d2: float = o["dist"]
@@ -2329,6 +2406,143 @@ func _update_oncoming(delta: float) -> void:
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = float(o["v"]) / c.wheel_radius
+
+
+## Potyczki na drugiej jezdni autostrady (OncomingSkirmish, moduł chmury,
+## inbox wasnie-na-autostradzie pkt 7): reżyserowana scenka dwóch aut
+## z naprzeciwka w kolorach wrogich gangów, klimaks ~180 m przed graczem.
+## Najwyżej jedna naraz, następna 1,2-2,5 km jazdy po poprzedniej. Bez
+## fizyki i bez punktów (gracz jest za barierą).
+var _osk: OncomingSkirmish = null
+var _osk_cars := {}                  # "a"/"b" -> wpis z _oncoming
+var _osk_started := false
+var _osk_v := 0.0                    # prędkość bazowa scenki [m/s]
+var _osk_next_d := 1500.0            # dystans gracza, od którego wolno zacząć
+
+
+func _update_skirmish(delta: float) -> void:
+	if _osk == null:
+		if race_state != Race.RACING or _last_safe_dist < _osk_next_d:
+			return
+		var d := _last_safe_dist + 900.0
+		# Cała scenka na zwykłej jezdni (bez pasa stacji, nie w mieście).
+		for k in [0.0, 300.0, 600.0]:
+			var smp: Array = track.samples_from(d - k, 1.0)
+			if smp.is_empty() or absf(float(smp[0]["width"]) - HighwayGenerator.WIDTH) > 0.1 \
+					or not track.plan.city_at(d - k).is_empty():
+				_osk_next_d = _last_safe_dist + 200.0
+				return
+		_osk = OncomingSkirmish.random(_bot_rng)
+		_osk_started = false
+		_osk_v = _bot_rng.randf_range(110.0, 140.0) / 3.6
+		var gg := _osk_gangs()
+		_osk_cars = {}
+		for who in ["b", "a"]:
+			var dd := d if who == "b" else d + _osk.gap
+			_spawn_oncoming(dd, 0, _osk_v * 3.6)
+			var o: Dictionary = _oncoming[-1]
+			o["osk"] = who
+			var c: StuntCar = o["car"]
+			c.set_paint(GameSettings.PAINTS[_gang_paint(gg[0] if who == "a" else gg[1])])
+			_osk_cars[who] = o
+		print("Scenka na drugiej jezdni: ", _osk.kind)
+	var oa: Dictionary = _osk_cars["a"]
+	var ob: Dictionary = _osk_cars["b"]
+	if not (is_instance_valid(oa["car"]) and is_instance_valid(ob["car"])):
+		_osk_end()
+		return
+	if not _osk_started:
+		ob["dist"] = float(ob["dist"]) - _osk_v * delta
+		var closing := maxf(car.speed, 0.0) + _osk_v
+		if float(ob["dist"]) - _last_safe_dist <= _osk.trigger_gap(closing):
+			_osk_started = true
+	else:
+		for ev in _osk.step(delta):
+			_osk_event(ev)
+		ob["dist"] = float(ob["dist"]) - _osk_v * float(_osk.state_b["v"]) * delta
+	oa["dist"] = float(ob["dist"]) + _osk.gap
+	for who in ["a", "b"]:
+		var o: Dictionary = _osk_cars[who]
+		var c: StuntCar = o["car"]
+		var stt: Dictionary = _osk.state_a if who == "a" else _osk.state_b
+		if bool(stt["hidden"]):
+			c.visible = false
+			continue
+		c.global_transform = _osk_xf(float(o["dist"]), stt, c.wheel_radius)
+		var v := _osk_v * float(stt["v"])
+		for w in c.wheels:
+			w.omega = v / c.wheel_radius
+	if _osk.done or float(oa["dist"]) < _last_safe_dist - 150.0:
+		_osk_end()
+
+
+## Położenie auta scenki: pas L z hwy_from_median, obrót o yaw i przechył.
+func _osk_xf(d: float, stt: Dictionary, wheel_r: float) -> Transform3D:
+	var xf: Transform3D = track.transform_at_distance(d)
+	var w := HighwayGenerator.WIDTH
+	# Druga jezdnia: krawędź przy pasie rozdziału w -(w/2 + pas rozdziału),
+	# pobocze dalej w -X (lustro hwy_lane_off).
+	var x := -(w * 0.5 + TrackGenerator.HIGHWAY_MEDIAN) - OncomingSkirmish.hwy_from_median(float(stt["lane"]), w)
+	var b := xf.basis.rotated(xf.basis.y, PI)
+	b = b.rotated(b.y, deg_to_rad(float(stt["yaw"])))
+	b = b.rotated(b.z, deg_to_rad(float(stt["roll"])))
+	return Transform3D(b, xf.origin + xf.basis.x * x + xf.basis.y * (0.41 + wheel_r))
+
+
+## Dwa wrogie gangi z bieżących relacji; bez wrogów - dwa różne losowe.
+func _osk_gangs() -> Array:
+	var pairs := []
+	for g1 in range(GANGS):
+		for g2 in range(g1 + 1, GANGS):
+			if feud.gangs_hostile(g1, g2):
+				pairs.append([g1, g2])
+	if not pairs.is_empty():
+		var p: Array = pairs[_bot_rng.randi() % pairs.size()]
+		return p if _bot_rng.randf() < 0.5 else [p[1], p[0]]
+	var g := _bot_rng.randi() % GANGS
+	return [g, (g + 1 + _bot_rng.randi() % (GANGS - 1)) % GANGS]
+
+
+func _osk_event(ev: Dictionary) -> void:
+	var o: Dictionary = _osk_cars[ev["car"]]
+	var c: StuntCar = o["car"]
+	match ev["type"]:
+		"horn":
+			var h: AudioStreamPlayer3D = c.get_node_or_null("OskHorn")
+			if h == null:
+				h = AudioStreamPlayer3D.new()
+				h.name = "OskHorn"
+				h.stream = BotDriver._make_horn()
+				h.unit_size = 8.0
+				h.bus = EnvAudio.BUS
+				c.add_child(h)
+			h.play()
+		"hit":
+			# B dostaje z boku od strony A (A jest bliżej pasa rozdziału).
+			c.dent(Vector3(-0.85, 0.55, 0.3), Vector3(1.0, 0.0, 0.0), 0.07)
+		"boom":
+			Perf.mark("explosion")
+			var boom := Explosion.new()
+			boom.paint = c._paint_mat.albedo_color
+			boom.ignore = [car] + _bots
+			add_child(boom)
+			boom.add_to_group(WorldOrigin.GROUP)
+			boom.global_position = c.global_position
+		# "sparks", "smoke" - na razie bez efektu (do zrobienia).
+
+
+func _osk_end() -> void:
+	for who in _osk_cars:
+		var o: Dictionary = _osk_cars[who]
+		o.erase("osk")
+		var c: StuntCar = o["car"]
+		if is_instance_valid(c):
+			c.repair_body()                    # wgniecenia scenki nie wracają z puli
+		if _oncoming.has(o):
+			_pool_oncoming(o)
+	_osk_cars = {}
+	_osk = null
+	_osk_next_d = _last_safe_dist + _bot_rng.randf_range(1200.0, 2500.0)
 
 
 ## Auto z naprzeciwka do puli (ukryte), zamiast queue_free - bez alokacji.
@@ -2368,7 +2582,7 @@ func _update_traffic(delta: float) -> void:
 	for o in _oncoming:
 		var oc: StuntCar = o["car"]
 		cars.append({"id": oc.get_instance_id(), "dist": o["dist"], "lane": int(o["lane"]), "oncoming": true,
-				"raging": false, "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
+				"raging": o.has("osk"), "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
 	var r: Dictionary = _traffic.step(_last_safe_dist, cars, _bot_rng)
 	for id in r["despawn"]:
 		for b in _bots.duplicate():

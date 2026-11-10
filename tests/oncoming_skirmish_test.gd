@@ -51,7 +51,8 @@ func _test_scene(kind: String) -> void:
 		if e[1] == "hit":
 			hits.append(float(e[0]))
 	var lw_min: float = (OS_.MIN_ROAD_W - 1.0) / 3.0  # jak lane_w w xr_main._oncoming_xf
-	var worst := {4.6: INF, lw_min: INF}
+	# + autostrada 2+2 (11,25 m, xr_main mapuje przez hwy_from_median).
+	var worst := {4.6: INF, lw_min: INF, OS_.hwy_unit(HighwayGenerator.WIDTH): INF}
 	var guard := 0
 	var evs := []
 	while not sk.done and guard < 10000:
