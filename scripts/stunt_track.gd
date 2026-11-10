@@ -160,6 +160,11 @@ func build() -> void:
 	if _samples.size() < 2:
 		push_warning("StuntTrack: za mało próbek, sprawdź definicję toru.")
 		return
+	# Kawałki dobudowywane w jeździe: próbkowanie, siatka jezdni i kolizja
+	# w osobnych klatkach (razem do ~22 ms na PC przy kawałku autostrady
+	# ~1,1 km - na Queście szarpnięcie co ~1 km; długi test 2026-11-10).
+	if not await _slice():
+		return
 
 	# Ściany do kolizji, osobno dla każdej nawierzchni.
 	var road_faces := {}
@@ -170,6 +175,8 @@ func build() -> void:
 	mi.name = "TrackMesh"
 	mi.mesh = mesh
 	_adopt(mi)
+	if not await _slice():
+		return
 	_build_road_collision(road_faces)
 
 	# Linie startu i mety; nad metą brama z banerem. Kawałki trasy bez końca

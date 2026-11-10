@@ -717,13 +717,147 @@ func _park_bot(b: StuntCar) -> void:
 
 ## Bot znika (za graczem, wybuch, restart odcinka): kierowca usunięty, auto
 ## do puli.
-func _retire_bot(b: StuntCar) -> void:
+func _retire_bot(b: StuntCar, dead := false) -> void:
+	# Przed oddaniem do puli (ten sam węzeł = ten sam instance_id przy
+	# ponownym użyciu - remove_bot musi przyjść przed add_bot).
+	_feud_events(feud.remove_bot(b.get_instance_id(), race_time, dead))
 	var drv := b.get_node_or_null("Driver")
 	if drv:
 		b.remove_child(drv)
 		drv.queue_free()
 	_park_bot(b)
 	_bot_pool.append(b)
+
+
+## Waśnie między botami (FeudDirector, inbox wasnie-na-autostradzie,
+## użytkownik: "furia drogowa, także między botami"): gangi z kolorem,
+## potyczki tylko w zasięgu wzroku gracza i tylko boty z fizyką, najwyżej
+## MAX_FEUDS naraz (budżet fizyki Questa). Uderzenie gracza w bota
+## w potyczce = sojusz przeciw graczowi.
+const GANGS := 3
+const MAX_FEUDS := 2
+var feud := FeudDirector.new()
+var _bot_gang := {}                  # instance_id -> gang
+var _feud_order := {}                # instance_id -> indeks w kolejności (dist)
+var _feud_update_t := 0.0
+
+
+## Kolor gangu (klucz z GameSettings.PAINTS), stały w całej jeździe
+## (na autostradzie "odcinek" zmienia się co ~1 km - kolory skakałyby).
+var _gang_seed := 0
+func _gang_paint(g: int) -> String:
+	var keys: Array = GameSettings.PAINTS.keys()
+	return keys[(g * 3 + _gang_seed) % keys.size()]
+
+
+func _bot_by_id(id: int) -> StuntCar:
+	for b in _bots:
+		if is_instance_valid(b) and b.get_instance_id() == id:
+			return b
+	return null
+
+
+func _in_sight(b: StuntCar) -> bool:
+	var drv: BotDriver = b.get_node("Driver")
+	if drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > FeudDirector.SIGHT_R:
+		return false
+	return TrafficZone.visible(camera.global_position, -camera.global_basis.z, -car.global_basis.z, b.global_position)
+
+
+func _feud_count() -> int:
+	var n := 0
+	for b in _bots:
+		if feud.in_feud(b.get_instance_id()) and feud.target_of(b.get_instance_id()) != FeudDirector.PLAYER:
+			n += 1
+	return n / 2
+
+
+## Skan par (4 Hz, z _update_bot_lod): wyprzedzenia sąsiadów w kolejności
+## na trasie, wrogowie obok siebie, wygaszanie waśni poza wzrokiem.
+func _feud_scan() -> void:
+	var t0 := Time.get_ticks_usec()
+	var now := race_time
+	var phys: Array = []
+	for b in _bots:
+		var drv: BotDriver = b.get_node("Driver")
+		var id := b.get_instance_id()
+		# Waśń poza wzrokiem (dalej niż 1,5 x SIGHT_R albo na szynie) gaśnie.
+		if feud.in_feud(id) and feud.target_of(id) != FeudDirector.PLAYER \
+				and (drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > FeudDirector.SIGHT_R * 1.5):
+			feud.calm(id)
+			drv.end_feud()
+		if drv.lod != BotLod.RAIL:
+			phys.append(b)
+	phys.sort_custom(func(a, b): return (a.get_node("Driver") as BotDriver).dist < (b.get_node("Driver") as BotDriver).dist)
+	var room := _feud_count() < MAX_FEUDS
+	var order := {}
+	for i in range(phys.size()):
+		var a: StuntCar = phys[i]
+		var ida := a.get_instance_id()
+		order[ida] = i
+		if not room:
+			continue
+		var sa := _in_sight(a)
+		# Wyprzedzenie: para zamieniła się kolejnością od poprzedniego skanu.
+		if i > 0:
+			var p: StuntCar = phys[i - 1]
+			var idp := p.get_instance_id()
+			if _feud_order.has(ida) and _feud_order.has(idp) and int(_feud_order[ida]) < int(_feud_order[idp]):
+				_feud_events(feud.on_overtake(ida, idp, now, sa and _in_sight(p)))
+		for j in [i + 1, i + 2]:
+			if j >= phys.size():
+				break
+			var c: StuntCar = phys[j]
+			var dd := absf((c.get_node("Driver") as BotDriver).dist - (a.get_node("Driver") as BotDriver).dist)
+			if dd < FeudDirector.NEAR_SPARK_R:
+				_feud_events(feud.on_near(ida, c.get_instance_id(), 0.25, now, sa and _in_sight(c)))
+	_feud_order = order
+	_feud_update_t -= 0.25
+	if _feud_update_t <= 0.0:
+		_feud_update_t = 1.0
+		_feud_events(feud.update(now))
+	Perf.add("feud", t0)
+
+
+## Zdarzenia dyrektora -> gra.
+func _feud_events(evs: Array) -> void:
+	for ev in evs:
+		match ev["kind"]:
+			"skirmish":
+				var a := _bot_by_id(int(ev["a"]))
+				var b := _bot_by_id(int(ev["b"]))
+				if a and b:
+					(a.get_node("Driver") as BotDriver).feud_with(b)
+					if feud.target_of(int(ev["b"])) == int(ev["a"]):
+						(b.get_node("Driver") as BotDriver).feud_with(a)
+					print("Waśń: gang %d na gang %d" % [int(_bot_gang.get(int(ev["a"]), -1)), int(_bot_gang.get(int(ev["b"]), -1))])
+				if ev.get("provoked", false) and int(ev.get("points", 0)) > 0:
+					_score_pay(score.award_free("feud", int(ev["points"]), race_time, "PROWOKACJA"))
+			"alliance":
+				for id in ev["ids"]:
+					var bb := _bot_by_id(int(id))
+					if bb:
+						(bb.get_node("Driver") as BotDriver).enrage("alliance")
+				_show_popup("SOJUSZ!", true)
+				print("Waśń: SOJUSZ przeciw graczowi (%d aut)" % (ev["ids"] as Array).size())
+			"feud_end":
+				var e := _bot_by_id(int(ev["id"]))
+				if e:
+					(e.get_node("Driver") as BotDriver).end_feud()
+			"feud_wreck":
+				if ev.get("provoked", false) and int(ev.get("points", 0)) > 0:
+					_score_pay(score.award_free("feud_wreck", int(ev["points"]), race_time, "WRAK Z WAŚNI"))
+
+
+## Kontakt dwóch botów (zgłasza bot o mniejszym instance_id).
+func feud_contact(a: StuntCar, b: StuntCar) -> void:
+	_feud_events(feud.on_contact(a.get_instance_id(), b.get_instance_id(), race_time,
+			_in_sight(a) and _in_sight(b)))
+
+
+## Gracz uderzył bota (przed jego enrage) - sojusz, jeśli bot był w potyczce.
+func feud_player_hit(bot: StuntCar) -> void:
+	_feud_events(feud.on_contact(FeudDirector.PLAYER, bot.get_instance_id(), race_time, true))
 
 
 ## Poziomy szczegółowości botów (BotLod, ~4 Hz): NEAR pełne opony
@@ -742,7 +876,7 @@ func _update_bot_lod(delta: float) -> void:
 	for b in _bots:
 		var drv: BotDriver = b.get_node("Driver")
 		dists.append(absf(drv.dist - _last_safe_dist))
-		raging.append(drv.rage > 0.0)
+		raging.append(drv.rage > 0.0 or feud.in_feud(b.get_instance_id()))
 	if _lod_prev.size() != _bots.size():
 		_lod_prev = PackedInt32Array()
 	var lv := BotLod.assign(dists, raging, _lod_prev, BOT_PHYS_BUDGET)
@@ -752,6 +886,7 @@ func _update_bot_lod(delta: float) -> void:
 		var drv: BotDriver = b.get_node("Driver")
 		drv.lod = lv[i]
 		b.TIRE_SUBSTEPS = 2 if lv[i] == BotLod.NEAR else 1
+	_feud_scan()
 
 
 func _update_bots(delta: float) -> void:
@@ -791,7 +926,7 @@ func _update_bots(delta: float) -> void:
 				boom.add_to_group(WorldOrigin.GROUP)
 				boom.global_position = b.global_position
 			_bots.erase(b)
-			_retire_bot(b)
+			_retire_bot(b, dead)
 			Perf.mark("bot_free")
 
 
@@ -871,8 +1006,10 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	var bot := _take_bot()
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs:
-		var keys: Array = gs.PAINTS.keys()
-		bot.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
+		# Gang bota (FeudDirector): kolor gangu, żeby było widać, kto z kim.
+		var g := _bot_rng.randi() % GANGS
+		_bot_gang[bot.get_instance_id()] = g
+		bot.set_paint(gs.PAINTS[_gang_paint(g)])
 	# Prawy albo środkowy pas - przy wielu autach nie wszystkie jednym torem.
 	var lane := lane_w if _bot_rng.randf() < 0.65 else 0.0
 	if lane_i >= 0:
@@ -895,6 +1032,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	drv.lane = maxi(lane_i, 0)
 	bot.add_child(drv)
 	_bots.append(bot)
+	feud.add_bot(bot.get_instance_id(), int(_bot_gang.get(bot.get_instance_id(), 0)))
 
 
 # --------------------------------------------------------------------------
@@ -1039,6 +1177,8 @@ func restart_race() -> void:
 		car.apply_engine(gs.engine_type, kw)
 	if _endless:
 		_warm_bot_pool()
+	_gang_seed = _bot_rng.randi() % 8
+	feud.roll_relations(range(GANGS), 1)
 	_next_ws = {}
 	_ws_done_stop = -INF
 	_last_section = 1
@@ -1668,6 +1808,7 @@ func _watch_track(delta: float) -> void:
 		var sec: int = track.section_at(_last_safe_dist)
 		if sec > _last_section:
 			_last_section = sec
+			feud.roll_relations(range(GANGS), sec)
 			_chirp.play()
 			score.new_section()
 			_reset_bot_pattern(sec)

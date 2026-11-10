@@ -123,6 +123,7 @@ do_test() {
 	run_test feud_test ""               "feud_test"
 	run_test horn_test ""               "klakson|horn_test"
 	run_test shop_test ""               "shop_test"
+	run_test feud_play_test ""          "feud_play_test|SOJUSZ"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
