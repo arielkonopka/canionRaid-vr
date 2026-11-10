@@ -45,6 +45,8 @@ var client_id := ""
 const EMPTY_RETRIES := 4
 const RETRY_S := 1.5
 var _empty_tries := 0
+## Zwiększany przez drop() - spóźniona ponowna próba po drop() nic nie robi.
+var _gen := 0
 
 var _list: Array = []              # utwory do pobrania (słowniki z parse_tracks)
 var _ready_item: Dictionary = {}   # {"stream": AudioStreamMP3, "info": {...}}
@@ -102,6 +104,8 @@ func prefetch() -> void:
 
 ## Zwolnienie pamięci (radio wyłączone / inna stacja na dłużej).
 func drop() -> void:
+	_gen += 1
+	_empty_tries = 0
 	_ready_item = {}
 	if _http and _busy != "":
 		_http.cancel_request()
@@ -138,7 +142,10 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 		if _list.is_empty() and _empty_tries < EMPTY_RETRIES:
 			_empty_tries += 1
 			print("RADIO: Jamendo - pusta strona, próba %d/%d" % [_empty_tries, EMPTY_RETRIES])
-			get_tree().create_timer(RETRY_S, true, false, true).timeout.connect(prefetch)
+			var g := _gen
+			get_tree().create_timer(RETRY_S, true, false, true).timeout.connect(func():
+				if g == _gen:
+					prefetch())
 			return
 		_empty_tries = 0
 		if _list.is_empty():

@@ -188,18 +188,18 @@ func next_station(dir: int = 1) -> void:
 	_burst(true)
 
 
-## Wybór stacji (ustawienie "Stacja" z menu). Indeks za stacjami offline
-## = stacja online, gdy włączona; inaczej pierwsza stacja z gry.
+## Wybór stacji (ustawienie "Stacja" z menu). Ujemny (GameSettings.
+## STATION_ONLINE) = stacja online, gdy włączona; inaczej pierwsza z gry.
 func set_station(i: int) -> void:
 	_setup()
-	if i >= catalog.station_count() and has_online():
+	if i < 0 and has_online():
 		station = catalog.station_count()
 	elif catalog.station_count() == 0:
 		return
-	elif i >= catalog.station_count():
+	elif i < 0 or i >= catalog.station_count():
 		station = 0
 	else:
-		station = maxi(i, 0)
+		station = i
 	if is_on:
 		_burst(true)
 

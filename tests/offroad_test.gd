@@ -14,6 +14,8 @@ var pos := Vector3.ZERO
 var fails := 0
 var max_gap := 0.0
 var respawned := false
+var scans0 := -1
+var normal_scans := -1
 
 
 func _initialize() -> void:
@@ -36,14 +38,25 @@ func _physics_process(delta: float) -> bool:
 		main.race_state = main.Race.RACING
 		main._traffic_t = 1e9
 		main._bot_timer = 1e9
-		var xf: Transform3D = main.track.transform_at_distance(300.0)
-		pos = xf.origin + xf.basis.x * 20.0
-		dir = (-xf.basis.z).rotated(Vector3.UP, 0.15)
 	if f <= 5:
 		return false
 	t += delta
-	pos += dir * 47.0 * delta
+	# Faza 1 (8 s): zwykła jazda środkiem jezdni - pełne szukanie próbki nie
+	# może się włączać (przegląd PR #56: sąsiednie kawałki skanowały wszystko).
 	if t < 8.0:
+		if scans0 < 0 and t > 1.0:      # pierwsze wywołanie po postawieniu auta szuka pełnie (słusznie)
+			scans0 = StuntTrack.full_scans
+		var xf: Transform3D = main.track.transform_at_distance(300.0 + t * 47.0)
+		main.car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.y * 0.7)
+		main.car.linear_velocity = -xf.basis.z * 47.0
+		if t + delta >= 8.0:
+			normal_scans = StuntTrack.full_scans - scans0
+			pos = xf.origin + xf.basis.x * 20.0
+			dir = (-xf.basis.z).rotated(Vector3.UP, 0.15)
+		return false
+	var t2 := t - 8.0
+	pos += dir * 47.0 * delta
+	if t2 < 8.0:
 		main.car.global_transform = Transform3D(Basis.looking_at(dir), pos + Vector3.UP * 0.7)
 		main.car.linear_velocity = dir * 47.0
 		var s: Dictionary = main.track.nearest_sample(main.car.global_position)
@@ -52,7 +65,8 @@ func _physics_process(delta: float) -> bool:
 	elif not respawned:
 		var s: Dictionary = main.track.nearest_sample(main.car.global_position)
 		respawned = (main.car.global_position - main.track.to_global(s["pos"])).length() < 5.0
-	if t > 12.0:
+	if t2 > 12.0:
+		_check(normal_scans == 0, "zwykła jazda bez pełnego szukania próbki (%d)" % normal_scans)
 		_check(max_gap < 400.0, "najbliższa próbka idzie za autem (największa odległość %.0f m)" % max_gap)
 		_check(respawned, "daleko od drogi - odrodzenie na trasie")
 		print("offroad_test: ", "OK" if fails == 0 else "BŁĄD (%d)" % fails)

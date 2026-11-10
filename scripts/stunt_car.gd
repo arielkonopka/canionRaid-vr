@@ -735,8 +735,16 @@ func _physics_step(delta: float) -> void:
 	if engine_running and (_clutch_engaged or _clutch_slipping()):
 		var t_engine := _engine_torque_at_clutch()
 		if t_engine > 0.0:
-			# Systemy odcinają tylko moment napędowy, hamowania silnikiem nie ruszają.
+			# Systemy odcinają moment napędowy; hamowania silnikiem spalinowego
+			# nie ruszają.
 			t_engine *= minf(_tcs_factor, _esp_factor)
+		elif electric:
+			# Rekuperacja = hamowanie kołami napędzanymi. Jak w prawdziwych
+			# elektrykach układy ją ograniczają: ESP przy nadsterowności,
+			# ABS przy poślizgu kół napędzanych (użytkownik 2026-11-10:
+			# "4x4 ~100 km/h, pod gazem trzyma, na luzie wpada w poślizg" -
+			# mocny odzysk w łuku obracał auto mimo ESP, 77° znoszenia).
+			t_engine *= _regen_factor()
 			# Uszkodzony silnik: do -75% mocy. Rozbite auto nie jedzie,
 			# bez paliwa (prądu) też nie.
 			t_engine *= (1.0 - 0.75 * damage["engine"]) * (0.0 if (is_wrecked or fuel <= 0.0) else 1.0)
@@ -806,7 +814,7 @@ func _physics_step(delta: float) -> void:
 			var inertia_w := wheel_inertia
 			if _hub():
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
-				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else 1.0)
+				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else _regen_wheel(w))
 				inertia_w += reflected
 			elif not _is_driven(w):
 				pass
@@ -1166,6 +1174,37 @@ func _traction_cap(w: Wheel, dir: float) -> float:
 	var target := peak_slip_ratio * ABS_SLIP_TARGET
 	return _tire_peak_force(w) * wheel_radius \
 			* clampf(1.0 + ABS_GAIN * (target - slip) / peak_slip_ratio, ABS_MIN, ABS_MAX)
+
+
+## Mnożnik rekuperacji od ESP (nadsterowność) i ABS (poślizg kół
+## napędzanych przy hamowaniu). Wyłączone systemy - pełny odzysk.
+func _regen_factor() -> float:
+	if _hub():
+		return 1.0             # silniki w kołach: osobno na każde koło (_regen_wheel)
+	var k := 1.0
+	if esp_enabled:
+		k = _esp_factor
+	if abs_enabled:
+		var sl := 0.0
+		for w in wheels:
+			if w.contact and _is_driven(w):
+				sl = maxf(sl, w.slip)
+		# Zapas jak w ABS: od 60% szczytu krzywej odzysk maleje do zera przy szczycie.
+		k = minf(k, clampf((1.0 - sl) / 0.4, 0.0, 1.0))
+	return k
+
+
+## Odzysk na jednym kole (silniki w kołach, użytkownik 2026-11-10:
+## "niech odzyskuje inteligentnie, zsynchronizowane z ESP"): przy
+## nadsterowności ESP zdejmuje odzysk tylko z tylnych kół - przednie dalej
+## hamują i ładują baterię; ABS - każde koło według własnego poślizgu.
+func _regen_wheel(w: Wheel) -> float:
+	var k := 1.0
+	if esp_enabled and not w.front:
+		k = _esp_factor
+	if abs_enabled and w.contact:
+		k = minf(k, clampf((1.0 - w.slip) / 0.4, 0.0, 1.0))
+	return k
 
 
 ## ESP. Oczekiwana prędkość obrotu z modelu rowerowego:

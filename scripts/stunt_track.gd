@@ -1996,8 +1996,16 @@ func _sample_transform(s: Dictionary) -> Transform3D:
 ## brzegu okna (auto przeskoczyło dalej, np. odrodzenie).
 var _near_hint := 0
 const NEAR_WINDOW := 40
+const FAR_FULL_D2 := 900.0       # (30 m)²
 
-func nearest_sample(world_pos: Vector3) -> Dictionary:
+## Licznik pełnych szukań (do testów wydajności - offroad_test).
+static var full_scans := 0
+
+## far_full: pełne szukanie także, gdy najlepsza próbka z okna jest > 30 m
+## od auta. EndlessTrack pyta najpierw bez tego (sąsiednie kawałki są zawsze
+## daleko - skanowałyby wszystkie próbki przy każdym wywołaniu; przegląd
+## PR #56) i powtarza z far_full tylko, gdy auto jest daleko od każdego.
+func nearest_sample(world_pos: Vector3, far_full := true) -> Dictionary:
 	if _samples.is_empty():
 		return {}
 	var local := to_local(world_pos)
@@ -2009,7 +2017,8 @@ func nearest_sample(world_pos: Vector3) -> Dictionary:
 	# (jazda 2026-11-10: gra "widziała" auto na 14 767 m, a ono jechało
 	# 170 km/h w pole - trasa przestała się dobudowywać i "urwała się").
 	if (bi == lo and lo > 0) or (bi == hi and hi < _samples.size() - 1) \
-			or local.distance_squared_to(_samples[bi]["pos"]) > 900.0:
+			or (far_full and local.distance_squared_to(_samples[bi]["pos"]) > FAR_FULL_D2):
+		full_scans += 1
 		bi = _nearest_in(local, 0, _samples.size() - 1)
 	_near_hint = bi
 	return _samples[bi]

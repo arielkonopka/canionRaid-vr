@@ -1879,11 +1879,35 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   w zestawie quest.sh).
 - Jamendo: ponowne próby przy pustej stronie (`EMPTY_RETRIES` 4 co 1,5 s,
   nowa losowa strona) - z PC to samo zapytanie raz daje 50, raz 0.
-- Pełny `quest.sh test` OK (z offroad_test), radio_test OK.
+- Pełny `quest.sh test` OK (z offroad_test), radio_test OK. Po poprawkach przeglądu PR #56 i odzysku - pełny zestaw znowu OK.
 - **Po końcu jazdy przycisk menu (i Esc) = ekran tytułowy**, nie pauza
   (użytkownik: pauza otwarta na napisie końca gry - napisy nachodziły na
   siebie; napis końca od dawna mówił "Menu: ekran tytułowy"). pause_test
   sprawdza to (OK).
+- **"Auto mniej stabilne, wpada w poślizg po zdjęciu nogi z gazu"**
+  (użytkownik: elektryk 1000 kW w kołach, 4x4, 2500 kg, odzysk "mocny",
+  ~100 km/h w łuku - pod gazem trzyma, na luzie poślizg). Pomiar
+  (stały skręt 120 km/h, gaz puszczony, ESP wł.): znoszenie off 5°, słaby
+  12°, normalny 30°, **mocny 77° (obrót)**; tempo gry 100% i 130% bez
+  różnicy. Przyczyna: ESP/ABS ograniczały tylko moment napędowy, nie
+  rekuperację (= hamowanie kołami napędzanymi). `StuntCar._regen_factor`:
+  ESP (jego mnożnik przy nadsterowności) i ABS (poślizg kół napędzanych od
+  60% szczytu) ograniczają odzysk, jak w prawdziwych elektrykach. Po
+  zmianie: mocny 8°, na prostej dalej 0,30 g. Z wyłączonymi ESP i ABS pełny
+  odzysk (uczciwie - auto może się obrócić); sam ABS bez ESP: 13°.
+  **Silniki w kołach - odzysk koło po kole** (użytkownik: "niech odzyskuje
+  inteligentnie, zsynchronizowane z ESP"): `_regen_wheel` - ESP zdejmuje
+  odzysk tylko z tylnych kół, ABS według poślizgu każdego koła; przednie
+  dalej hamują i ładują baterię.
+- **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
+  `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
+  włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr
+  `far_full` w `StuntTrack.nearest_sample`, `EndlessTrack._nearest` najpierw
+  same okna, pełne tylko gdy auto > 30 m od wszystkich kawałków;
+  `StuntTrack.full_scans` + sprawdzenie w `offroad_test` (zwykła jazda: 0).
+  (2) ponowna próba Jamendo po `drop()` pomijana (`_gen`). (3) Jamendo
+  w ustawieniach jako `GameSettings.STATION_ONLINE` (-1), nie indeks;
+  migracja v10 (zapisany indeks = liczba stacji -> -1).
 
 ## 8. Kolejka zadań
 

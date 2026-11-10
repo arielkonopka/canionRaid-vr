@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 9
+const SETTINGS_VERSION := 10
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -111,6 +111,8 @@ var persist := true
 ## online Jamendo (jawna opcja, domyślnie wył.).
 var radio_on := false
 var radio_station := 0
+## Wartość radio_station dla stacji online (Jamendo).
+const STATION_ONLINE := -1
 var radio_volume := 5
 var radio_online := false
 
@@ -543,8 +545,10 @@ func _fill_radio_stations() -> void:
 	for opt in OPTIONS:
 		if opt["key"] == "radio_station":
 			# Ostatnia pozycja: stacja online (użytkownik 2026-11-10: "w menu,
-			# gdy Jamendo jest włączone, nie ma stacji Jamendo").
-			opt["values"] = range(st.size() + 1)
+			# gdy Jamendo jest włączone, nie ma stacji Jamendo"). Wartość
+			# STATION_ONLINE (-1), nie indeks - zapisany wybór nie zmieni
+			# znaczenia, gdy dojdzie stacja offline.
+			opt["values"] = range(st.size()) + [STATION_ONLINE]
 			opt["names"] = st.map(func(x): return str(x["name"])) + ["Jamendo online"]
 			var hints := []
 			for x in st:
@@ -564,6 +568,12 @@ func load_settings() -> void:
 		if opt["values"].has(v):
 			set(key, v)
 	var version: int = cfg.get_value("meta", "version", 1)
+	if version < 10:
+		# Do v9 Jamendo w menu Stacja było indeksem za stacjami offline
+		# (2026-11-10, kilka godzin) - teraz STATION_ONLINE.
+		var st_n: int = preload("res://scripts/radio_stations.gd").STATIONS.size()
+		if int(cfg.get_value("car", "radio_station", 0)) == st_n:
+			radio_station = STATION_ONLINE
 	if version < 7:
 		# Użytkownik po jeździe: "sedan najfajniejszy" - domyślny znowu sedan.
 		body_model = "sedan"
