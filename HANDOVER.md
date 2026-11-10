@@ -605,6 +605,13 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
+- **Headless nie kompiluje shaderów** → błąd w `.gdshader` nie wychodzi
+  w testach `--headless`. Sprawdzenie: krótki skrypt w oknie
+  (`--xr-mode off --resolution 640x360`), który rysuje BoxMesh
+  z ShaderMaterial przez kilka klatek, i szukanie "SHADER ERROR" w wyjściu.
+  W świeżym worktree bez `.godot/` autoloady sypią "Could not find type
+  StuntCar" - to brak cache klas, nie błąd shadera.
+
 - **"Auto nagle staje jak przed barierą na prostej pod górkę"** (jazda
   2026-11-09): to **wysepka rozwidlenia** (`IslandBody`) tuż za
   wzniesieniem - skalny klin z niskim, pochyłym czubkiem wyglądał jak
@@ -1718,6 +1725,9 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   (inaczej auta nachodziły na siebie przed uderzeniem). Testy
   `oncoming_skirmish_test` (z szerokością autostrady),
   `oncoming_play_test`.
+- `city_graph_test` OK i dodany do zestawu (prośba chmury). PR #21
+  (tunel bez świateł, biplanar): scala się z gałęzią bez konfliktu,
+  shadery kompilują się w oknie (sposób sprawdzenia: sekcja 3, pułapki).
 - **Przegląd renderów chmury** (outbox `2026-11-10-noc-agent-lokalny.md`):
   - zabudowa `HighwayScenery` płasko cieniowana
     (`set_smooth_group(0xFFFFFFFF)` - bez tego `generate_normals`

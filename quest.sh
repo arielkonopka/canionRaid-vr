@@ -126,6 +126,7 @@ do_test() {
 	run_test feud_play_test ""          "feud_play_test|SOJUSZ"
 	run_test oncoming_play_test ""      "oncoming_play_test|Scenka"
 	run_test oncoming_skirmish_test ""  "oncoming_skirmish_test"
+	run_test city_graph_test ""         "city_graph_test|jazda:"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
