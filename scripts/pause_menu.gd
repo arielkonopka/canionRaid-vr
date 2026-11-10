@@ -81,7 +81,8 @@ func _restart_values() -> Dictionary:
 	if gs == null:
 		return out
 	for opt in gs.OPTIONS:
-		if opt["group"] in RESTART_GROUPS:
+		# "live": działa od razu, bez nowej jazdy (np. tempo gry).
+		if opt["group"] in RESTART_GROUPS and not opt.get("live", false):
 			out[opt["key"]] = gs.get(opt["key"])
 	return out
 

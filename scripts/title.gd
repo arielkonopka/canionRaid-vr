@@ -51,6 +51,8 @@ var _progress_t := 0.0
 
 
 func _ready() -> void:
+	# Tempo gry dotyczy tylko jazdy - menu w czasie rzeczywistym.
+	Engine.time_scale = 1.0
 	# Pomiar (bench.cfg / --bench=): od razu jazda, bez menu.
 	Bench.load_config()
 	if Bench.active():

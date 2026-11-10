@@ -523,6 +523,19 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   beczki, obroty i mnożnik czystego lądowania bez zmian.
 - **HUD z mapką na prawo od kierownicy** (użytkownik do chmury, PR #29):
   panel `HudPanel` w `seat + HUD_FROM_EYES`, nie zasłania zegarów.
+- **Tempo gry (użytkownik 2026-11-10: "czas gry powinien płynąć nieco
+  szybciej" -> wybrał "cała gra szybciej")**: opcja "Tempo gry" (Trasa)
+  100/110/120/130%, **domyślnie 110%** = `Engine.time_scale` w scenie jazdy
+  (menu tytułowe zawsze 100%). Fizyka bez zmian, krok fizyki dłuższy
+  o tyle samo (130%: drive_test jak przy 100%). Zmiana w pauzie działa od
+  razu (`"live": true` w OPTIONS - bez restartu mimo grupy Trasa).
+  **Testy bez okna zawsze 100%** (kalibracja); `CANION_TIME_SCALE=1.3`
+  wymusza tempo w teście.
+- **Waśnie: mniej scenek z naprzeciwka, więcej na naszej jezdni**
+  (użytkownik 2026-11-10): scenki na drugiej jezdni co 3-6 km
+  (`OSK_GAP_MIN/MAX`, było 1,2-2,5 km); samoistna iskra między wrogami
+  0,2/s do 60 m (`FeudDirector`, było 0,08/s do 40 m). Limity budżetu
+  (MAX_FEUDS 2, żetony 4) bez zmian.
 - **TRYB AUTOSTRADA (ustalony 2026-11-09, etapy 1-3 zrobione, domyślna trasa - sekcja 8)**:
   - **Nowy tryb obok wąwozu** (wybór trasy w menu; wąwóz zostaje).
   - Autostrada **na całej długości**, **2 pasy w każdą stronę**, dwie
@@ -1833,6 +1846,11 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   120 km/h raz zostawia bota przy graczu, raz obraca i bot zostaje
   50-200 m w tyle; tak samo przed zmianą (3 przebiegi starego kodu).
   Do zrobienia: werdykt i stały scenariusz.
+- Po jeździe (wieczór): "czas gry powinien płynąć szybciej" -> opcja Tempo
+  gry (domyślnie 110%); "mniej walk z przeciwka, więcej w tę samą stronę"
+  -> scenki co 3-6 km, iskry częściej (sekcja 2). feud_test,
+  feud_play_test, oncoming_play_test, horn_test, title_test OK,
+  drive_test 95 sport auto przy 100% i 130%.
 
 ## 8. Kolejka zadań
 

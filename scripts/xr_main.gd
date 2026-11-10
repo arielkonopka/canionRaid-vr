@@ -184,6 +184,7 @@ func _ready() -> void:
 		if Bench.resolution > 0:
 			gs.xr_resolution = Bench.resolution     # pomiar: rozdzielczość z bench.cfg
 		gs.apply_to_car(car)
+		gs.apply_game_speed()
 		_xr_ready = gs.enable_xr(get_viewport())
 	if _xr_ready:
 		right_hand.button_pressed.connect(_on_xr_button.bind(true))
@@ -1634,6 +1635,8 @@ func _on_setting_changed(key: String) -> void:
 			car.set_paint(gs.PAINTS[gs.paint])
 		"xr_resolution", "xr_foveation":
 			gs.apply_xr_quality()
+		"game_speed":
+			gs.apply_game_speed()
 
 
 ## Zmiana auta albo trasy w pauzie, potwierdzona: nowa jazda z nowymi
@@ -2166,7 +2169,7 @@ func _restart_section() -> void:
 		(o["car"] as Node).queue_free()
 	_oncoming.clear()
 	_osk = null
-	_osk_next_d = d + 1200.0
+	_osk_next_d = d + OSK_GAP_MIN
 	for c in _oncoming_pool:
 		c.queue_free()
 	_oncoming_pool.clear()
@@ -2449,7 +2452,11 @@ var _osk: OncomingSkirmish = null
 var _osk_cars := {}                  # "a"/"b" -> wpis z _oncoming
 var _osk_started := false
 var _osk_v := 0.0                    # prędkość bazowa scenki [m/s]
-var _osk_next_d := 1500.0            # dystans gracza, od którego wolno zacząć
+## Odstęp między scenkami na drugiej jezdni [m] (użytkownik 2026-11-10:
+## "mniej walk z przeciwka, więcej w tę samą stronę" - było 1,2-2,5 km).
+const OSK_GAP_MIN := 3000.0
+const OSK_GAP_MAX := 6000.0
+var _osk_next_d := 3000.0            # dystans gracza, od którego wolno zacząć
 
 
 func _update_skirmish(delta: float) -> void:
@@ -2574,7 +2581,7 @@ func _osk_end() -> void:
 			_pool_oncoming(o)
 	_osk_cars = {}
 	_osk = null
-	_osk_next_d = _last_safe_dist + _bot_rng.randf_range(1200.0, 2500.0)
+	_osk_next_d = _last_safe_dist + _bot_rng.randf_range(OSK_GAP_MIN, OSK_GAP_MAX)
 
 
 ## Auto z naprzeciwka do puli (ukryte), zamiast queue_free - bez alokacji.

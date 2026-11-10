@@ -69,7 +69,7 @@ func _physics_process(delta: float) -> bool:
 		_check(started_at > 0.0, "scenka wystartowała (odstęp %.0f m)" % start_gap)
 		_check(worst_side < -(HighwayGenerator.WIDTH * 0.5 + TrackGenerator.HIGHWAY_MEDIAN),
 				"auta na drugiej jezdni (najbliżej %.1f m od osi naszej jezdni)" % worst_side)
-		_check(main._osk_next_d > main._last_safe_dist + 1000.0, "następna scenka najwcześniej za 1,2 km")
+		_check(main._osk_next_d > main._last_safe_dist + main.OSK_GAP_MIN - 200.0, "następna scenka najwcześniej za 3 km")
 		var in_scene := 0
 		for o in main._oncoming:
 			if o.has("osk"):

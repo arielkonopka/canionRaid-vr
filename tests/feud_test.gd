@@ -110,7 +110,8 @@ func _test_chances() -> void:
 		fd3.calm(B)
 		if not fd3.on_near(A, B, 1.0, 0.0, true).is_empty():
 			sparks += 1
-	_check(sparks > 40 and sparks < 130, "iskra obok siebie ~8%%/s (%d/1000)" % sparks)
+	var exp_sp := FeudDirector.SPARK_CHANCE_PER_S * 1000.0
+	_check(sparks > exp_sp * 0.6 and sparks < exp_sp * 1.4, "iskra obok siebie ~%.0f%%/s (%d/1000)" % [FeudDirector.SPARK_CHANCE_PER_S * 100.0, sparks])
 	var lo = FD.new()
 	var hi = FD.new()
 	var lo_n := 0

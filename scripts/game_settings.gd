@@ -39,6 +39,10 @@ var spoiler: String = "none"
 ## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
 ## użytkownik 2026-11-09) - StuntCar.durability.
 var durability: int = 1
+## Tempo gry [%] (użytkownik 2026-11-10: "czas gry powinien płynąć nieco
+## szybciej" -> "cała gra szybciej"): Engine.time_scale w scenie jazdy.
+## Fizyka ta sama, cały świat biegnie szybciej - jawna opcja, 100% = realnie.
+var game_speed: int = 110
 ## Rekuperacja elektryka (StuntCar.REGEN_LEVELS): "off", "weak", "normal", "strong".
 var regen: String = "normal"
 ## Opływowość nadwozia (StuntCar.AERO): "classic", "modern", "sport", "record".
@@ -144,6 +148,17 @@ var OPTIONS: Array[Dictionary] = [
 		"hints": [
 			"Autostrada 2+2 pasy przez setki km: łąki, pola, pustynia, góry, morze, miasta co 25 km.",
 			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
+		],
+	},
+	{
+		"key": "game_speed", "group": "track", "label": "Tempo gry", "live": true,
+		"values": [100, 110, 120, 130],
+		"names": ["100% (realne)", "110%", "120%", "130%"],
+		"hints": [
+			"Czas płynie jak naprawdę.",
+			"Domyślnie: cały świat o 10% szybciej - fizyka ta sama, wszystko dzieje się żwawiej.",
+			"Wszystko o 20% szybciej - auto, boty, ruch, skoki.",
+			"Wszystko o 30% szybciej - jak w filmie puszczonym szybciej.",
 		],
 	},
 	{
@@ -596,6 +611,19 @@ static func effective_power(type_name: String, hub: bool, kw: int) -> int:
 	if kw > MAX_KW_OTHERS and not (type_name == "electric" and hub):
 		return MAX_KW_OTHERS
 	return kw
+
+
+## Tempo gry w scenie jazdy. W testach bez okna zawsze 100% (wyniki testów
+## są skalibrowane na czas rzeczywisty); CANION_TIME_SCALE (np. 1.3) wymusza
+## tempo do sprawdzenia testem.
+func apply_game_speed() -> void:
+	var ts := game_speed / 100.0
+	if DisplayServer.get_name() == "headless":
+		ts = 1.0
+	var env := OS.get_environment("CANION_TIME_SCALE")
+	if env != "":
+		ts = env.to_float()
+	Engine.time_scale = ts
 
 
 func apply_to_car(car: StuntCar) -> void:
