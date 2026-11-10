@@ -131,6 +131,7 @@ do_test() {
 	run_test oncoming_skirmish_test ""  "oncoming_skirmish_test"
 	run_test city_graph_test ""         "city_graph_test|jazda:"
 	run_test gauges_test ""             "gauges_test"
+	run_test offroad_test ""            "offroad_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

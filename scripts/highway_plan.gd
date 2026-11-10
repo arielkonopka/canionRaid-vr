@@ -12,8 +12,8 @@ class_name HighwayPlan
 ##     BIOME_BLEND metrów;
 ##   - miasta: co 25 km małe (~1 km zabudowy), co 100 km duże (~5 km),
 ##     strefa 30 km/h, przed nią stopniowanie 70 / 50;
-##   - ruch: 3-5 aut/km do TRAFFIC_RADIUS od krawędzi miasta, dalej rzadki
-##     0,5-1 auta/km (rośnie z dystansem);
+##   - ruch: 3-5 aut/km do TRAFFIC_RADIUS od krawędzi miasta, dalej
+##     1,2-2 auta/km (rośnie z dystansem);
 ##   - objazdy ze skocznią: rzadko, nigdy w mieście ani przy nim;
 ##   - słupki: hektometrowe co 100 m, kilometrowe co 1 km.
 ##
@@ -264,17 +264,18 @@ func limit_changes(d0: float, d1: float) -> Array:
 # Ruch
 # --------------------------------------------------------------------------
 
-## Ruch między miastami (użytkownik 2026-11-09: "rzadki ruch ~0,5-1 auta/km",
-## nie pusto): rośnie z dystansem od startu (wizja, filar 11 - coraz
-## trudniej) od BASE_TRAFFIC_MIN do BASE_TRAFFIC_MAX na BASE_TRAFFIC_RAMP m.
-const BASE_TRAFFIC_MIN := 0.5
-const BASE_TRAFFIC_MAX := 1.0
+## Ruch między miastami: rośnie z dystansem od startu (wizja, filar 11 -
+## coraz trudniej) od BASE_TRAFFIC_MIN do BASE_TRAFFIC_MAX na
+## BASE_TRAFFIC_RAMP m. Było 0,5-1 ("rzadki ruch", 2026-11-09); użytkownik
+## 2026-11-10: "za dużo dłużyzn - pusta autostrada, nie ma się z kim ścigać".
+const BASE_TRAFFIC_MIN := 1.2
+const BASE_TRAFFIC_MAX := 2.0
 const BASE_TRAFFIC_RAMP := 200000.0
 
 
 ## Gęstość ruchu [aut/km na jednej jezdni] na dystansie d: przy mieście
-## (do TRAFFIC_RADIUS od zabudowy) gęstość miasta 3-5/km, dalej rzadki ruch
-## 0,5-1/km. Druga jezdnia (z naprzeciwka) - tyle samo, liczy TrafficZone.
+## (do TRAFFIC_RADIUS od zabudowy) gęstość miasta 3-5/km, dalej
+## 1,2-2/km. Druga jezdnia (z naprzeciwka) - tyle samo, liczy TrafficZone.
 func traffic_density(d: float) -> float:
 	if in_city_zone(d):
 		return float(nearest_city(d)["city"]["density"])

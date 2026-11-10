@@ -195,15 +195,20 @@ func _nearest(world_pos: Vector3) -> Array:
 	var best := {}
 	var best_c: StuntTrack = null
 	var best_d := INF
-	for i in range(maxi(_current - 1, 0), mini(_current + 2, _chunks.size())):
-		var s := _chunks[i].nearest_sample(world_pos)
-		if s.is_empty():
-			continue
-		var d: float = (_chunks[i].to_global(s["pos"])).distance_squared_to(world_pos)
-		if d < best_d:
-			best_d = d
-			best = s
-			best_c = _chunks[i]
+	# Najpierw okna (tanio); pełne szukanie tylko, gdy auto jest daleko od
+	# wszystkich kawałków (zjazd w pole - offroad_test).
+	for full in [false, true]:
+		for i in range(maxi(_current - 1, 0), mini(_current + 2, _chunks.size())):
+			var s := _chunks[i].nearest_sample(world_pos, full)
+			if s.is_empty():
+				continue
+			var d: float = (_chunks[i].to_global(s["pos"])).distance_squared_to(world_pos)
+			if d < best_d:
+				best_d = d
+				best = s
+				best_c = _chunks[i]
+		if best_d <= StuntTrack.FAR_FULL_D2:
+			break
 	return [best_c, best]
 
 

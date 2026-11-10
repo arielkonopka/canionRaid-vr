@@ -1851,10 +1851,79 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   -> scenki co 3-6 km, iskry częściej (sekcja 2). feud_test,
   feud_play_test, oncoming_play_test, horn_test, title_test OK,
   drive_test 95 sport auto przy 100% i 130%.
+- **"Radio Jamendo jest niewłączalne"**: lista "Stacja" w menu miała tylko
+  stacje offline (Jamendo tylko przyciskiem zmiany stacji w jeździe) -
+  "Jamendo online" dopisane jako ostatnia pozycja (`_fill_radio_stations`,
+  `CarRadio.set_station`; przy wyłączonym online -> pierwsza stacja).
+  radio_test OK. **Otwarte**: na goglach Jamendo daje "pusta lista
+  utworów" (HTTP 200), a na PC ten sam kod i klucz - 50 utworów i MP3
+  pobrane. Dodana diagnostyka (log "RADIO: Jamendo - odpowiedź ... B,
+  nagłówki, początek") - czekam na log z jazdy z włączonym online.
+  PR #55 (wszystko powyżej) scalony przez chmurę do main.
+  **Przyczyna pustej listy znaleziona w logu**: gogle dostają
+  `"status":"success","results_count":0,"results":[]` (105 B) - zapytanie
+  przechodzi, ale wyników 0. Na PC to samo zapytanie: 50. Do sprawdzenia:
+  losowy offset (do 1000) a liczba wyników dla fuzzytags; nagłówki.
+- Jazda wieczorem: **"super rozgrywka z furią, zwłaszcza walka o to, by
+  nie dać się wyprzedzić"**, ale **"za dużo dłużyzn - pusta autostrada,
+  nie ma się z kim ścigać"** -> ruch między miastami 1,2-2 aut/km (było
+  0,5-1; w naszą stronę x2,5 - średnio 6 aut w oknie 1,8 km).
+- **"Autostrada się skończyła, jechałem poza drogą, urwała się ostro"**:
+  po wielkiej skoczni przy 190 km/h auto poleciało w pole; gra mierzyła
+  zjazd tylko w poprzek drogi (`offset`), a auto jechało na wprost od
+  łuku - mały offset, więc bez odrodzenia; `StuntTrack.nearest_sample`
+  szukał w oknie i trzymał starą próbkę jako lokalne minimum (14 767 m),
+  trasa przestała się dobudowywać. Poprawki: pełne szukanie, gdy auto
+  > 30 m od próbki; zjazd także przy odległości w poziomie > pół
+  szerokości + 25 m. `offroad_test` (na starym kodzie BŁĄD, teraz OK,
+  w zestawie quest.sh).
+- Jamendo: ponowne próby przy pustej stronie (`EMPTY_RETRIES` 4 co 1,5 s,
+  nowa losowa strona) - z PC to samo zapytanie raz daje 50, raz 0.
+- Pełny `quest.sh test` OK (z offroad_test), radio_test OK. Po poprawkach przeglądu PR #56 i odzysku - pełny zestaw znowu OK.
+- **Po końcu jazdy przycisk menu (i Esc) = ekran tytułowy**, nie pauza
+  (użytkownik: pauza otwarta na napisie końca gry - napisy nachodziły na
+  siebie; napis końca od dawna mówił "Menu: ekran tytułowy"). pause_test
+  sprawdza to (OK).
+- **"Auto mniej stabilne, wpada w poślizg po zdjęciu nogi z gazu"**
+  (użytkownik: elektryk 1000 kW w kołach, 4x4, 2500 kg, odzysk "mocny",
+  ~100 km/h w łuku - pod gazem trzyma, na luzie poślizg). Pomiar
+  (stały skręt 120 km/h, gaz puszczony, ESP wł.): znoszenie off 5°, słaby
+  12°, normalny 30°, **mocny 77° (obrót)**; tempo gry 100% i 130% bez
+  różnicy. Przyczyna: ESP/ABS ograniczały tylko moment napędowy, nie
+  rekuperację (= hamowanie kołami napędzanymi). `StuntCar._regen_factor`:
+  ESP (jego mnożnik przy nadsterowności) i ABS (poślizg kół napędzanych od
+  60% szczytu) ograniczają odzysk, jak w prawdziwych elektrykach. Po
+  zmianie: mocny 8°, na prostej dalej 0,30 g. Z wyłączonymi ESP i ABS pełny
+  odzysk (uczciwie - auto może się obrócić); sam ABS bez ESP: 13°.
+  **Silniki w kołach - odzysk koło po kole** (użytkownik: "niech odzyskuje
+  inteligentnie, zsynchronizowane z ESP"): `_regen_wheel` - ESP zdejmuje
+  odzysk tylko z tylnych kół, ABS według poślizgu każdego koła; przednie
+  dalej hamują i ładują baterię.
+- **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
+  `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
+  włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr
+  `far_full` w `StuntTrack.nearest_sample`, `EndlessTrack._nearest` najpierw
+  same okna, pełne tylko gdy auto > 30 m od wszystkich kawałków;
+  `StuntTrack.full_scans` + sprawdzenie w `offroad_test` (zwykła jazda: 0).
+  (2) ponowna próba Jamendo po `drop()` pomijana (`_gen`). (3) Jamendo
+  w ustawieniach jako `GameSettings.STATION_ONLINE` (-1), nie indeks;
+  migracja v10 (zapisany indeks = liczba stacji -> -1).
 
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
+   "na później")**: zamiast samego mieszania terenu - granica biomu jako
+   miejsce w krajobrazie, za którym wolno podmienić duże obiekty:
+   - **pasmo górskie z dwoma tunelami** - wjazd w jednym biomie, wyjazd
+     w innym;
+   - **rzeka i most** - po drugiej stronie inny krajobraz.
+   Cel: **duże obiekty (góry na horyzoncie) nie znikają znienacka w trakcie
+   gry** - dziś horyzont (`Scenery.horizon`) wymieniany jest naraz w połowie
+   przejścia (`xr_main._update_biome`). Podmiana w tunelu / za grzbietem,
+   gdy gracz jej nie widzi. Wąwóz ma już tunele (`TrackGenerator`) - do
+   wykorzystania. Zgłoszone przy zmianie biomów na ~5 km.
 
 000. **Tryb Autostrada** (ustalenia w sekcji 2, spec. `docs/AUTOSTRADA.md`).
    **Etap 1 zrobiony (2026-11-09)**: menu "Trasa" (Wąwóz / Autostrada),

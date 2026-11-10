@@ -188,12 +188,18 @@ func next_station(dir: int = 1) -> void:
 	_burst(true)
 
 
-## Wybór stacji offline (ustawienie "Stacja" z menu).
+## Wybór stacji (ustawienie "Stacja" z menu). Ujemny (GameSettings.
+## STATION_ONLINE) = stacja online, gdy włączona; inaczej pierwsza z gry.
 func set_station(i: int) -> void:
 	_setup()
-	if catalog.station_count() == 0:
+	if i < 0 and has_online():
+		station = catalog.station_count()
+	elif catalog.station_count() == 0:
 		return
-	station = clampi(i, 0, catalog.station_count() - 1)
+	elif i < 0 or i >= catalog.station_count():
+		station = 0
+	else:
+		station = i
 	if is_on:
 		_burst(true)
 

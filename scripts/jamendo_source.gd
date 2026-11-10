@@ -39,6 +39,14 @@ const MAX_OFFSET := 1000           # losowa strona z tylu najpopularniejszych
 const MAX_BYTES := 20 * 1024 * 1024
 
 var client_id := ""
+## Ponowne próby przy pustej liście: API raz na jakiś czas odpowiada
+## "success" z 0 wynikami dla strony, która chwilę wcześniej miała 50
+## (sprawdzone 2026-11-10 z PC i z gogli) - inna losowa strona po chwili.
+const EMPTY_RETRIES := 4
+const RETRY_S := 1.5
+var _empty_tries := 0
+## Zwiększany przez drop() - spóźniona ponowna próba po drop() nic nie robi.
+var _gen := 0
 
 var _list: Array = []              # utwory do pobrania (słowniki z parse_tracks)
 var _ready_item: Dictionary = {}   # {"stream": AudioStreamMP3, "info": {...}}
@@ -96,6 +104,8 @@ func prefetch() -> void:
 
 ## Zwolnienie pamięci (radio wyłączone / inna stacja na dłużej).
 func drop() -> void:
+	_gen += 1
+	_empty_tries = 0
 	_ready_item = {}
 	if _http and _busy != "":
 		_http.cancel_request()
@@ -129,7 +139,21 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 	if what == "list":
 		_list = parse_tracks(body.get_string_from_utf8())
 		_list.shuffle()
+		if _list.is_empty() and _empty_tries < EMPTY_RETRIES:
+			_empty_tries += 1
+			print("RADIO: Jamendo - pusta strona, próba %d/%d" % [_empty_tries, EMPTY_RETRIES])
+			var g := _gen
+			get_tree().create_timer(RETRY_S, true, false, true).timeout.connect(func():
+				if g == _gen:
+					prefetch())
+			return
+		_empty_tries = 0
 		if _list.is_empty():
+			# Diagnostyka (gogle: 200, a lista pusta - 2026-11-10): co przyszło.
+			var txt := body.get_string_from_utf8()
+			print("RADIO: Jamendo - odpowiedź %d B, nagłówki %s, początek: %s" % [body.size(),
+					str(_headers).replace(client_id, "***").substr(0, 300),
+					txt.substr(0, 300).replace(client_id, "***")])
 			failed.emit("pusta lista utworów")
 			return
 		prefetch()
