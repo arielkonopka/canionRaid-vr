@@ -6,7 +6,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/engine_test.gd [-- dry|wet|ice [petrol|diesel|electric]] </dev/null
 
 const START := Vector3(-300.0, 0.75, 600.0)
-const POWERS := [90, 180, 350, 700]
+const POWERS := [90, 130, 180, 350, 700]
 
 var main
 var car
@@ -33,6 +33,8 @@ func _initialize() -> void:
 			continue
 		for p in POWERS:
 			runs.append([e, p, "rwd"])
+			if p == 180:
+				runs.append([e, p, "fwd"])
 			if p >= 350:
 				runs.append([e, p, "awd"])
 				if e == "electric":
@@ -52,7 +54,7 @@ func _physics_process(delta: float) -> bool:
 		cur += 1
 		if cur >= runs.size():
 			return true
-		car.drive_layout = "rwd" if runs[cur][2] == "rwd" else "awd"
+		car.drive_layout = runs[cur][2] if runs[cur][2] != "hub" else "awd"
 		car.hub_motors = runs[cur][2] == "hub"
 		car.apply_engine(runs[cur][0], runs[cur][1])
 		car.automatic = true
@@ -62,6 +64,7 @@ func _physics_process(delta: float) -> bool:
 		# Bez naprawy uszkodzenia silnika z poprzednich przejazdów się
 		# sumowały (objaw: kolejne auta coraz wolniejsze, ostatnie stoi).
 		car.repair()
+		car.fuel = 1.0         # bak pusty po kilku przejazdach - silnik gasł (fuel_test)
 		t = 0.0
 		t100 = -1.0
 		t200 = -1.0

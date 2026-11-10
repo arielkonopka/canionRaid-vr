@@ -1,6 +1,6 @@
 # Radio na tablecie: ścieżka dźwiękowa bez zmartwień
 
-Status: zrobione (do odsłuchu w goglach)
+Status: zrobione (odsłuchane w goglach 2026-11-09: głośność OK, stacje pasują; radio_test w zestawie, przechodzi)
 Od: wątek w chmurze "Oceń darmowe radio jako ścieżkę dźwiękową", na prośbę
 użytkownika (2026-11-08, "dodaj do kolejki prac")
 Decyzje użytkownika: chce darmowej muzyki w radiu auta (tablet na desce,

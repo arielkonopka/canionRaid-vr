@@ -31,7 +31,7 @@ const FULL_TURN := 5.7595865      # 330°
 const RESET_TIME := 1.5
 
 const POINTS := {
-	"air_per_s": 60,       # za sekundę w powietrzu
+	"air_unit": 100,       # jednostka punktów za czas lotu (air_units)
 	"flip": 400,           # salto (za pełny obrót)
 	"roll": 350,           # beczka w powietrzu
 	"spin": 150,           # obrót płaski 360°
@@ -95,6 +95,23 @@ func step(delta: float, basis: Basis, ang_vel: Vector3, wheels: int,
 	return out
 
 
+## Punkty za czas lotu zakończonego przeżyciem (użytkownik 2026-11-09:
+## "im dłuższy i zakończony przeżyciem, tym więcej punktów"; 1 jednostka =
+## POINTS.air_unit = 100 pkt): lot < 2 s - nic; 2-10 s - 1; od 10 do 30 s
+## +1 co 5 s; od 30 do 40 s +1 co 2 s; potem +1 co sekundę.
+static func air_units(t: float) -> int:
+	if t < 2.0:
+		return 0
+	var u := 1
+	if t >= 10.0:
+		u += int(floor((minf(t, 30.0) - 10.0) / 5.0))
+	if t >= 30.0:
+		u += int(floor((minf(t, 40.0) - 30.0) / 2.0))
+	if t >= 40.0:
+		u += int(floor(t - 40.0))
+	return u
+
+
 ## Ocena skoku po lądowaniu. Obroty liczą się tylko przy lądowaniu na
 ## kołach (`level`) - na dachu nie ma punktów za salto.
 func _score_jump(p: Dictionary, clean: bool, level: bool) -> Dictionary:
@@ -102,7 +119,8 @@ func _score_jump(p: Dictionary, clean: bool, level: bool) -> Dictionary:
 	var flips := _turns(rot.x) if level else 0
 	var spins := _turns(rot.y) if level else 0
 	var rolls := _turns(rot.z) if level else 0
-	var pts := float(POINTS["air_per_s"]) * float(p["air_t"])
+	# Za czas lotu tylko po wylądowaniu na kołach (przeżycie).
+	var pts := float(POINTS["air_unit"] * (air_units(float(p["air_t"])) if level else 0))
 	pts += POINTS["flip"] * flips + POINTS["spin"] * spins + POINTS["roll"] * rolls
 	if clean:
 		pts *= float(POINTS["clean"])

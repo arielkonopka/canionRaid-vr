@@ -57,6 +57,18 @@ var _prev_ahead := 0.0
 const LOD_FAR := 380.0
 const LOD_NEAR := 320.0
 var on_rail := false
+## Waśń z innym botem (FeudDirector, inbox wasnie-na-autostradzie): cel
+## pościgu zamiast gracza. null = gracz. Bez punktów i bez podbijania
+## silnika - to nie jest pościg gracza.
+var foe: StuntCar = null
+var _rage_on_player := false
+## Pas na autostradzie (0 prawy, 1 lewy) - tryb Autostrada (TrafficZone).
+var lane := 0
+## Poziom szczegółowości z xr_main (BotLod.NEAR/MID/RAIL). -1 = bez BotLod
+## (testy) - wtedy jak dawniej: szyna z progów LOD_FAR / LOD_NEAR.
+var lod := -1
+var _mid_acc := 0.0
+var _mid_n := 0
 var _rail_v := 0.0
 var _rail_acc := 0.0                   # szyna liczona 30 razy na sekundę, nie 240
 var _lane_off := 0.0
@@ -98,6 +110,14 @@ func _drive_step(delta: float) -> void:
 		return
 	if _update_rail(delta):
 		return
+	if lod == BotLod.MID:
+		# Dalej od gracza sterowanie ~30 Hz, wejścia trzymane między krokami.
+		_mid_acc += delta
+		_mid_n += 1
+		if _mid_n % BotLod.MID_STEER_EVERY != 0:
+			return
+		delta = _mid_acc
+	_mid_acc = 0.0
 	_window_timer -= delta
 	if _window_timer <= 0.0:
 		_window_timer = 0.15
@@ -118,10 +138,14 @@ func _drive_step(delta: float) -> void:
 	_score_step(delta, best)
 	if rage > 0.0:
 		rage_time += delta
-		if min_rage_time >= 0.0 and rage_time > min_rage_time and main and main.player_compliant():
+		# Waśń kończy dyrektor (feud_end) - przepisowa jazda gracza jej nie gasi.
+		if _foe_valid():
+			pass
+		elif min_rage_time >= 0.0 and rage_time > min_rage_time and main and main.player_compliant():
 			rage = maxf(rage - delta / calm_time, 0.0)
 			if rage <= 0.0:
 				_reinforced = false
+				_rage_on_player = false
 				if main and main.has_method("score_chase_close"):
 					main.score_chase_close(car, "calmed")
 
@@ -133,9 +157,13 @@ func _drive_step(delta: float) -> void:
 	var rel := car.global_position - (best["pos"] as Vector3)
 	var offset := rel.dot(right)
 	var target_off := lane_w                          # prawy pas
+	if main and main._endless and main.track.autostrada:
+		# Autostrada 2+2: osie pasów z HighwayGenerator (prawy 0,75 m od osi
+		# jezdni, lewy -3,0 m) - 3-pasowe lane_w wąwozu jechałoby poboczem.
+		target_off = main.hwy_lane_off(lane)
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh)
-	if rage > 0.05 and player:
+	if rage > 0.05 and _foe():
 		var plan := _rage_plan(delta, best, right, w, lane_w, offset)
 		target_off = plan.x
 		# Limit szału: ograniczenie + przekroczenie z menu; łuki hamują zawsze.
@@ -217,11 +245,14 @@ func _rage_plan(delta: float, best: Dictionary, right: Vector3, w: float,
 	_brake_pulse = maxf(_brake_pulse - delta, 0.0)
 	_brake_cd = maxf(_brake_cd - delta, 0.0)
 	var lim := w * 0.5 - 1.0
-	var prel := player.global_position - (best["pos"] as Vector3)
+	var tgt := _foe()
+	var prel := tgt.global_position - (best["pos"] as Vector3)
 	var p_off := clampf(prel.dot(right), -lim, lim)
 	var ahead := prel.dot(best["fwd"] as Vector3)     # >0: gracz przed botem
-	var pk := player.speed * 3.6
+	var pk := tgt.speed * 3.6
 	var tactic := _tactic
+	if _foe_valid() and (tactic == "pincer" or tactic == "ambush"):
+		tactic = "ram"                    # kleszcze i zasadzka - tylko na gracza
 	if tactic == "pincer" and (main == null or main.rage_partner(car) == null):
 		tactic = "pit"                    # kleszcze wymagają drugiego bota
 	if tactic == "pit" or tactic == "pincer":
@@ -294,7 +325,9 @@ func _curve_speed() -> float:
 		if ang > 0.01:
 			var span := float(a1["dist"]) - float(a0["dist"])
 			var grip: float = StuntTrack.SURFACES[a0["surface"]]["grip"]
-			var vc := sqrt(0.8 * grip * 9.8 * span / ang)
+			# 0,7 g (było 0,8): z BotDriveModel bot przyspiesza mocniej i przy 0,8 g
+			# obracał się w łuku przy pełnym gazie (bot_rage_test 2026-11-09).
+			var vc := sqrt(0.7 * grip * 9.8 * span / ang)
 			target = minf(target, sqrt(vc * vc + 2.0 * 6.0 * maxf(k, 0.0)) * 3.6)
 	return target
 
@@ -305,8 +338,12 @@ func _update_rail(delta: float) -> bool:
 	if main == null:
 		return false
 	var gap := absf(dist - float(main._last_safe_dist))
+	# Z BotLod: szyna, gdy poziom RAIL (dystans albo budżet fizyki); bez
+	# BotLod - progi LOD_FAR / LOD_NEAR jak dawniej.
+	var want_rail := (lod == BotLod.RAIL) if lod >= 0 else gap >= LOD_FAR
+	var want_phys := (lod != BotLod.RAIL) if lod >= 0 else gap < LOD_NEAR
 	if not on_rail:
-		if rage > 0.0 or gap < LOD_FAR or car.wheels_on_ground < 4:
+		if rage > 0.0 or not want_rail or car.wheels_on_ground < 4:
 			return false
 		on_rail = true
 		_rail_v = maxf(car.speed, 5.0)
@@ -316,7 +353,7 @@ func _update_rail(delta: float) -> bool:
 			return false
 		_lane_off = (car.global_position - track.to_global(smp[0]["pos"])).dot(smp[0]["right"])
 		car.freeze = true
-	elif gap < LOD_NEAR or rage > 0.0:
+	elif want_phys or rage > 0.0:
 		# Z powrotem fizyka, z prędkością, jaką miał na szynie.
 		on_rail = false
 		car.freeze = false
@@ -369,9 +406,16 @@ func _ready() -> void:
 ## Zderzenie z autem gracza (fizyka już zadziałała) - bot wpada w szał.
 func _on_body_entered(b: Node) -> void:
 	if b != player:
+		# Kontakt bot-bot: zgłasza bot o mniejszym instance_id (raz na parę).
+		if b is StuntCar and (b as Node).has_node("Driver") and main and main.has_method("feud_contact") \
+				and car.get_instance_id() < b.get_instance_id() \
+				and (car.linear_velocity - (b as StuntCar).linear_velocity).length() > 1.0:
+			main.feud_contact(car, b)
 		return
 	var rel_v := (car.linear_velocity - player.linear_velocity).length()
 	if rel_v > 1.0:
+		if main and main.has_method("feud_player_hit"):
+			main.feud_player_hit(car)
 		if rage < 0.5:
 			print("Bot w szale drogowym!")
 			# Gracz uderzył spokojnego bota - mandat, pościg bez punktów.
@@ -417,7 +461,37 @@ func _check_overtake(best: Dictionary, right: Vector3) -> void:
 ## Wejście w szał (zderzenie albo wezwanie posiłków). Trąbi raz, przy
 ## wybuchu szału. Oszustwo: zdalnie sterowane auto nagle dostaje mocniejszy
 ## silnik - co najmniej 350 kW i nie słabszy niż auto gracza.
+## Cel pościgu: bot z waśni albo gracz.
+func _foe() -> StuntCar:
+	return foe if _foe_valid() else player
+
+
+func _foe_valid() -> bool:
+	return foe != null and is_instance_valid(foe) and foe.visible
+
+
+## Potyczka z innym botem (FeudDirector "skirmish"): szał na `other`, bez
+## punktów i bez mocniejszego silnika.
+func feud_with(other: StuntCar) -> void:
+	foe = other
+	rage = 1.0
+	rage_time = 0.0
+	if on_rail:
+		_update_rail(0.0)
+	if _horn:
+		_horn.play()
+
+
+## Koniec waśni: bot wraca do pościgu gracza, jeśli w nim był, inaczej spokój.
+func end_feud() -> void:
+	foe = null
+	if not _rage_on_player:
+		rage = 0.0
+
+
 func enrage(origin := "self") -> void:
+	foe = null
+	_rage_on_player = true
 	var fresh := rage < 0.5
 	if fresh and main and main.has_method("score_chase_open"):
 		main.score_chase_open(car, origin)

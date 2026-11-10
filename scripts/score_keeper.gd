@@ -27,10 +27,12 @@ class_name ScoreKeeper
 ## do wyświetlenia (pula Label3D, tylko przy zdarzeniu) i do logu
 ## (log_line - "SCORE: ...").
 
-## Pochodzenie szału. "player_hit": gracz uderzył spokojnego bota - mandat,
-## a pościg nie daje punktów (ustalenie użytkownika). "reinforce": posiłki.
+## Pochodzenie szału. "player_hit": gracz uderzył spokojnego bota. Od
+## 2026-11-09 (użytkownik: "ścigałem się z botami i nie dostałem punktów za
+## stłuczki" -> wybór "bez mandatu, punkty za wszystko") bez mandatu, a taki
+## pościg płaci jak każdy inny. Wcześniej: mandat -100 i pościg bez punktów. "reinforce": posiłki.
 ## "overtake": furia po wyprzedzeniu. "self": bot sam zaczął (na przyszłość).
-const ORIGINS := ["player_hit", "reinforce", "overtake", "self"]
+const ORIGINS := ["player_hit", "reinforce", "overtake", "self", "horn"]   # horn: klakson gracza
 
 ## Punkty bazowe. Strojenie tylko tutaj (albo nadpisanie `base` w instancji).
 const BASE := {
@@ -76,7 +78,8 @@ var _section_chases := 0
 var chases := {}
 
 
-## Bot wpada w szał. Zwraca wypłaty (mandat przy "player_hit").
+## Bot wpada w szał. Zwraca wypłaty (dziś zawsze pusta - mandat zniesiony;
+## stała "fine" zostaje, gdyby kara wróciła).
 func open_chase(id: int, origin: String, now: float) -> Array:
 	if chases.has(id):
 		var c: Dictionary = chases[id]
@@ -86,7 +89,7 @@ func open_chase(id: int, origin: String, now: float) -> Array:
 		return []
 	chases[id] = {
 		"origin": origin,
-		"paid": origin != "player_hit",
+		"paid": true,
 		"start_t": now,
 		"last_rage_t": now,
 		"attacks": 0,
@@ -96,8 +99,6 @@ func open_chase(id: int, origin: String, now: float) -> Array:
 		"last_dodge_t": -1000.0,
 		"min_gap": INF,
 	}
-	if origin == "player_hit":
-		return [_pay("fine", base["fine"], 1)]
 	return []
 
 
@@ -170,7 +171,7 @@ func close_chase(id: int, reason: String, now: float, kmh: float) -> Array:
 	return out
 
 
-## Zdarzenie punktowane z pościgu bota `id`. Pościg "player_hit" nic nie daje.
+## Zdarzenie punktowane z pościgu bota `id`.
 func award(kind: String, id: int, now: float, kmh: float) -> Array:
 	var c: Dictionary = chases.get(id, {})
 	if c.is_empty() or not bool(c["paid"]) or not base.has(kind):

@@ -38,6 +38,10 @@ const SURFACES := {
 	"dry": {"label": "sucha", "grip": 1.0},
 	"wet": {"label": "mokra", "grip": 0.7},
 	"ice": {"label": "lód", "grip": 0.12},
+	# Rozbieg i stół wielkiej skoczni: jak sucha, ale w biało-czerwone pasy
+	# poprzeczne (road.gdshader layout 3) - widoczna z daleka przy 400 km/h
+	# (przegląd renderów 2026-11-10: "wygląda jak zwykła droga").
+	"kicker": {"label": "skocznia", "grip": 1.0},
 }
 
 const DEFAULT_TRACK: Array[Dictionary] = [
@@ -90,6 +94,9 @@ const LINE_DEPTH := 1.5
 @export var generate_collision: bool = true
 ## Drzewa i głazy wokół toru (Scenery).
 @export var scenery: bool = true
+## Tryb Autostrada: plan trasy - po _build_highway kawałek dokłada słupki,
+## obiekty biomów i zabudowę miast (HighwayScenery), tablice miejscowości.
+var hwy_plan: HighwayPlan
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
 ## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
@@ -157,15 +164,23 @@ func build() -> void:
 	if _samples.size() < 2:
 		push_warning("StuntTrack: za mało próbek, sprawdź definicję toru.")
 		return
+	# Kawałki dobudowywane w jeździe: próbkowanie, siatka jezdni i kolizja
+	# w osobnych klatkach (razem do ~22 ms na PC przy kawałku autostrady
+	# ~1,1 km - na Queście szarpnięcie co ~1 km; długi test 2026-11-10).
+	if not await _slice():
+		return
 
 	# Ściany do kolizji, osobno dla każdej nawierzchni.
 	var road_faces := {}
+	_road_layout = 1 if hwy_plan else 0
 	var mesh := _build_mesh(road_faces)
 
 	var mi := MeshInstance3D.new()
 	mi.name = "TrackMesh"
 	mi.mesh = mesh
 	_adopt(mi)
+	if not await _slice():
+		return
 	_build_road_collision(road_faces)
 
 	# Linie startu i mety; nad metą brama z banerem. Kawałki trasy bez końca
@@ -183,6 +198,16 @@ func build() -> void:
 		_build_highway()
 		if not await _slice():
 			return
+	if hwy_plan:
+		var t0 := Time.get_ticks_usec()
+		var hrng := RandomNumberGenerator.new()
+		hrng.seed = hash([hwy_plan.seed_value, int(float(_samples[0]["dist"]))])
+		for n in HighwayScenery.build(_samples, hwy_plan, hrng,
+				HighwayScenery.edges_for(float(_samples[0]["width"]))):
+			_adopt(n)
+		Perf.add("hwy_scenery", t0)
+		if not await _slice():
+			return
 	if scenery and not canyon:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name) ^ int(float(_samples[0]["dist"]))
@@ -196,6 +221,10 @@ func build() -> void:
 			n_meta += 1
 			if n_meta % 6 == 0 and not await _slice():
 				return
+		if meta.has("city_start"):
+			_town_sign(float(smp["dist"]) - 40.0, HighwayPlan.city_name(int(meta["city_start"]["name_seed"])).to_upper())
+		if meta.has("city_end"):
+			_town_sign(float(smp["dist"]) + 10.0, HighwayPlan.city_name(int(meta["city_end"]["name_seed"])).to_upper(), true)
 		if meta.has("checkpoint"):
 			# Zielony znak "miejscowości" zamiast bramownicy (prośba użytkownika);
 			# tuż przed nim koniec poprzedniego odcinka - przekreślony (E-18a).
@@ -208,6 +237,7 @@ func build() -> void:
 		if meta.has("island"):
 			var isl: Dictionary = meta["island"]
 			_build_island(float(smp["dist"]) + float(isl["start"]), float(isl["len"]), float(isl["w"]))
+			_island_front(float(smp["dist"]) + float(isl["start"]))
 		# Skocznie i sztuczki: bez tabliczek z napisami - ograniczenie przed
 		# (B-33 z pętli niżej) i koniec ograniczenia za (B-34).
 		if meta.has("grade"):
@@ -232,7 +262,7 @@ func build() -> void:
 		# Znak drogowy z generatora (autostrada / koniec) - "sign" to już
 		# napis z prędkością przed skocznią (inne znaczenie).
 		if meta.has("road_sign"):
-			_road_sign(float(smp["dist"]) + 8.0, meta["road_sign"])
+			_road_sign(float(smp["dist"]) + 8.0, meta["road_sign"], 0, str(meta.get("road_plate", "")))
 		if meta.get("overpass", false):
 			_build_overpass(float(smp["dist"]) + 50.0)
 	# Ograniczenia prędkości: B-33 przy każdym nowym ograniczeniu, B-34
@@ -241,7 +271,7 @@ func build() -> void:
 	var prev_surf := "dry"
 	for smp in _samples:
 		var sf: String = smp["surface"]
-		if sf != "dry" and prev_surf == "dry":
+		if sf != "dry" and sf != "kicker" and prev_surf == "dry":
 			_road_sign(maxf(float(smp["dist"]) - 30.0, float(_samples[0]["dist"]) + 1.0), "slippery")
 		prev_surf = sf
 	# Kontynuacja: ograniczenie z końca poprzedniego kawałka (bez zbędnego
@@ -271,7 +301,7 @@ func _build_road_collision(road_faces: Dictionary) -> void:
 			continue
 		var body := StaticBody3D.new()
 		# Nazwa "TrackBody" dla suchej zostaje dla zgodności z testami.
-		body.name = "TrackBody" if surf == "dry" else "TrackBody_" + surf
+		body.name = "TrackBody" if surf == "dry" or surf == "kicker" else "TrackBody_" + surf
 		body.set_meta("surface", surf)
 		body.set_meta("grip", SURFACES[surf]["grip"])
 		var shape := ConcavePolygonShape3D.new()
@@ -561,20 +591,27 @@ static var _shared_mats := {}
 ## Materiał wierzchu jezdni: shader asfaltu (linie, krawężniki, ziarno),
 ## mokra i lód jako parametry. Jawnie podane wet_material / ice_material
 ## mają pierwszeństwo.
+## Układ pasów w road.gdshader dla budowanej właśnie siatki jezdni:
+## 0 wąwóz, 1 autostrada (nasza jezdnia), 2 autostrada z naprzeciwka.
+var _road_layout := 0
+
+
 func _surface_material(surf: String) -> Material:
-	if surf == "wet" and wet_material:
+	if surf == "wet" and wet_material and _road_layout == 0:
 		return wet_material
-	if surf == "ice" and ice_material:
+	if surf == "ice" and ice_material and _road_layout == 0:
 		return ice_material
-	var key := "road_" + surf
+	var key := "road_%s_%d" % [surf, _road_layout]
 	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/road.gdshader")
+		m.set_shader_parameter("layout", 3 if surf == "kicker" else _road_layout)
 		m.set_shader_parameter("wetness", 1.0 if surf == "wet" else 0.0)
 		m.set_shader_parameter("ice", 1.0 if surf == "ice" else 0.0)
 		# Kolory ustalone z użytkownikiem: sucha #404040, mokra #101010,
 		# oblodzona #304070.
-		var colors := {"dry": Color("#404040"), "wet": Color("#101010"), "ice": Color("#304070")}
+		var colors := {"dry": Color("#404040"), "wet": Color("#101010"), "ice": Color("#304070"),
+				"kicker": Color("#404040")}
 		m.set_shader_parameter("asphalt", colors[surf])
 		_shared_mats[key] = m
 	return _shared_mats[key]
@@ -1069,6 +1106,12 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 					for k in [-1.0, 1.0]:
 						var tr2 := _sign_box(root, Vector3(0.025, 0.12, 0.01), face + Vector3(0.05 * k, -0.13, 0.03), sym)
 						tr2.rotation = Vector3(0, 0, 0.5 * k)
+				"fork":
+					# Rozwidlenie: pień i dwa ramiona rozchodzące się (jak Y).
+					_sign_box(root, Vector3(0.035, 0.13, 0.01), face + Vector3(0, -0.12, 0.03), sym)
+					for k in [-1.0, 1.0]:
+						var arm2 := _sign_box(root, Vector3(0.035, 0.16, 0.01), face + Vector3(0.05 * k, 0.0, 0.03), sym)
+						arm2.rotation = Vector3(0, 0, -0.55 * k)
 				"bump":
 					for k in [-1.0, 1.0]:
 						var b := _sign_box(root, Vector3(0.12, 0.035, 0.01), face + Vector3(0.05 * k, -0.05, 0.03), sym)
@@ -1392,30 +1435,46 @@ func _lamp_material() -> Material:
 
 
 ## Skalna wyspa rozwidlenia: od `d0` na długości `length`, szerokość `w`,
-## z ostrymi "dziobami" na obu końcach (12 m), wysokość 3,5 m, z kolizją.
+## zwężona na obu końcach (12 m), wysokość 3,5 m, z kolizją.
+## Czoło jest pionową, tępą ścianą pełnej wysokości (ISLAND_NOSE_W szerokości)
+## z oznakowaniem (_island_front). Wcześniej dziób zaczynał się od ~1 m
+## wysokości i rósł przez 6 m - z auta wyglądał i działał jak rampa
+## ("podjazd jak bariera", użytkownik 2026-11-09).
+const ISLAND_NOSE_W := 1.4
 func _build_island(d0: float, length: float, w: float) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
 	var prev := {}
+	var first := {}
+	var first_fwd := Vector3.FORWARD
+	var last_fwd := Vector3.FORWARD
 	for smp in _samples:
 		var d := float(smp["dist"])
 		if d < d0 or d > d0 + length:
 			continue
 		var t := minf(d - d0, d0 + length - d)
-		var half := w * 0.5 * clampf(t / 12.0, 0.05, 1.0)
+		var half := maxf(w * 0.5 * clampf(t / 12.0, 0.0, 1.0), ISLAND_NOSE_W * 0.5)
 		var c: Vector3 = smp["pos"]
 		var r_h: Vector3 = (smp["right"] * Vector3(1, 0, 1)).normalized()
-		var h := 3.5 * clampf(t / 6.0, 0.3, 1.0)
+		var h := 3.5
 		var p := {"l0": c - r_h * half, "r0": c + r_h * half,
 				"l1": c - r_h * half * 0.8 + Vector3.UP * h, "r1": c + r_h * half * 0.8 + Vector3.UP * h}
-		if not prev.is_empty():
+		if prev.is_empty():
+			first = p
+			first_fwd = (smp["fwd"] * Vector3(1, 0, 1)).normalized()
+		else:
 			_quad_facing(st, faces, prev["l0"], p["l0"], p["l1"], prev["l1"], -r_h)
 			_quad_facing(st, faces, prev["r0"], p["r0"], p["r1"], prev["r1"], r_h)
 			_quad_facing(st, faces, prev["l1"], p["l1"], p["r1"], prev["r1"], Vector3.UP)
+		last_fwd = (smp["fwd"] * Vector3(1, 0, 1)).normalized()
 		prev = p
 	if faces.is_empty():
 		return
+	# Czoło i tył: pionowe ściany zamykające bryłę (z kolizją - auto, które
+	# nie wybierze strony, uderza w ścianę, nie wjeżdża na skałę).
+	_quad_facing(st, faces, first["l0"], first["r0"], first["r1"], first["l1"], -first_fwd)
+	_quad_facing(st, faces, prev["l0"], prev["r0"], prev["r1"], prev["l1"], last_fwd)
 	st.generate_normals()
 	st.set_material(_rock_material("cavern"))
 	var mi := MeshInstance3D.new()
@@ -1423,6 +1482,70 @@ func _build_island(d0: float, length: float, w: float) -> void:
 	mi.mesh = st.commit()
 	_adopt(mi)
 	_collision_body("IslandBody", faces, "rock", 0.55)
+
+
+## Oznakowanie czoła wysepki (użytkownik 2026-11-09): żółto-czarna tablica
+## przeszkodowa z pasami skośnymi w obie strony (objazd z obu stron)
+## i nad nią niebieski znak C-11 "nakaz jazdy z prawej lub lewej strony
+## znaku". Trójkąt A-30 120 m wcześniej stawia generator
+## (TrackGenerator._island_warning). Tablice odsunięte 5 cm od ściany.
+func _island_front(d0: float) -> void:
+	var root := Node3D.new()
+	root.name = "IslandFront"
+	_adopt(root)
+	# Pierwsza próbka >= d0 - na niej _build_island stawia ścianę czoła.
+	var smp: Dictionary = _samples[mini(_dists.bsearch(d0, true), _samples.size() - 1)]
+	root.transform = _sample_transform(smp)
+	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
+	var origin := root.position
+	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
+	root.position = origin
+	var mats := _sign_mats()
+	var z := 0.05
+	# Tablica: tył jak słupek, przód - QuadMesh (UV 0..1; BoxMesh dzieli
+	# teksturę na 6 ścian i pasy by się rozjechały).
+	_sign_box(root, Vector3(1.2, 1.0, 0.03), Vector3(0, 1.0, z), mats["post"])
+	var board := MeshInstance3D.new()
+	board.name = "HazardBoard"
+	var q := QuadMesh.new()
+	q.size = Vector2(1.2, 1.0)
+	q.material = _hazard_mat()
+	board.mesh = q
+	board.position = Vector3(0, 1.0, z + 0.017)
+	root.add_child(board)
+	# C-11: niebieska tarcza, dwie białe strzałki w dół, w lewo i w prawo.
+	if not _shared_mats.has("sign_blue"):
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(0.05, 0.25, 0.65)
+		_shared_mats["sign_blue"] = bm
+	var face := Vector3(0, 2.25, z)
+	_sign_disc(root, face, 0.42, mats["white"], 0.0)
+	_sign_disc(root, face, 0.38, _shared_mats["sign_blue"], 0.012)
+	for sx in [-1.0, 1.0]:
+		var shaft := _sign_box(root, Vector3(0.06, 0.34, 0.01), face + Vector3(0.1 * sx, -0.02, 0.03), mats["white"])
+		shaft.rotation = Vector3(0, 0, 0.75 * sx)
+		var head := _sign_box(root, Vector3(0.16, 0.16, 0.01), face + Vector3(0.2 * sx, -0.14, 0.03), mats["white"])
+		head.rotation = Vector3(0, 0, PI * 0.25)
+
+
+## Materiał tablicy przeszkodowej: żółto-czarne pasy pod 45°, opadające od
+## środka na obie strony (strzałka w dół = objazd z obu stron). Tekstura
+## 64x64 liczona raz.
+func _hazard_mat() -> Material:
+	if _shared_mats.has("hazard"):
+		return _shared_mats["hazard"]
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	var yellow := Color(0.98, 0.8, 0.1)
+	for y in 64:
+		for x in 64:
+			var band := int(floor((absf(float(x) - 31.5) + float(y)) / 12.0))
+			img.set_pixel(x, y, yellow if band % 2 == 0 else Color(0.04, 0.04, 0.04))
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	m.roughness = 0.5
+	_shared_mats["hazard"] = m
+	return m
 
 
 func _collision_body(n: String, faces: PackedVector3Array, surface: String, grip: float) -> void:
@@ -1932,7 +2055,9 @@ func _build_highway() -> void:
 	var keep := _samples
 	_samples = shifted
 	var opp_faces := {}
+	_road_layout = 2 if hwy_plan else 0
 	var opp_mesh := _build_mesh(opp_faces)
+	_road_layout = 1 if hwy_plan else 0
 	_samples = keep
 	var omi := MeshInstance3D.new()
 	omi.name = "OppositeRoad"
@@ -1978,7 +2103,17 @@ func _build_highway() -> void:
 			# Pobocze między jezdnią a barierą.
 			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
 		}
-		if not prev.is_empty():
+		# W zabudowie miasta (tryb Autostrada) zamiast barier energochłonnych,
+		# trawy i nasypu - chodnik z krawężnikiem (HighwayScenery._sidewalks);
+		# bariera w pasie rozdziału zostaje (spec. pkt 4).
+		var in_city := hwy_plan != null and not hwy_plan.city_at(float(smp["dist"])).is_empty()
+		if not prev.is_empty() and in_city:
+			var q2 := prev
+			_quad_facing(concrete, faces, q2["jb_l0"], p["jb_l0"], p["jb_l1"], q2["jb_l1"], -rh)
+			_quad_facing(concrete, faces, q2["jb_r0"], p["jb_r0"], p["jb_r1"], q2["jb_r1"], rh)
+			_quad_facing(concrete, faces, q2["jb_l1"], p["jb_l1"], p["jb_r1"], q2["jb_r1"], Vector3.UP)
+			_quad_facing(grass, faces, q2["md_r"], p["md_r"], p["md_l"], q2["md_l"], Vector3.UP)
+		elif not prev.is_empty():
 			var q := prev
 			_quad_facing(concrete, faces, q["jb_l0"], p["jb_l0"], p["jb_l1"], q["jb_l1"], -rh)
 			_quad_facing(concrete, faces, q["jb_r0"], p["jb_r0"], p["jb_r1"], q["jb_r1"], rh)
@@ -2084,8 +2219,16 @@ func _metal_material() -> Material:
 
 
 func _grass_material() -> Material:
-	if not _shared_mats.has("grass"):
+	# Autostrada: paleta biomu kawałka (pustynia - piasek, nie trawa).
+	var biome := hwy_plan.biome_at(float(_samples[0]["dist"])) if hwy_plan and not _samples.is_empty() else ""
+	var key := "grass_" + biome
+	if not _shared_mats.has(key):
 		var m := ShaderMaterial.new()
 		m.shader = load("res://shaders/ground.gdshader")
-		_shared_mats["grass"] = m
-	return _shared_mats["grass"]
+		if biome != "":
+			var pal: Array = HighwayScenery.BIOME_GROUND.get(biome, HighwayScenery.BIOME_GROUND["meadow"])
+			m.set_shader_parameter("grass_a", pal[0])
+			m.set_shader_parameter("grass_b", pal[1])
+			m.set_shader_parameter("dirt", pal[2])
+		_shared_mats[key] = m
+	return _shared_mats[key]

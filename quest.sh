@@ -15,6 +15,9 @@
 #   ./quest.sh sleep      przywraca normalny czujnik
 #   ./quest.sh wifi       adb przez Wi-Fi: raz z kablem, potem bez kabla
 #                         (do restartu gogli; adres w build/.quest_wifi)
+#   ./quest.sh push PLIK... [-- KATALOG]   pliki na gogle przez adb
+#                         (domyślnie /sdcard/Download/; działa też po Wi-Fi)
+#   ./quest.sh pull ŚCIEŻKA [KATALOG]      plik z gogli
 #
 # Gogle: kabel USB, tryb dewelopera włączony, debugowanie USB zatwierdzone
 # w goglach. Jeśli gogle czekają na zgodę, skrypt mówi o tym i czeka.
@@ -80,7 +83,7 @@ do_test() {
 		say "Test: $name $args"
 		out=$(timeout 300 godot --headless --xr-mode off -s "res://tests/$name.gd" -- $args </dev/null 2>&1) || true
 		# Błąd skryptu albo test zgłaszający porażkę ("..._test: BŁĄD").
-		if grep -qE "SCRIPT ERROR|Parse Error|_test: BŁĄD" <<<"$out"; then
+		if grep -qE "SCRIPT ERROR|Parse Error|_test: BŁĄD|: BŁĘDY" <<<"$out"; then
 			grep -E "SCRIPT ERROR|Parse Error|at: |BŁĄD" <<<"$out" | head -10
 			printf '\033[1;31m  NIE PRZESZEDŁ\033[0m\n'
 			failed=1
@@ -108,6 +111,20 @@ do_test() {
 	run_test hill_test ""                "wzniesienie|hill_test"
 	run_test fuel_test ""                "paliwo skończyło|fuel_test"
 	run_test pause_test ""               "pause_test|radio:"
+	run_test grip_test ""                "przeciążenie|hamowanie|grip_test"
+	run_test launch_test ""              "0-50|launch_test"
+	run_test landing_test ""             "gaz 1|landing_test"
+	run_test durability_test ""          "wytrzymałość|durability_test"
+	run_test highway_plan_test ""       "HIGHWAY_PLAN"
+	run_test highway_gen_test "4242 300" "HIGHWAY_GEN|miast"
+	run_test world_origin_test ""       "WORLD_ORIGIN"
+	run_test regen_test ""              "rekuperacja|regen_test"
+	run_test bot_drive_test ""          "bot_drive_test"
+	run_test feud_test ""               "feud_test"
+	run_test horn_test ""               "klakson|horn_test"
+	run_test shop_test ""               "shop_test"
+	run_test feud_play_test ""          "feud_play_test|SOJUSZ"
+	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
 }
@@ -181,6 +198,18 @@ case "${1:-}" in
 	test)    do_test ;;
 	log)     wait_device; exec "$ADB" logcat -s godot ;;
 	stop)    wait_device; "$ADB" shell am force-stop "$PKG"; ok "zatrzymano" ;;
+	push)    # Pliki na gogle przez adb (kabel albo Wi-Fi), bez MTP:
+	         #   ./quest.sh push PLIK... [-- KATALOG]   (domyślnie Download)
+	         shift; dest="/sdcard/Download/"; files=()
+	         while (($#)); do
+	         	if [[ $1 == "--" ]]; then dest="$2"; shift 2; continue; fi
+	         	files+=("$1"); shift
+	         done
+	         ((${#files[@]})) || fail "podaj pliki: ./quest.sh push PLIK... [-- KATALOG]"
+	         wait_device
+	         for f in "${files[@]}"; do "$ADB" push "$f" "$dest" >/dev/null || fail "nie wysłano: $f"; ok "$f -> $dest"; done ;;
+	pull)    # Plik z gogli: ./quest.sh pull ŚCIEŻKA_W_GOGLACH [KATALOG_LOKALNY]
+	         wait_device; "$ADB" pull "$2" "${3:-.}" ;;
 	awake)   wait_device
 	         # Zgoda ADB bez wygasania (domyślnie Android unieważnia ją po 7 dniach).
 	         "$ADB" shell settings put global adb_allowed_connection_time 0
@@ -205,6 +234,6 @@ case "${1:-}" in
 	         mkdir -p build
 	         echo "$ip:5555" > "$WIFI_FILE"
 	         ok "adb przez Wi-Fi: $ip:5555 - można odłączyć kabel (do restartu gogli)" ;;
-	-h|--help|help) sed -n '4,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+	-h|--help|help) sed -n '4,25p' "$0" | sed 's/^# \{0,1\}//' ;;
 	*)       fail "nieznane polecenie '$1' - zobacz ./quest.sh help" ;;
 esac

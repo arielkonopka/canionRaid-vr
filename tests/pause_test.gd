@@ -11,7 +11,7 @@ var z0 := 0.0
 
 
 func _initialize() -> void:
-	root.get_node("GameSettings").persist = false
+	root.get_node("GameSettings").persist = false      # zmiany w menu pauzy nie do pliku ustawień
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 
@@ -34,25 +34,38 @@ func _process(_d: float) -> bool:
 			main._set_paused(true)
 			_check(paused and main._pause.is_open(), "pauza otwarta, drzewo stoi")
 			z0 = car.global_position.z
-			main._pause.selected = PauseMenu.ITEMS.find("radio")
-			main._pause.accept()
-			_check(main._radio.is_on, "radio włączone z pauzy")
+			# Menu pauzy = ustawienia gry: grupa "Radio".
+			var pm: PauseMenu = main._pause
+			pm.enter_group("radio")
+			pm.selected = pm.find_entry("radio_on")
+			pm.change(1)
+			_check(main._radio.is_on, "radio włączone z pauzy (ustawienie Radio przy starcie)")
 		150:
 			_check(absf(car.global_position.z - z0) < 0.01, "auto stoi w pauzie")
 			print("radio: '", main._radio_label.text.replace("\n", " | "), "'")
 			_check(main._radio_label.text != "" and not "brak" in main._radio_label.text, "napis co gra")
+			var pm: PauseMenu = main._pause
+			var gs = root.get_node("GameSettings")
 			var st: int = main._radio.station
-			main._pause.selected = PauseMenu.ITEMS.find("station")
-			main._pause.change(1)
+			pm.selected = pm.find_entry("radio_station")
+			pm.change(1)
 			_check(main._radio.station != st, "zmiana stacji")
-			var v := PauseMenu.volume_index
-			main._pause.selected = PauseMenu.ITEMS.find("volume")
-			main._pause.change(-1)
-			_check(PauseMenu.volume_index == v - 1, "głośność")
-			print(main._pause.label.text)
-			main._pause.selected = PauseMenu.ITEMS.find("resume")
-			main._pause.accept()
-			_check(not paused and not main._pause.is_open(), "powrót do jazdy")
+			var v: int = gs.radio_volume
+			pm.selected = pm.find_entry("radio_volume")
+			pm.change(-1)
+			_check(gs.radio_volume == v - 1, "głośność")
+			print(pm.label.text)
+			# Zmiana auta: przy powrocie pytanie, B cofa zmianę.
+			pm.enter_group("car")
+			var kw0: int = gs.engine_power
+			pm.selected = pm.find_entry("engine_power")
+			pm.change(1)
+			pm.try_resume()
+			_check(pm._confirm and pm.is_open(), "zmiana mocy - pytanie o nową jazdę")
+			print(pm.label.text)
+			pm.cancel()
+			_check(gs.engine_power == kw0, "B cofa zmianę auta")
+			_check(not paused and not pm.is_open(), "powrót do jazdy")
 			car.linear_velocity = -car.global_basis.z * 20.0
 		200:
 			_check(absf(car.global_position.z - z0) > 0.5, "auto jedzie po pauzie")

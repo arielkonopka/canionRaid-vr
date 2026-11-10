@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 8
+const SETTINGS_VERSION := 9
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -27,7 +27,7 @@ var esp_enabled: bool = true
 var steer_assist: bool = true
 var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
-## Układ napędu: "rwd" tył, "awd" 4x4 (StuntCar.drive_layout).
+## Układ napędu: "rwd" tył, "fwd" przód, "awd" 4x4 (StuntCar.drive_layout).
 var drive_layout: String = "rwd"
 ## Model auta gracza: "concept" (Khronos Car Concept, CC BY 4.0) albo
 ## "sedan" (własny z lat 70., z wgnieceniami). Boty zawsze sedany.
@@ -36,6 +36,13 @@ var body_model: String = "sedan"
 var body_mass: int = 1150
 ## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
 var spoiler: String = "none"
+## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
+## użytkownik 2026-11-09) - StuntCar.durability.
+var durability: int = 1
+## Rekuperacja elektryka (StuntCar.REGEN_LEVELS): "off", "weak", "normal", "strong".
+var regen: String = "normal"
+## Opływowość nadwozia (StuntCar.AERO): "classic", "modern", "sport", "record".
+var aero: String = "classic"
 ## Szał drogowy botów: o ile km/h przekraczają ograniczenie (0 = bez
 ## limitu), najkrótszy szał [s], ile sekund przepisowej jazdy gracza go
 ## gasi, strategia: "block" (wyprzedza, zajeżdża, hamuje przed graczem),
@@ -72,10 +79,11 @@ var xr_resolution: int = 110
 ## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
-## Rodzaj trasy. W grze tylko "canyon" (wąwóz bez końca) - jedyny tryb,
-## ustalone z użytkownikiem; nie ma go w menu. "endless" (estakady) i "demo"
-## (pokazowa z metą) zostały w kodzie dla testów (endless_test, drive_test).
-var track_mode: String = "canyon"
+## Rodzaj trasy (menu "Trasa"): "canyon" wąwóz bez końca albo "autostrada"
+## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
+## (estakady) i "demo" (pokazowa z metą) zostały w kodzie dla testów
+## (endless_test, drive_test) - nie ma ich w menu.
+var track_mode: String = "autostrada"
 ## Dźwigi (życia) na trasie bez końca; 0 = bez limitu.
 var cranes: int = 3
 ## Progi mocy silnika na trasie bez końca: start na pierwszym, każdy
@@ -92,6 +100,15 @@ var best_distance: float = 0.0
 ## false = nic nie jest zapisywane na dysk. Ustawiają to testy, żeby nie
 ## nadpisywać ustawień i rekordów gracza.
 var persist := true
+## Radio (grupa "Radio" - w menu tytułowym i w pauzie, użytkownik
+## 2026-11-09: "ustawienia radia w ustawieniach gry"): włączone przy
+## starcie jazdy, stacja (indeks w RadioStations.STATIONS - nazwy
+## uzupełnia _ready), głośność (indeks PauseMenu.VOLUME_STEPS), stacja
+## online Jamendo (jawna opcja, domyślnie wył.).
+var radio_on := false
+var radio_station := 0
+var radio_volume := 5
+var radio_online := false
 
 ## Grupy menu (podmenu na ekranie tytułowym), w kolejności wyświetlania.
 const GROUPS: Array[Dictionary] = [
@@ -101,6 +118,7 @@ const GROUPS: Array[Dictionary] = [
 	{"id": "assist", "label": "Systemy wspomagania"},
 	{"id": "controls", "label": "Sterowanie"},
 	{"id": "look", "label": "Wygląd i widok"},
+	{"id": "radio", "label": "Radio"},
 	{"id": "rage", "label": "Szał drogowy botów"},
 ]
 
@@ -119,6 +137,15 @@ const PAINTS := {
 ## Opis opcji dla menu. "values" to lista możliwych wartości w kolejności
 ## przełączania, "names" ich nazwy na ekranie, "hints" opis pod opcją.
 var OPTIONS: Array[Dictionary] = [
+	{
+		"key": "track_mode", "group": "track", "label": "Trasa",
+		"values": ["autostrada", "canyon"],
+		"names": ["Autostrada", "Wąwóz"],
+		"hints": [
+			"Autostrada 2+2 pasy przez setki km: łąki, pola, pustynia, góry, morze, miasta co 25 km.",
+			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
+		],
+	},
 	{
 		"key": "cranes", "group": "track", "label": "Życia (auta)",
 		"values": [3, 5, 0],
@@ -188,6 +215,50 @@ var OPTIONS: Array[Dictionary] = [
 		],
 	},
 	{
+		"key": "radio_on", "group": "radio", "label": "Radio przy starcie",
+		"values": [false, true], "names": ["Wył.", "Wł."],
+		"hints": ["Jazda w ciszy - radio włączysz w pauzie.", "Radio gra od startu jazdy."],
+	},
+	{
+		"key": "radio_station", "group": "radio", "label": "Stacja",
+		"values": [0], "names": ["-"],
+		"hints": ["Stacja, od której radio zaczyna."],
+	},
+	{
+		"key": "radio_volume", "group": "radio", "label": "Głośność",
+		"values": [0, 1, 2, 3, 4, 5, 6, 7, 8], "names": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
+		"hints": ["Cicho - silnik ważniejszy.", "", "", "", "", "Domyślnie: nie zagłusza silnika.", "", "", "Najgłośniej."],
+	},
+	{
+		"key": "radio_online", "group": "radio", "label": "Radio online (Jamendo)",
+		"values": [false, true], "names": ["Wył.", "Wł."],
+		"hints": ["Tylko muzyka z gry (offline).",
+				"Dodatkowa stacja z muzyką z Jamendo (internet, utwory w pamięci)."],
+	},
+	{
+		"key": "aero", "group": "body", "label": "Opływowość",
+		"values": ["classic", "modern", "sport", "record"],
+		"names": ["Sedan z epoki", "Współczesna", "Sportowa", "Rekordowa"],
+		"hints": [
+			"Cd 0,36, duże czoło (pomiar: 130 kW 213 km/h, 700 kW 378 km/h).",
+			"Cd 0,29 jak dzisiejsze auta: 130 kW 229 km/h, 700 kW 393 km/h.",
+			"Cd 0,30, niskie i wąskie czoło: 130 kW 232 km/h.",
+			"Cd 0,22, jak auta do bicia rekordów: 130 kW 264 km/h, 700 kW 398 km/h. Przy 350 kW prędkość ogranicza najwyższy bieg (~285).",
+		],
+	},
+	{
+		"key": "durability", "group": "body", "label": "Wytrzymałość",
+		"values": [1, 2, 3, 5, 10],
+		"names": ["x1 (realna)", "x2", "x3", "x5", "x10"],
+		"hints": [
+			"Jak prawdziwe auto: uderzenie przy dużej prędkości kończy jazdę.",
+			"Auto znosi dwa razy więcej, zanim silnik, hamulce i zawieszenie odmówią.",
+			"Trzy razy mocniejsze - wybacza kilka poważnych stłuczek.",
+			"Pięć razy mocniejsze - wgniecenia widać, ale auto jedzie dalej.",
+			"Prawie niezniszczalne. Wgniecenia nadal widać.",
+		],
+	},
+	{
 		"key": "tires", "group": "body", "label": "Opony",
 		"values": ["all_season", "summer", "winter"],
 		"names": ["Całoroczne", "Letnie", "Zimowe"],
@@ -199,10 +270,11 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "drive_layout", "group": "car", "label": "Napędzane koła",
-		"values": ["rwd", "awd"],
-		"names": ["Tył", "4x4"],
+		"values": ["rwd", "fwd", "awd"],
+		"names": ["Tył", "Przód", "4x4"],
 		"hints": [
 			"Klasycznie, tylne koła z szperą - tył ucieka przy gazie w zakręcie.",
+			"Przednie koła ciągną: stabilnie, przy gazie w zakręcie auto wynosi przodem na zewnątrz; mocne auto buksuje przy ruszaniu (ciężar przechodzi na tył).",
 			"Wszystkie koła: 40% przód, 60% tył, wiskoza między osiami. Ciężej o poślizg.",
 		],
 	},
@@ -213,6 +285,17 @@ var OPTIONS: Array[Dictionary] = [
 		"hints": [
 			"Jeden silnik, napęd przez dyferencjał (koła wg opcji Napędzane koła).",
 			"Cztery silniki po 1/4 mocy, zawsze 4x4, każde koło niezależnie. Tylko elektryk.",
+		],
+	},
+	{
+		"key": "regen", "group": "car", "label": "Rekuperacja",
+		"values": ["off", "weak", "normal", "strong"],
+		"names": ["Wył.", "Słaba", "Normalna", "Mocna"],
+		"hints": [
+			"Puszczony gaz: elektryk toczy się swobodnie, bez odzysku energii.",
+			"Lekkie hamowanie silnikiem, trochę energii wraca do baterii.",
+			"Jak w typowym elektryku: wyraźne hamowanie i odzysk energii.",
+			"Jazda jednym pedałem: mocne hamowanie po puszczeniu gazu, najwięcej odzysku.",
 		],
 	},
 	{
@@ -435,7 +518,21 @@ var OPTIONS: Array[Dictionary] = [
 
 
 func _ready() -> void:
+	_fill_radio_stations()
 	load_settings()
+
+
+## Nazwy stacji z katalogu radia (lista zależy od plików muzyki).
+func _fill_radio_stations() -> void:
+	var st: Array = preload("res://scripts/radio_stations.gd").STATIONS
+	for opt in OPTIONS:
+		if opt["key"] == "radio_station":
+			opt["values"] = range(st.size())
+			opt["names"] = st.map(func(x): return str(x["name"]))
+			var hints := []
+			for x in st:
+				hints.append("Stacja, od której radio zaczyna.")
+			opt["hints"] = hints
 
 
 func load_settings() -> void:
@@ -452,6 +549,13 @@ func load_settings() -> void:
 	if version < 7:
 		# Użytkownik po jeździe: "sedan najfajniejszy" - domyślny znowu sedan.
 		body_model = "sedan"
+	if version < 9:
+		# Użytkownik 2026-11-09 (przed snem): "cała trasa jest na
+		# autostradzie" - autostrada domyślna. Zapisany "canyon" był dotąd
+		# tylko domyślną wartością (wyboru trasy nie było w menu), więc
+		# jednorazowo przestawiamy; wąwóz dalej do wyboru w menu.
+		if track_mode == "canyon":
+			track_mode = "autostrada"
 	if version < 8:
 		# Do v7 gogle same zmniejszały obraz (dynamiczna rozdzielczość Meta,
 		# log VrApi SF=0.50 przy 160%) - zapisane 130-160% nie było prawdą.
@@ -468,6 +572,9 @@ func load_settings() -> void:
 		steer_stick = "right"
 	best_time = cfg.get_value("records", "best_time", 0.0)
 	best_distance = cfg.get_value("records", "best_distance", 0.0)
+	# Dawny zapis (przed grupą "Radio" w OPTIONS).
+	if cfg.has_section_key("radio", "online") and not cfg.has_section_key("car", "radio_online"):
+		radio_online = bool(cfg.get_value("radio", "online", false))
 
 
 func save_settings() -> void:
@@ -496,11 +603,14 @@ func apply_to_car(car: StuntCar) -> void:
 	car.drive_layout = drive_layout
 	car.tires = tires
 	car.hub_motors = motor_layout == "hub"
+	car.regen_level = regen
 	car.apply_engine(engine_type, effective_power(engine_type, motor_layout == "hub", engine_power))
 	car.automatic = transmission == "auto"
 	car.apply_suspension_preset(suspension)
 	car.set_body_mass(body_mass)
 	car.set_spoiler(spoiler)
+	car.durability = float(durability)
+	car.set_aero(aero)
 	car.abs_enabled = abs_enabled
 	car.tcs_enabled = tcs_enabled
 	car.esp_enabled = esp_enabled
