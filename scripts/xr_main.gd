@@ -1144,11 +1144,11 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	if track.is_gap_at(d) or d > track.total_length() - 20.0:
 		return
 	var xf: Transform3D = track.transform_at_distance(d)
-	var smp: Array = track.samples_from(d, 2.0)
+	var smp: Dictionary = track.sample_at(d)
 	if smp.is_empty():
 		return
-	var lane_w := StuntTrack.lane_width(float(smp[0]["width"]))
-	var lim := float(smp[0]["limit"])
+	var lane_w := StuntTrack.lane_width(float(smp["width"]))
+	var lim := float(smp["limit"])
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
 	_bot_style(bot, _pick_style())
@@ -2098,7 +2098,9 @@ func _use_crane(automatic := false) -> void:
 		# nie przycisk gracza.
 		var ahead := 0.0
 		if automatic:
-			var now := Time.get_ticks_msec() / 1000.0
+			# Czas gry (race_time), nie zegar - przy tempie gry < 100% okno
+			# 10 s zegara mieściło mniej postawień (przegląd PR #61).
+			var now := race_time
 			_auto_rights = _auto_rights.filter(func(x: float) -> bool: return now - x < 10.0)
 			if _auto_rights.size() >= 3:
 				_auto_rights.clear()
@@ -2189,8 +2191,8 @@ func _safe_pose(d: float) -> Transform3D:
 		if track.is_gap_at(dd):
 			continue
 		xf = track.transform_at_distance(dd)
-		var smp: Array = track.samples_from(dd, 2.0)
-		var w: float = smp[0]["width"] if not smp.is_empty() else 9.0
+		var smp: Dictionary = track.sample_at(dd)
+		var w: float = smp["width"] if not smp.is_empty() else 9.0
 		var lane := StuntTrack.lane_width(w)
 		if _endless and track.autostrada:
 			lane = hwy_lane_off(0)          # prawy pas autostrady, nie pas awaryjny
@@ -2226,9 +2228,9 @@ func _on_car_wrecked() -> void:
 ## Generowane w kodzie jako 8-bitowy PCM, jak w starych konsolach.
 func _make_chirp() -> AudioStreamWAV:
 	var rate := 22050
-	var data := PackedByteArray()
-	data.resize(int(rate * 0.75))
-	data.fill(0)
+	var smp := PackedInt32Array()
+	smp.resize(int(rate * 0.75))
+	smp.fill(0)
 	var tones := [987.8, 1318.5, 1975.5]
 	for rep in range(2):
 		var start := int(rep * 0.5 * rate)
@@ -2241,13 +2243,8 @@ func _make_chirp() -> AudioStreamWAV:
 				# końcu każdego tonu, żeby nie trzaskało.
 				var env := clampf((n1 - n) / 80.0, 0.0, 1.0)
 				var v := 70 if fmod(n - n0, period) < period * 0.5 else -70
-				data[n] = int(v * env) & 0xFF
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_8_BITS
-	wav.mix_rate = rate
-	wav.stereo = false
-	wav.data = data
-	return wav
+				smp[n] = int(v * env)
+	return AudioUtil.wav(smp, rate, 8)
 
 
 ## Utrata życia: auto wybucha, kamera odjeżdża i pokazuje eksplozję,
@@ -2542,8 +2539,8 @@ func _log_perf(delta: float) -> void:
 static func _make_rain_noise() -> AudioStreamWAV:
 	var rate := 22050
 	var n := rate * 2
-	var data := PackedByteArray()
-	data.resize(n * 2)
+	var smp := PackedInt32Array()
+	smp.resize(n)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 	var lp := 0.0
@@ -2551,16 +2548,8 @@ static func _make_rain_noise() -> AudioStreamWAV:
 		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.35
 		# Pojedyncze trzaski kropel na dachu.
 		var tick := rng.randf_range(-1.0, 1.0) * 0.6 if rng.randf() < 0.002 else 0.0
-		var s16 := int(clampf(lp * 0.6 + tick, -1.0, 1.0) * 26000.0)
-		data[i * 2] = s16 & 0xFF
-		data[i * 2 + 1] = (s16 >> 8) & 0xFF
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = rate
-	wav.data = data
-	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	wav.loop_end = n
-	return wav
+		smp[i] = int(clampf(lp * 0.6 + tick, -1.0, 1.0) * 26000.0)
+	return AudioUtil.wav(smp, rate, 16, true)
 
 
 
@@ -2638,8 +2627,8 @@ func _update_skirmish(delta: float) -> void:
 		var d := _last_safe_dist + 900.0
 		# Cała scenka na zwykłej jezdni (bez pasa stacji, nie w mieście).
 		for k in [0.0, 300.0, 600.0]:
-			var smp: Array = track.samples_from(d - k, 1.0)
-			if smp.is_empty() or absf(float(smp[0]["width"]) - HighwayGenerator.WIDTH) > 0.1 \
+			var smp: Dictionary = track.sample_at(d - k, 1.0)
+			if smp.is_empty() or absf(float(smp["width"]) - HighwayGenerator.WIDTH) > 0.1 \
 					or not track.plan.city_at(d - k).is_empty():
 				_osk_next_d = _last_safe_dist + 200.0
 				return
@@ -2840,8 +2829,8 @@ func _is_highway_at(d: float) -> bool:
 ## + pas rozdziału), pas `lane` licząc od pasa rozdziału, przodem do gracza.
 func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var xf: Transform3D = track.transform_at_distance(d)
-	var smp: Array = track.samples_from(d, 2.0)
-	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
+	var smp: Dictionary = track.sample_at(d)
+	var w := 14.8 if smp.is_empty() else float(smp["width"])
 	var lane_w := StuntTrack.lane_width(w)
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	if _endless and track.autostrada:
@@ -2988,20 +2977,17 @@ func _update_popups(delta: float) -> void:
 func _make_beep(freqs: Array) -> AudioStreamWAV:
 	var rate := 22050
 	var seg := int(rate * 0.06)
-	var data := PackedByteArray()
-	data.resize(seg * freqs.size())
+	var smp := PackedInt32Array()
+	smp.resize(seg * freqs.size())
 	for k in range(freqs.size()):
 		var f: float = freqs[k]
 		for i in range(seg):
 			var t := float(i) / rate
 			var v := 1.0 if fmod(t * f, 1.0) < 0.5 else -1.0
 			var env := clampf((seg - i) / (seg * 0.3), 0.0, 1.0)
-			data[k * seg + i] = int(128.0 + 40.0 * v * env)
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_8_BITS
-	wav.mix_rate = rate
-	wav.data = data
-	return wav
+			# 8 bitów ze znakiem (było "128 + x" bez znaku - trzask na końcu).
+			smp[k * seg + i] = int(40.0 * v * env)
+	return AudioUtil.wav(smp, rate, 8)
 
 
 

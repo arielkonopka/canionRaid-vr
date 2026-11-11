@@ -332,6 +332,18 @@ func total_length() -> float:
 	return _chunks[-1].total_length() if not _chunks.is_empty() else 0.0
 
 
+## Próbka na dystansie (StuntTrack.sample_at), z pozycją w układzie trasy.
+func sample_at(dist: float, within := 2.0) -> Dictionary:
+	for c in _chunks:
+		var r := c.dist_range()
+		if r.y < dist or r.x > dist + within:
+			continue
+		var s := c.sample_at(dist, within)
+		if not s.is_empty():
+			return _g(c, s)
+	return {}
+
+
 ## Próbki wszystkich wczytanych kawałków (dla autopilota w testach).
 func samples_from(dist: float, length: float, stride := 1) -> Array:
 	var out := []

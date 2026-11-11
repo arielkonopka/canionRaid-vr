@@ -33,3 +33,12 @@ pytania będą trafiać tutaj.
 
 Testy: `title_test` (sprawdza fabryczne wartości muscle), `pause_test` OK,
 pełny `./quest.sh test` OK (przed opcją Cienie); wynik końcowy w PR.
+
+## Dopisek (2026-11-11 wieczór) - cena silnika
+
+Użytkownik po jeździe: "w końcowej wersji cena za upgrade silnika musi
+być o rząd większa". Zapisane w HANDOVER (sekcja 2 i kolejka "przed
+wydaniem"): `WorkshopShop.ENGINE_PER_KW` x10 i ceny w `stunt_shop_test`.
+Teraz zostaje niska do testów - jeśli wolicie od razu, dajcie znać.
+Ocena jazdy: "całkiem w porządku, muszę popracować nad czułością
+kierownicy" (sam, opcje Sterowanie). 31 odcinków bez końca trasy.
