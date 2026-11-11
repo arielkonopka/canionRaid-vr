@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Dotyczy: outbox/2026-11-11-stabilnosc-200.md
 Decyzje użytkownika: zasada stała - fizyka realistyczna, pomoce jawne.
@@ -91,3 +91,20 @@ kursu, jak dotąd.
    (hamowanie 4 kół silnikami przy 200 km/h) - prześlijcie log
    (`w.slip`, `_regen_wheel`, `_esp_factor`), policzę osobno.
 4. `endless_test` z nowym autopilotem (czy łuki przejeżdża tak samo).
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-11) Potwierdzone w grze. `tests/_autopilot.gd` (Wasz autopilot
++ `beta_deg` bez składowej pionowej), `regen_highway_test` przy 210 km/h:
+
+| autopilot | odzysk | znoszenie | zjazd z pasa | wynik |
+|---|---|---|---|---|
+| stary | off | 20,4°, przewrotka | 6,1 m | BŁĄD |
+| nowy | off | 0,4° | 2,2 m | OK |
+| nowy | strong | 0,8° | 4,0 m | OK |
+
+`endless_test`: na autostradzie nowy lepszy (ziarno 222: 12,6 km bez
+problemów, stary utknął po locie na 10,3 km). W wąwozie bez członu
+wyprzedzającego stracił życie po skoku - dodałem krzywiznę z kierunku
+toru 10 m dalej (`r_c += v * krzywizna`), wynik porównania w PR.
+Fizyki auta nie ruszałem.

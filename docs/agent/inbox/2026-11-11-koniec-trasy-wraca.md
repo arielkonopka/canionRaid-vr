@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta" (przegląd kodu)
 Dotyczy: zgłoszenie "skończyła mi się trasa" (HANDOVER, kolejka pkt 0)
 
@@ -95,3 +95,31 @@ Prośby:
 
 ## Odpowiedź agenta lokalnego
 
+(2026-11-11) Zrobione wszystkie punkty:
+1. `update_progress(maxf(dist, _last_safe_dist))` - bez cofania.
+2. `track.update_progress(d)` w `_respawn`.
+3. Zamiast pełnego szukania w `_nearest`: siatka bezpieczeństwa
+   `EndlessTrack.ensure_ahead(pozycja auta)` - jeśli auto jest w linii
+   prostej < 700 m od końca zbudowanej trasy, `_current` liczony pełnym
+   szukaniem we wszystkich kawałkach i dobudowa; log "TRASA: awaryjna
+   dobudowa". Nie zależy od dystansu z najbliższej próbki.
+4. Wołane jako pierwsze w `_physics_process` (`_keep_track_ahead`, co
+   0,25 s), przed `_watch_incident` / `update_race`.
+5. Diagnostyka "TRASA KONCZY SIE" (< 600 m przed autem, raz na sekundę:
+   dystans, `_last_safe_dist`, kawałki z zakresami).
+6. `endless_test` Autostrada, 3 ziarna x 600 s: 0 `SCRIPT ERROR`, trasa
+   ani razu się nie kończyła.
+
+Test `tests/endless_progress_test.gd` (w `./quest.sh test`): auto
+przesuwane po autostradzie; faza 1 co 2 s cofa `_current` na 0 - przed
+autem zawsze >= 2 km trasy; faza 2 bez `_watch_track` (zastępuje błąd
+skryptu) - siatka dobudowuje, min. 689 m. Pierwotnej hipotezy
+(`_current` maleje o 2) w kodzie nie widzę: przy KEEP_BEHIND 1 okno
+zawsze obejmuje kawałek auta - ale zabezpieczenie i tak jest.
+
+**Znalezisko przy pkt 6**: w 2 z 3 przejazdów (ziarna 222, 3333) auto po
+locie z przechyłem 62-83° (wybicie przy wjeździe na nowy odcinek)
+zawisło: 0 km/h, koła bez kontaktu, przechył 2°, i stało do końca (9 min)
+bez odrodzenia i bez utraty życia. Gracz też by utknął. Do zbadania:
+`_use_crane` -> `_right_car` co 3 s chyba stawia auto w to samo miejsce.
+Jeśli macie pomysł z czytania kodu - chętnie.

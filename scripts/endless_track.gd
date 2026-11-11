@@ -151,6 +151,47 @@ func _update_progress(dist: float) -> void:
 		_current -= 1
 
 
+## Siatka bezpieczeństwa (zgłoszenie "trasa się skończyła" wraca,
+## 2026-11-11): niezależnie od dystansu z najbliższej próbki. Gdy auto jest
+## w linii prostej bliżej niż ENSURE_R od końca zbudowanej trasy, `_current`
+## liczony jest od nowa pełnym szukaniem we wszystkich kawałkach (okno
+## mogło zostać w tyle), a brakujące kawałki dobudowane. Zwraca true, gdy
+## musiała zadziałać - to znaczy, że zwykła ścieżka zawiodła (log).
+const ENSURE_R := 700.0
+func ensure_ahead(world_pos: Vector3) -> bool:
+	if _chunks.is_empty():
+		return false
+	var last: StuntTrack = _chunks[-1]
+	var end := last.transform_at_distance(last.total_length()).origin
+	if end.distance_squared_to(world_pos) > ENSURE_R * ENSURE_R:
+		return false
+	var before := _current
+	var best_d := INF
+	for i in range(_chunks.size()):
+		var sm := _chunks[i].nearest_sample(world_pos, true)
+		if sm.is_empty():
+			continue
+		var d: float = _chunks[i].to_global(sm["pos"]).distance_squared_to(world_pos)
+		if d < best_d:
+			best_d = d
+			_current = i
+	var n := _chunks.size()
+	var r := _chunks[_current].dist_range()
+	_update_progress((r.x + r.y) * 0.5)
+	print("TRASA: awaryjna dobudowa - auto %.0f m od końca, kawałek %d -> %d z %d, teraz %d kawałków" % [
+			end.distance_to(world_pos), before, _current, n, _chunks.size()])
+	return true
+
+
+## Stan do logu (diagnostyka końca trasy).
+func debug_state() -> String:
+	var parts := PackedStringArray()
+	for c in _chunks:
+		var r := c.dist_range()
+		parts.append("%s %.0f-%.0f" % [c.name, r.x, r.y])
+	return "_current %d, kawałki: %s" % [_current, ", ".join(parts)]
+
+
 func _chunk_index(dist: float) -> int:
 	for i in range(_chunks.size()):
 		if dist < _chunks[i].total_length():

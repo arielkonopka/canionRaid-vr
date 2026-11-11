@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-11, sesja 8 (rano: model auta ustawia fabryczny silnik i masę, rozdzielczość do 120%)
+Ostatnia aktualizacja: 2026-11-11, sesja 8 (model auta z fabrycznym silnikiem, opcja Cienie, koniec trasy - siatka bezpieczeństwa, autopilot testów)
 
 ---
 
@@ -33,6 +33,9 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 
 - Komunikacja **po polsku**, luźno ("siemka"). Często dorzuca pomysły
   w trakcie pracy - zapisuj je od razu do kolejki (sekcja 8).
+- **Trudność trasy (użytkownik przez chmurę 2026-11-11)**: "Trudność
+  zależy niezmiennie od odległości przejechanej i trudności początkowej" -
+  moc ani wybór auta jej nie zmieniają.
 - **Pytania i decyzje projektowe najpierw do chmury** (użytkownik
   2026-11-11: "konsultuj też takie rzeczy najpierw z chmurą, jest mi
   łatwiej przez nią rozmawiać. zwłaszcza w dni wolne"): plik w
@@ -193,11 +196,15 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     anizotropia 4x. Użytkownikowi 160% podobało się wizualnie - cel:
     odzyskać je optymalizacjami. Prawdziwego "4K jak monitor" się nie
     da (~25 px/°). Od 2026-11-09 domyślnie 110% (uczciwy pomiar, sekcja 5).
-    **2026-11-11 (użytkownik "tak" na: zejść do 110-120% i szukać
-    oszczędności w grafice)**: migracja v11 obcina zapisane do 120%;
-    130% ~60 kl./s (GPU 15,6 ms), 110% 72 kl./s. **Cienie: opcja w menu
+    **2026-11-11 (użytkownik przez chmurę): "60 kl. na sekundę jest ok,
+    ... pewnie nawet i 50 starczyć" - rozdzielczość 130% zostaje**, nie
+    gonimy 72/90 Hz; oszczędności GPU szukać dopiero, gdy spada poniżej
+    ~50 kl./s. (Migracja do 120% zrobiona rano była cofnięta przed
+    wydaniem.) Bench S4 130%: cienie pełne 58,4 kl./s, bliskie 60,1, wył.
+    65,5, bez lusterka +1. **Cienie: opcja w menu
     Wygląd (użytkownik 2026-11-11)** - Wył. / Bliskie (40 m, jedna mapa)
-    / Pełne (80 m, dwie mapy - jak dotąd, domyślne); działa od razu,
+    / Pełne (80 m, dwie mapy - jak dotąd, domyślne); bliskie mają też
+    mapę 1024 zamiast 4096; działa od razu,
     także w pauzie (`GameSettings.apply_shadows`). Ekran tytułowy zawsze
     bez cieni. Dalej: A/B cieni i lusterka na goglach.
   - **Zmiana rozdzielczości ma działać od razu, bez restartu aplikacji**
@@ -1975,10 +1982,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   hamowanie podobne. Testy w zestawie: `liftoff_test` (łuk, < 6°) i
   `regen_highway_test` (autostrada, ustawienia użytkownika, cykl gaz do
   150 km/h / 4 s bez gazu; 120-180 km/h: znoszenie < 2°).
-  **Otwarte - stabilność > 200 km/h**: autopilot testu przy 200-210 km/h
-  na prostej pływa 6° nawet bez odzysku (z odzyskiem 10-35°, wyniki
-  zmienne między przebiegami) - ten sam problem co "przy 400 km/h szybko
-  traci przyczepność"; do zbadania osobno (autopilot czy auto).
+  **Stabilność > 200 km/h - wyjaśnione (chmura 2026-11-11, symulacja
+  `tools/highway_stab_sim.py`)**: kołysał **autopilot testów** (stałe
+  wzmocnienia względem prędkości), nie auto - auto z kierownicą na zero
+  tłumi zaburzenia do 400 km/h. Pomiar β w testach liczył też kąt
+  pionowy. Nowy wspólny autopilot `tests/_autopilot.gd` (model rowerowy,
+  `steer`, `beta_deg`): `regen_highway_test 210 90 off` 0,4° (stary
+  20,4° i przewrotka), `strong` 0,8°. Fizyki auta nie ruszano.
   Pełny `quest.sh test` OK (z liftoff_test i regen_highway_test).
   Ocena użytkownika w goglach: **"jest widocznie lepiej"**.
   2026-11-11: "nieźle, nadal na luzie z rekuperacją na zakrętach trochę
@@ -2027,14 +2037,30 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Odpowiedzi użytkownika na pytania z sekcji 9 ("na wszystko tak"):
   model auta ustawia fabryczny silnik/moc/napęd/zawieszenie/masę
   (`GameSettings.set_option`, opcja Masa "Fabryczna"), kokpit sedana
-  zostaje, rozdzielczość: migracja v11 do maks. 120% + oszczędności GPU
-  (bench A/B czeka na podłączenie gogli - kabel był odpięty).
+  zostaje; cienie jako opcja w menu (rozdzielczość - patrz niżej, 130%
+  zostaje).
 - Testy: `title_test` (nowy warunek: muscle -> petrol 180 kW rwd soft,
   masa fabryczna 1550 kg - OK), `pause_test` OK.
 - Opcja "Cienie" (Wył./Bliskie/Pełne) w menu Wygląd - wybór użytkownika
   zamiast stałego skrócenia; `title_test` sprawdza ustawienie słońca.
   Silnik elektryczny i rekuperacja nie zmieniają się z modelem
   (użytkownik: benzyna/diesel nic nie odzyskają, hybrydy nie ma).
+- Chmura (przez skrzynkę): 130% zostaje (60 kl./s wystarcza) - poranna
+  migracja do 120% cofnięta przed wydaniem; trudność tylko od dystansu.
+- "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
+  siatka bezpieczeństwa, diagnostyka, `endless_progress_test` (sekcja 8,
+  pkt 0). `endless_test` autostrada 3 ziarna x 600 s: 0 błędów skryptu,
+  trasa nigdy się nie kończyła. **Znalezisko**: w 2 z 3 przejazdów auto
+  po locie z przechyłem 62-83° zawisło (0 km/h, koła bez kontaktu,
+  przechył 2°) i stało do końca testu (9 min) bez odrodzenia - do
+  zbadania (`_use_crane` -> `_right_car` co 3 s nie pomaga?).
+- Stabilność > 200 km/h: autopilot testów, nie auto (sekcja 2, odzysk).
+  `endless_test` używa nowego autopilota tylko na autostradzie; w wąwozie
+  stary (porównanie niejednoznaczne: ziarno 777 nowy 4,95 km + upadek,
+  stary 6,95 km; ziarno 31 nowy 5,11 km, stary 3,36 km).
+- Testy końcowe: pełny `./quest.sh test` OK (z `endless_progress_test`),
+  `drive_test` soft 24.12/24.19, sport 24.22/24.23, stiff 24.22/24.29
+  (auto/manual) - bez zmian.
 - Ustalenie: pytania i decyzje najpierw przez chmurę (sekcja 2);
   outbox `2026-11-11-model-fabryczny-i-gpu.md`.
 
@@ -2162,8 +2188,19 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    mapy normalnych. Uwaga: ekran tytułowy przy 100% miał 29 ms GPU
    jeszcze przed kompresją tekstur - po kompresji nie mierzony.
 
-0. **PILNE, odłożone na następną sesję (użytkownik, 2026-11-08):
-   "po odcinku 8 skończyła mi się trasa"** - na goglach, na APK z sesji 3
+0. **"Trasa się skończyła" - wraca co jakiś czas (użytkownik
+   2026-11-11, także raz na prostej bez dużej prędkości).** Zrobione
+   2026-11-11 (inbox `koniec-trasy-wraca`): dobudowa jako pierwsza rzecz
+   w `_physics_process` (`_keep_track_ahead`), siatka bezpieczeństwa
+   `EndlessTrack.ensure_ahead` (auto < 700 m w linii prostej od końca
+   trasy -> pełne szukanie kawałka i dobudowa, log "TRASA: awaryjna
+   dobudowa"), postęp bez cofania (`maxf(dist, _last_safe_dist)`),
+   `update_progress` po odrodzeniu, diagnostyka "TRASA KONCZY SIE"
+   (< 600 m przed autem, raz na sekundę). Test `endless_progress_test`.
+   **Po następnym zgłoszeniu: `./quest.sh log`, szukać "TRASA"** - jeśli
+   "awaryjna dobudowa", zwykła ścieżka zawiodła (przyczyna w kontekście
+   logu). Historia: pierwsze zgłoszenie 2026-11-08
+   "po odcinku 8 skończyła mi się trasa" - na goglach, na APK z sesji 3
    (już z oknami na morze, zmianami generatora: strefy śliskie, `rain`,
    `roof`). Nie zbadane. Log z gogli zebrany zaraz potem
    (`build/logs/trasa_po_odcinku_8.log`, od 00:06) nie zawiera żadnego
@@ -2279,5 +2316,3 @@ Propozycje (do uzgodnienia):
 - Styl wizualny: propozycja low-poly z płaskim cieniowaniem.
   Niepotwierdzone.
 - Czy ABS i ESP też przełączać w trakcie jazdy, i pod jakimi przyciskami?
-- Trudność trasy zależna od mocy wybranego auta czy stała? (Trasa jest
-  bez końca - ustalone.)

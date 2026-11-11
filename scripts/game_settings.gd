@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 11
+const SETTINGS_VERSION := 10
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -453,9 +453,9 @@ var OPTIONS: Array[Dictionary] = [
 		"values": ["off", "near", "full"],
 		"names": ["Wył.", "Bliskie", "Pełne"],
 		"hints": [
-			"Bez cieni słońca - najlżej dla gogli.",
-			"Cienie do 40 m, jedna mapa cieni - lżej niż pełne.",
-			"Cienie do 80 m, dwie mapy (ostrzej blisko auta) - najciężej.",
+			"Bez cieni słońca - najlżej dla gogli (przy 130% ok. 65 kl./s zamiast 58).",
+			"Cienie tylko do 40 m, mniej dokładne - trochę lżej (ok. 60 kl./s przy 130%).",
+			"Cienie do 80 m, ostre przy aucie - najciężej (ok. 58 kl./s przy 130%).",
 		],
 	},
 	{
@@ -588,10 +588,6 @@ func load_settings() -> void:
 		if opt["values"].has(v):
 			set(key, v)
 	var version: int = cfg.get_value("meta", "version", 1)
-	if version < 11:
-		# Użytkownik 2026-11-11: przy 130% gogle ograniczone przez GPU
-		# (~60 kl./s) - zejść do 110-120% i szukać oszczędności w grafice.
-		xr_resolution = mini(xr_resolution, 120)
 	if version < 10:
 		# Do v9 Jamendo w menu Stacja było indeksem za stacjami offline
 		# (2026-11-10, kilka godzin) - teraz STATION_ONLINE.
@@ -732,12 +728,21 @@ func apply_xr_quality() -> void:
 ## "shadows_far" wymusza bliskie (pomiar opcji bez zmiany ustawień gracza).
 func apply_shadows(sun: DirectionalLight3D) -> void:
 	sun.shadow_enabled = shadows != "off" and Bench.on("shadows")
+	# Bench S4 130% (2026-11-11, jedna seria): pełne 58,4 kl./s (GPU 16,9 ms),
+	# bliskie (40 m, jedna mapa 1024) 60,1, bez cieni 65,5 - koszt to głównie
+	# sam przebieg cieni, zasięg i rozmiar mapy dają mało.
+	var full_size: int = ProjectSettings.get_setting_with_override(
+			"rendering/lights_and_shadows/directional_shadow/size")
 	if shadows == "near" or not Bench.on("shadows_far"):
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = 40.0
+		RenderingServer.directional_shadow_atlas_set_size(mini(full_size, 1024), true)
 	else:
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		sun.directional_shadow_max_distance = 80.0
+		RenderingServer.directional_shadow_atlas_set_size(full_size, true)
+	print("CIENIE: %s, mapa %d" % [shadows if Bench.on("shadows_far") else "near (bench)",
+			mini(full_size, 1024) if sun.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL else full_size])
 
 
 func enable_xr(viewport: Viewport) -> bool:

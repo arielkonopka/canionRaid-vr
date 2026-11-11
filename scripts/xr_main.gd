@@ -513,6 +513,11 @@ func _read_drive_input() -> void:
 
 func _physics_process(delta: float) -> void:
 	_check_origin_shift()
+	# Dobudowa trasy pierwsza: błąd skryptu w dalszych funkcjach przerywa
+	# resztę kroku i trasa przestawała rosnąć ("trasa się skończyła" także
+	# na prostej, 2026-11-11 - hipoteza chmury).
+	if _endless:
+		_keep_track_ahead(delta)
 	if _mode == Mode.DRIVE and not Bench.active():
 		_read_drive_input()
 	else:
@@ -1947,6 +1952,25 @@ func _set_mode(m: Mode) -> void:
 # Tor: zapamiętywanie bezpiecznego miejsca i podnoszenie spadniętego auta
 # --------------------------------------------------------------------------
 
+var _ahead_t := 0.0
+var _ahead_log_t := 0.0
+## Siatka bezpieczeństwa dobudowy (EndlessTrack.ensure_ahead) i diagnostyka:
+## gdy przed autem zostaje mniej niż 600 m trasy, raz na sekundę stan do logu
+## (`./quest.sh log` po zgłoszeniu "trasa się skończyła").
+func _keep_track_ahead(delta: float) -> void:
+	_ahead_t -= delta
+	if _ahead_t > 0.0:
+		return
+	_ahead_t = 0.25
+	track.ensure_ahead(car.global_position)
+	var left: float = track.total_length() - _last_safe_dist
+	_ahead_log_t -= 0.25
+	if left < 600.0 and _ahead_log_t <= 0.0:
+		_ahead_log_t = 1.0
+		print("TRASA KONCZY SIE: zostało %.0f m, _last_safe_dist %.0f, %s" % [
+				left, _last_safe_dist, track.debug_state()])
+
+
 func _watch_track(delta: float) -> void:
 	_track_check_timer -= delta
 	if _track_check_timer > 0.0:
@@ -1964,8 +1988,10 @@ func _watch_track(delta: float) -> void:
 	_rain_target = float(s.get("rain", 0))
 	_update_env(s)
 	if _endless:
-		# Dobudowa trasy przed autem, sprzątanie za nim.
-		track.update_progress(float(s["dist"]))
+		# Dobudowa trasy przed autem, sprzątanie za nim. Bez cofania: auto
+		# w locie nad wcześniejszym kawałkiem cofało `_current` i okno
+		# szukania mogło zgubić kawałek z autem (hipoteza chmury 2026-11-11).
+		track.update_progress(maxf(float(s["dist"]), _last_safe_dist))
 		# Biom: przejście trwa 2,8 km - 5 razy na sekundę wystarczy (było co klatkę).
 		_update_biome()
 		var sec: int = track.section_at(_last_safe_dist)
@@ -2279,6 +2305,7 @@ func _respawn() -> void:
 	var xf: Transform3D = _safe_pose(d)
 	if _endless:
 		_last_safe_dist = d
+		track.update_progress(d)
 	car.place(xf)
 	_fallen_time = 0.0
 	if _mode == Mode.DRIVE and not _xr_ready:

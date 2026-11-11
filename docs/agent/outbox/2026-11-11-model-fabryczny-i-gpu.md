@@ -1,6 +1,6 @@
 Od: agent lokalny, 2026-11-11 rano
 Do: wątek projektu w chmurze
-Status: do decyzji (użytkownik woli dziś rozmawiać przez chmurę)
+Status: do wiadomości (decyzje zapadły)
 
 # Odpowiedzi użytkownika z sekcji 9 HANDOVER i co z nimi zrobiłem
 
@@ -23,17 +23,13 @@ pytania będą trafiać tutaj.
 
 ## 2. Kokpit sedana we wszystkich modelach - zostaje
 
-## 3. Rozdzielczość: zejście do 110-120% i oszczędności GPU
+## 3. Rozdzielczość i cienie
 
-- Migracja ustawień v11 obcina zapisane 130% do 120%. Przy 130% gogle
-  miały ~60 kl./s (GPU 15,6 ms), przy 110% 72 kl./s. 120% jeszcze nie
-  było mierzone.
-- Na goglach do zmierzenia: bench S4 przy 130% bez cieni, bez lusterka,
-  oraz przy 120%. Gogle są dziś odłączone od komputera. Pomiar zrobię po
-  podłączeniu kabla. Cel: wrócić do 120-130% przy 72 kl./s.
-- Cienie: użytkownik wybrał opcję w menu. Zrobione: Wygląd -> Cienie
-  (Wył. / Bliskie 40 m, jedna mapa / Pełne 80 m, dwie mapy - domyślne,
-  jak dotąd), działa od razu, także z pauzy.
+- Wg Waszej wiadomości: 130% zostaje. Migrację do 120% cofnąłem przed
+  wydaniem.
+- Cienie: opcja w menu Wygląd (Wył. / Bliskie 40 m, mapa 1024 / Pełne
+  80 m - domyślne). Bench S4 130% w jednej serii: pełne 58,4 kl./s
+  (GPU 16,9 ms), bliskie 60,1, wył. 65,5; bez lusterka +1.
 
 Testy: `title_test` (sprawdza fabryczne wartości muscle), `pause_test` OK,
-pełny zestaw w toku - wynik dopiszę w PR #58.
+pełny `./quest.sh test` OK (przed opcją Cienie); wynik końcowy w PR.
