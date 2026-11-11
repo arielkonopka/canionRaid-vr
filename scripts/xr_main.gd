@@ -538,8 +538,12 @@ func _physics_process(delta: float) -> void:
 	t0 = Time.get_ticks_usec()
 	if _endless:
 		_update_bots(delta)
+		Perf.add("boty_mgr", t0)
+		t0 = Time.get_ticks_usec()
 		_update_oncoming(delta)
-	Perf.add("boty_mgr", t0)
+		Perf.add("naprzeciw", t0)
+	else:
+		Perf.add("boty_mgr", t0)
 
 
 ## Tryb Autostrada, etap 2: sceneria z planu (HighwayPlan.biome_blend
@@ -2595,10 +2599,11 @@ func _update_oncoming(delta: float) -> void:
 			continue                           # scenka: _update_skirmish
 		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
 		var d2: float = o["dist"]
-		if d2 < _last_safe_dist - 150.0 or not _is_highway_at(d2) or not is_instance_valid(c):
+		var rail: Array = [] if d2 < _last_safe_dist - 150.0 else track.rail_at(d2)
+		if rail.is_empty() or not is_instance_valid(c):
 			_pool_oncoming(o)
 			continue
-		c.global_transform = _oncoming_xf(d2, float(o["lane"]), c.wheel_radius)
+		c.global_transform = _oncoming_pose(rail[0], rail[1], float(o["lane"]), c.wheel_radius)
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = float(o["v"]) / c.wheel_radius
@@ -2828,9 +2833,13 @@ func _is_highway_at(d: float) -> bool:
 ## Położenie auta z naprzeciwka: druga jezdnia (w lewo o szerokość jezdni
 ## + pas rozdziału), pas `lane` licząc od pasa rozdziału, przodem do gracza.
 func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
-	var xf: Transform3D = track.transform_at_distance(d)
 	var smp: Dictionary = track.sample_at(d)
-	var w := 14.8 if smp.is_empty() else float(smp["width"])
+	return _oncoming_pose(track.transform_at_distance(d),
+			14.8 if smp.is_empty() else float(smp["width"]), lane, wheel_r)
+
+
+## To samo z gotowej osi i szerokości (EndlessTrack.rail_at - co krok).
+func _oncoming_pose(xf: Transform3D, w: float, lane: float, wheel_r: float) -> Transform3D:
 	var lane_w := StuntTrack.lane_width(w)
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	if _endless and track.autostrada:

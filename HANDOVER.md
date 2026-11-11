@@ -2136,7 +2136,14 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
    kroku w polach zamiast Array co krok, stałe napędu raz na krok, tan()
    opon tylko po zmianie parametru; `auto_fiz` w benchu S4 na PC
-   45,0 -> 41,3 ms/s, `drive_test` 3x2 identyczny co do setnej), A6 (z `drive_test` 3x2,
+   45,0 -> 41,3 ms/s, `drive_test` 3x2 identyczny co do setnej), ~~A2~~ (zrobione inaczej niż w propozycji: częstotliwość bez
+   zmian - przy włączonej interpolacji fizyki aktualizacja co drugi krok
+   szarpałaby w goglach; zamiast tego `EndlessTrack.rail_at` - jedno
+   szukanie kawałka zamiast trzech, bez kopii próbki; nowy licznik PERF+
+   `naprzeciw` (osobno od `boty_mgr`): PC 11,6 -> 10,1 ms/s. Pułapka
+   pomiaru: rzadkie wywołanie w grze ~20 us, ta sama funkcja w pętli
+   testowej 1,7 us - zimna pamięć podręczna; mikropomiary w pętli
+   zaniżają koszt w grze), A6 (z `drive_test` 3x2,
    wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
    z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,

@@ -276,6 +276,19 @@ func is_highway_at(dist: float) -> bool:
 	return dist >= r.x and dist <= r.y and c.highway
 
 
+## Położenie na autostradzie dla auta "na szynie" (z naprzeciwka, co krok
+## fizyki): [transform osi, szerokość jezdni] albo [] poza autostradą.
+## Jedno szukanie kawałka zamiast trzech (is_highway_at,
+## transform_at_distance, sample_at) i bez kopii próbki (przegląd chmury A2).
+func rail_at(dist: float) -> Array:
+	var c := _chunk_for(dist)
+	var r := c.dist_range()
+	if not (dist >= r.x and dist <= r.y and c.highway):
+		return []
+	var s := c.sample_at(dist)
+	return [c.transform_at_distance(dist), 14.8 if s.is_empty() else float(s["width"])]
+
+
 func transform_at_distance(dist: float) -> Transform3D:
 	return _chunk_for(dist).transform_at_distance(dist)
 
