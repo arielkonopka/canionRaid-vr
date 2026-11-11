@@ -36,6 +36,22 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 - **Trudność trasy (użytkownik przez chmurę 2026-11-11)**: "Trudność
   zależy niezmiennie od odległości przejechanej i trudności początkowej" -
   moc ani wybór auta jej nie zmieniają.
+- **Potyczki z botami mają być nieprzewidywalne (użytkownik 2026-11-11:
+  "fajnie, jeśli potyczki z botami są niedeterministyczne, to podnosi
+  emocje")** - nie usuwać losowości z zachowania botów w szale. Testy
+  szału (`bot_rage_test`) uruchamiać kilka razy i oceniać łącznie.
+- **Ograniczenie skrętu "Wg przyczepności" (użytkownik 2026-11-11: przy
+  300 km/h "auto wpadało w oscylacje, jakby drobna korekta kierownicą
+  powodowała przepychanie z kontrolą trakcji"; zgoda "ok")**: trzecia
+  wartość opcji `steer_assist` (true / "grip" / false; `GameSettings.
+  apply_steer`, `StuntCar.steer_grip`): maks. skręt = min(dotychczasowy,
+  atan(2,5·μ·g·L/v²)). Przyczyna z `tests/esp_highspeed_test.gd`
+  (hatchback, elektryk w kołach): przy 6° limitu 10% drążka przy
+  300 km/h to już cała przyczepność, 30% - ESP hamuje 3 s, napęd 5%,
+  znoszenie 9,5° (pętla z kierowcą); auto i ESP bez kierowcy stabilne.
+  "Wg przyczepności": pełny drążek 1,7°, ESP nie działa. Fizyka bez zmian.
+  Ocena użytkownika w goglach (2026-11-11): "jest nieźle, sam styl jest
+  świetny i dynamiczny, podoba mi się też gradacja napędu".
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
@@ -857,6 +873,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `models/period_cars/<model>/` | bryły CC0 (body.obj, wheel.obj) + `paint_mask.png` (lakier, `tools/make_paint_masks.py`) |
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
+| `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
 | `scripts/audio_util.gd` | `AudioUtil.wav(próbki, rate, bity, pętla)`: jedyny zapis dźwięków generowanych w kodzie (klakson, deszcz, sygnały, szum radia) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
 | `tests/_autopilot.gd` | wspólny autopilot testów (model rowerowy, `steer`, `beta_deg`) - `regen_highway_test`, `endless_test` na autostradzie |
@@ -2067,6 +2084,29 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   postawiło auto od razu. W logu 25x błąd silnika "global_shader_uniforms
   ... has(p_name)" + "should never be used outside the editor" (ktoś
   czyta parametr globalny shadera w grze) - do sprawdzenia.
+- Poprawka chmury (PR #62) "boty tracą panowanie po klaksonie" - czas
+  reakcji 0,5 s, narastanie szału 1,5 s, płynny cel toru, skręt toru
+  ograniczony przyczepnością (`bot_driver.gd`). `horn_control_test` (oba
+  tryby w zestawie): autostrada przed 179° obrotu i zderzenie, po 10°.
+- Manekin crash-test: "Crash Test Dummy mark1" (Panckuha, CC0), wybrany
+  przez użytkownika ("są super!" po renderach `docs/renders/manekin_*`).
+  `tools/prepare_dummy.py` (Blender 5.2 z Debiana, zainstalowany
+  2026-11-11): poza siedząca z rigu, wypieczona, 1,75 m, zero w biodrach,
+  OBJ (eksporter glTF potrzebuje numpy - brak) -> `models/dummy/`.
+  Źródło `.zip` w `build/media_in/dummy` (poza gitem; blendswap wymaga
+  logowania i przeglądarki - pobiera użytkownik).
+  W grze: `StuntCar._update_dummy` - manekin w każdym aucie bota (także
+  z naprzeciwka), pozycja z oczu kierowcy (`seat` stylu / sedana) minus
+  `DUMMY_EYE`; fotel z kodu (siedzisko + oparcie 15°) tylko w modelach
+  z epoki (sedan bota ma własne wnętrze); rysowane do 60 m, bez cieni;
+  w modelach GGBotNet (kombi, hatchback, muscle, furgon - szyby
+  namalowane na teksturze) manekin ukryty. Szyby Quaterniusa (materiał
+  "Windows": klin, kabriolet, terenówka) przyciemnione, ale przezroczyste
+  (alfa 0,45). Poza "samochodowa" (nogi wysunięte, stopy ~0,3 m pod
+  biodrami - w pozie z krzesła stopy wystawały spod podłogi). Zrzuty:
+  `tests/dummy_shot.gd` (okno), `docs/renders/bot_manekin_*.png`.
+  Do zrobienia: pomiar GPU na goglach (S4) z manekinami; pomysły z wizji
+  (manekin w szale pochylony nad kierownicą, wylatujący przy wybuchu).
 - Chmura (przez skrzynkę): 130% zostaje (60 kl./s wystarcza) - poranna
   migracja do 120% cofnięta przed wydaniem; trudność tylko od dystansu.
 - "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
@@ -2136,7 +2176,14 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
    kroku w polach zamiast Array co krok, stałe napędu raz na krok, tan()
    opon tylko po zmianie parametru; `auto_fiz` w benchu S4 na PC
-   45,0 -> 41,3 ms/s, `drive_test` 3x2 identyczny co do setnej), A6 (z `drive_test` 3x2,
+   45,0 -> 41,3 ms/s, `drive_test` 3x2 identyczny co do setnej), ~~A2~~ (zrobione inaczej niż w propozycji: częstotliwość bez
+   zmian - przy włączonej interpolacji fizyki aktualizacja co drugi krok
+   szarpałaby w goglach; zamiast tego `EndlessTrack.rail_at` - jedno
+   szukanie kawałka zamiast trzech, bez kopii próbki; nowy licznik PERF+
+   `naprzeciw` (osobno od `boty_mgr`): PC 11,6 -> 10,1 ms/s. Pułapka
+   pomiaru: rzadkie wywołanie w grze ~20 us, ta sama funkcja w pętli
+   testowej 1,7 us - zimna pamięć podręczna; mikropomiary w pętli
+   zaniżają koszt w grze), A6 (z `drive_test` 3x2,
    wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
    z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,

@@ -305,6 +305,11 @@ const ABS_MAX := 1.15
 ## Pomoc dla gracza: zmniejsza zakres skrętu z prędkością. Prawdziwe auto
 ## tego nie robi, ale gałka czy klawisz to nie kierownica z 900° obrotu.
 @export var steer_assist: bool = true
+## Ograniczenie skrętu wg przyczepności (jawna pomoc, opcja "Wg
+## przyczepności"): pełny drążek = STEER_GRIP_K razy tyle skrętu, ile
+## opony przeniosą bocznie (model rowerowy: a = v²·tan δ / L).
+var steer_grip := false
+const STEER_GRIP_K := 2.5
 @export var high_speed_steer_deg: float = 6.0
 @export var steer_assist_speed: float = 45.0
 ## Jak szybko koła nadążają za wejściem [pełne wychylenia na sekundę].
@@ -472,6 +477,7 @@ func _ready() -> void:
 	# Bot (puste, zdalnie sterowane auto): bez zegarów i bez dźwięku -
 	# każdy bot to pełna fizyka auta, oszczędzamy, gdzie się da.
 	if is_bot:
+		_update_dummy()
 		return
 	# Dźwięk generowany w kodzie (CarAudio) - źródło w komorze silnika.
 	var audio := CarAudio.new()
@@ -483,6 +489,66 @@ func _ready() -> void:
 
 ## Puste, zdalnie sterowane auto (bot): bez zegarów, dźwięku i kokpitu.
 @export var is_bot := false
+
+# --- Manekin crash-test za kierownicą bota (wizja: "za kierownicą siedzą
+# manekiny"; model wybrany przez użytkownika 2026-11-11, models/dummy,
+# tools/prepare_dummy.py) i prosty fotel (modele z epoki nie mają wnętrza).
+const DUMMY_MESH_PATH := "res://models/dummy/dummy.obj"
+## Oczy manekina względem jego bioder (zero siatki) - z siatki: środek
+## głowy 0,75 m nad biodrami, twarz na z -0,015.
+const DUMMY_EYE := Vector3(0.0, 0.77, 0.04)
+## Dalej manekin i fotel nie są rysowane (przez szyby i tak ich nie widać,
+## a to ~1800 trójkątów na auto - Quest ograniczony przez GPU).
+const DUMMY_RANGE := 60.0
+static var _dummy_mesh: Mesh
+static var _style_glass: StandardMaterial3D
+static var _seat_mesh: Mesh
+var _dummy: Node3D
+
+
+func _update_dummy() -> void:
+	if not is_bot or not ResourceLoader.exists(DUMMY_MESH_PATH) or not Bench.on("dummy"):
+		return
+	if _dummy == null:
+		if _dummy_mesh == null:
+			_dummy_mesh = load(DUMMY_MESH_PATH)
+			_seat_mesh = _build_seat_mesh()
+		_dummy = Node3D.new()
+		_dummy.name = "Dummy"
+		add_child(_dummy)
+		for m in [_dummy_mesh, _seat_mesh]:
+			var mi := MeshInstance3D.new()
+			mi.mesh = m
+			mi.visibility_range_end = DUMMY_RANGE
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_dummy.add_child(mi)
+	var eyes: Vector3 = _sedan.get("seat", Vector3(-0.38, 0.45, 0.3)) if style == "sedan" \
+			else CarStyles.STYLES[style]["seat"]
+	_dummy.position = eyes - DUMMY_EYE
+	# Sedan bota ma własne wnętrze z fotelami - fotel tylko w modelach z epoki.
+	(_dummy.get_child(1) as Node3D).visible = style != "sedan"
+	# Modele GGBotNet (kombi, hatchback, muscle) mają szyby namalowane na
+	# teksturze - manekina i tak nie widać, nie rysujemy go.
+	_dummy.visible = style == "sedan" or not str(CarStyles.STYLES[style].get("source", "")).contains("ggbotnet")
+
+
+## Fotel: siedzisko pod biodrami manekina i oparcie odchylone o 15° (jak
+## w tools/prepare_dummy.py). Jedna siatka, ciemna tapicerka.
+static func _build_seat_mesh() -> Mesh:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.08, 0.07, 0.07)
+	mat.roughness = 0.9
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cushion := BoxMesh.new()
+	cushion.size = Vector3(0.5, 0.12, 0.5)
+	st.append_from(cushion, 0, Transform3D(Basis(), Vector3(0.0, -0.15, -0.12)))
+	var back := BoxMesh.new()
+	back.size = Vector3(0.5, 0.7, 0.1)
+	st.append_from(back, 0, Transform3D(Basis(Vector3.RIGHT, deg_to_rad(15.0)), Vector3(0.0, 0.28, 0.24)))
+	var m := st.commit()
+	m.surface_set_material(0, mat)
+	return m
 ## Kierowca bota (BotDriver, dziecko "Driver") - ustawia scena przy
 ## pojawieniu się bota, zeruje przy powrocie do puli.
 var driver: Node
@@ -1374,6 +1440,8 @@ func _update_steering(delta: float) -> void:
 	if steer_assist:
 		var t := clampf(absf(speed) / steer_assist_speed, 0.0, 1.0)
 		max_angle = deg_to_rad(lerpf(max_steer_deg, high_speed_steer_deg, t))
+		if steer_grip and absf(speed) > 1.0:
+			max_angle = minf(max_angle, atan(STEER_GRIP_K * tire_mu * 9.81 * _wheelbase / (speed * speed)))
 	var delta_ang := _steer_input_smoothed * max_angle
 	# Geometria Ackermanna: koło wewnętrzne skręca mocniej.
 	if absf(delta_ang) < 1e-4:
@@ -3120,6 +3188,7 @@ func apply_style(name_s: String) -> void:
 		cockpit_offset = seat.position - _sedan["seat"]
 	# Wygląd.
 	_style_visuals(not sedan)
+	_update_dummy()
 	# Masa, bezwładność, hamulce, zawieszenie, przełożenie od nowa.
 	set_body_mass(_sedan["mass"] if sedan else float(st["mass"]))
 	if engine_type != "":
@@ -3220,6 +3289,16 @@ func _style_visuals(on: bool) -> void:
 			pm.set_meta("shade", 0.75 if m.resource_name == "DarkOrange" else 1.0)
 			_style_body.set_surface_override_material(si, pm)
 			_style_paint.append(pm)
+		elif m.resource_name == "Windows":
+			# Szyby Quaterniusa były czarne i pełne - przyciemnione, ale
+			# przezroczyste, żeby było widać manekina za kierownicą.
+			if _style_glass == null:
+				_style_glass = StandardMaterial3D.new()
+				_style_glass.albedo_color = Color(0.05, 0.07, 0.09, 0.45)
+				_style_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				_style_glass.roughness = 0.1
+				_style_glass.metallic_specular = 0.9
+			_style_body.set_surface_override_material(si, _style_glass)
 	# Przednie lampy: płaskie, świecące prostokąty tuż przed przodem bryły
 	# (w teksturze GGBotNet lampy są tylko narysowane i nie świecą).
 	if _style_head == null:
