@@ -112,6 +112,26 @@ var _win_hint := 0
 var _lights_on := false
 var _window_timer := 0.0
 
+## Wejście w szał jak u kierowcy, a nie skok sterowania (użytkownik
+## 2026-11-11: po klaksonie boty często traciły panowanie, czasem rozbijały
+## się same). Przyczyny: rage = 1 od razu przestawiało cel w poprzek drogi
+## o pas albo więcej i prędkość docelową o +30..45 km/h, a wzmocnienie
+## odchyłki toru (0,22 /m) nie zależało od prędkości - przy 100 km/h 1 m
+## błędu dawał skręt na ~2 g. Teraz: czas reakcji, narastanie agresji,
+## płynny cel toru i skręt toru ograniczony przyczepnością. To umiejętność
+## kierowcy, nie ukryta pomoc w oponach (te są takie same jak u gracza).
+const RAGE_REACT := 0.5          # [s] czas reakcji przed manewrem
+const RAGE_RAMP := 1.5           # [s] narastanie od spokoju do pełnego szału
+## Najszybsze przesuwanie celu w poprzek drogi [m/s]: zmiana pasa 3,5 m
+## w ~1,8 s (szczyt ~0,7 g przy sinusoidzie) - ostro, ale do opanowania.
+const LAT_RATE := 2.0
+## Ułamek przyczepności (μ·g) na zmianę toru ponad to, co bierze łuk drogi.
+const LAT_GRIP := 0.5
+var _onset_t := INF              # czas od wejścia w szał [s]
+var _aggr := 1.0                 # 0..1: jak bardzo plan szału już steruje
+var _tgt_off_s := 0.0            # wygładzony cel w poprzek drogi [m]
+var _tgt_ok := false
+
 
 func _physics_process(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
@@ -192,20 +212,44 @@ func _drive_step(delta: float) -> void:
 		target_off = main.hwy_lane_off(lane)
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh)
+	_aggr = 1.0
 	if rage > 0.05 and _foe():
+		_onset_t += delta
+		_aggr = clampf((_onset_t - RAGE_REACT) / RAGE_RAMP, 0.0, 1.0)
 		var plan := _rage_plan(delta, best, right, w, lane_w, offset)
-		target_off = plan.x
+		target_off = lerpf(target_off, plan.x, _aggr)
 		# Limit szału: ograniczenie + przekroczenie z menu; łuki hamują zawsze.
 		var cap := 400.0 if overspeed <= 0.0 else float(best["limit"]) + overspeed
-		target_kmh = lerpf(target_kmh, clampf(plan.y, 0.0, minf(cap, _curve_speed())), rage)
+		target_kmh = lerpf(target_kmh, clampf(plan.y, 0.0, minf(cap, _curve_speed())), rage * _aggr)
+	# Cel w poprzek drogi przesuwa się płynnie (było: skok o pas przy szale,
+	# zmianie taktyki albo przejściu gracza na drugą stronę).
+	if not _tgt_ok:
+		_tgt_off_s = offset
+		_tgt_ok = true
+	_tgt_off_s = move_toward(_tgt_off_s, target_off, LAT_RATE * delta)
 
 	var fwd := -car.global_basis.z
 	var head_err := fwd.signed_angle_to(best["fwd"], car.global_basis.y)
-	car.steer = clampf(-(offset - target_off) * 0.22 - head_err * 2.5, -1.0, 1.0) \
+	# Człon toru: wzmocnienie maleje z prędkością (ten sam błąd w metrach to
+	# przy 100 km/h wielokrotnie większe przyspieszenie boczne niż przy 30)
+	# i nie przekracza LAT_GRIP przyczepności - kąt kinematyczny δ = L·a/v².
+	var v := absf(car.speed)
+	var lat := -(offset - _tgt_off_s) * 0.22 * clampf(12.0 / maxf(v, 1.0), 0.25, 1.0)
+	if v > 8.0:
+		var grip: float = StuntTrack.SURFACES[best["surface"]]["grip"]
+		var full := car.max_steer_deg
+		if car.steer_assist:
+			full = lerpf(car.max_steer_deg, car.high_speed_steer_deg, clampf(v / car.steer_assist_speed, 0.0, 1.0))
+		var lat_max := clampf(atan(LAT_GRIP * grip * 9.8 * car._wheelbase / (v * v)) / deg_to_rad(full), 0.05, 1.0)
+		lat = clampf(lat, -lat_max, lat_max)
+	car.steer = clampf(lat - head_err * 2.5, -1.0, 1.0) \
 			if car.wheels_on_ground > 0 else 0.0
 	car.throttle = 1.0 if kmh < target_kmh - 1.0 else (0.3 if kmh < target_kmh + 2.0 else 0.0)
+	if _aggr < 1.0 and rage > 0.05:
+		# Mocniejszy silnik szału (enrage) nie wchodzi od razu pełnym gazem.
+		car.throttle = minf(car.throttle, 0.3 + 0.7 * _aggr)
 	car.brake = clampf((kmh - target_kmh - 4.0) * 0.12, 0.0, 1.0)
-	if _brake_pulse > 0.0 and rage > 0.5:
+	if _brake_pulse > 0.0 and rage > 0.5 and _aggr >= 1.0:
 		# Hamowanie przed graczem: ostro, jak przy "nauczce".
 		car.throttle = 0.0
 		car.brake = 0.9
@@ -396,6 +440,7 @@ func _update_rail(delta: float) -> bool:
 		car.angular_velocity = Vector3.ZERO
 		for w in car.wheels:
 			w.omega = _rail_v / car.wheel_radius
+		_tgt_ok = false                   # cel toru od miejsca, gdzie stoi
 		return false
 	# Daleko od gracza 30 Hz wystarcza (szukanie na trasie jest drogie).
 	_rail_acc += delta
@@ -507,6 +552,8 @@ func _foe_valid() -> bool:
 ## punktów i bez mocniejszego silnika.
 func feud_with(other: StuntCar) -> void:
 	foe = other
+	if rage < 0.5:
+		_onset_t = 0.0                    # reakcja i narastanie (RAGE_REACT)
 	rage = 1.0
 	rage_time = 0.0
 	if on_rail:
@@ -526,6 +573,8 @@ func enrage(origin := "self") -> void:
 	foe = null
 	_rage_on_player = true
 	var fresh := rage < 0.5
+	if fresh:
+		_onset_t = 0.0                    # reakcja i narastanie (RAGE_REACT)
 	if fresh and main and main.has_method("score_chase_open"):
 		main.score_chase_open(car, origin)
 	rage = 1.0
