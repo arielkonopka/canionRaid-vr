@@ -109,15 +109,15 @@ func wrap_offset() -> Vector3:
 	return Vector3(fposmod(offset_x, WRAP), fposmod(offset_y, WRAP), fposmod(offset_z, WRAP))
 
 
-## Parametr globalny shaderów (tworzony przy pierwszym użyciu; w testach
-## headless bez renderera to nic nie robi).
+## Parametr globalny shaderów (w testach headless bez renderera nic nie robi).
 func _update_shader_param() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
-	var rs := RenderingServer
-	if not StringName(WRAP_PARAM) in rs.global_shader_parameter_get_list():
-		rs.global_shader_parameter_add(WRAP_PARAM, RenderingServer.GLOBAL_VAR_TYPE_VEC3, Vector3.ZERO)
-	rs.global_shader_parameter_set(WRAP_PARAM, wrap_offset())
+	# Parametr jest w project.godot ([shader_globals]) - tylko ustawiamy.
+	# Było: sprawdzenie global_shader_parameter_get_list() (działa tylko
+	# w edytorze, w grze pusta lista) i dodawanie przy każdym przesunięciu
+	# świata - 2x ERROR w logu gogli na przesunięcie (2026-11-11).
+	RenderingServer.global_shader_parameter_set(WRAP_PARAM, wrap_offset())
 
 
 func reset() -> void:

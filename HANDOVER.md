@@ -36,6 +36,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 - **Trudność trasy (użytkownik przez chmurę 2026-11-11)**: "Trudność
   zależy niezmiennie od odległości przejechanej i trudności początkowej" -
   moc ani wybór auta jej nie zmieniają.
+- **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
+  wersji cena za upgrade silnika musi być o rząd większa"** - x10
+  (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
+  przed wydaniem podnieść (kolejka, sekcja 8) i poprawić
+  `stunt_shop_test` (ceny 1280/1800/720 pkt).
 - **Pytania i decyzje projektowe najpierw do chmury** (użytkownik
   2026-11-11: "konsultuj też takie rzeczy najpierw z chmurą, jest mi
   łatwiej przez nią rozmawiać. zwłaszcza w dni wolne"): plik w
@@ -2055,6 +2060,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   zamiast stałego skrócenia; `title_test` sprawdza ustawienie słońca.
   Silnik elektryczny i rekuperacja nie zmieniają się z modelem
   (użytkownik: benzyna/diesel nic nie odzyskają, hybrydy nie ma).
+- Jazda użytkownika na APK z całym dniem (log `build/logs/jazda_2026-11-11.log`):
+  "całkiem w porządku, muszę popracować nad czułością kierownicy" (sam,
+  opcje Sterowanie). 31 odcinków (~33 km) bez końca trasy i bez awaryjnej
+  dobudowy; raz prawdziwe zawieszenie (koła 0-1, 32,8 km) - "NA KOŁA"
+  postawiło auto od razu. W logu 25x błąd silnika "global_shader_uniforms
+  ... has(p_name)" + "should never be used outside the editor" (ktoś
+  czyta parametr globalny shadera w grze) - do sprawdzenia.
 - Chmura (przez skrzynkę): 130% zostaje (60 kl./s wystarcza) - poranna
   migracja do 120% cofnięta przed wydaniem; trudność tylko od dystansu.
 - "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
@@ -2108,6 +2120,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    max_distance 80 m), potem cel: 120-130% przy 72 kl./s; dźwięk (tablica sinusa), fizyka gracza bez
    alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
+000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
+   2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
    było też przed zmianami wgnieceń 2026-11-11; dach i bok działają).
    Podejrzenie chmury: próg `dent_threshold` (700) albo kontakt ze
@@ -2119,7 +2133,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    znaku, koniec sygnału trzaskał), A2, ~~A7~~ (zrobione:
    `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
    warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
-   nieużywany `_plain_material` usunięty), A6 (z `drive_test` 3x2,
+   nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
+   kroku w polach zamiast Array co krok, stałe napędu raz na krok, tan()
+   opon tylko po zmianie parametru; `auto_fiz` w benchu S4 na PC
+   45,0 -> 41,3 ms/s, `drive_test` 3x2 identyczny co do setnej), A6 (z `drive_test` 3x2,
    wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
    z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,

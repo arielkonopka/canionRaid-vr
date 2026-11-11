@@ -356,6 +356,13 @@ class Wheel:
 	var surface := ""             # nazwa nawierzchni pod kołem (pusta = brak kontaktu)
 
 var wheels: Array[Wheel] = []
+# Bufory kroku fizyki (kierunki i prędkości w punktach styku, sumy sił).
+var _d_wf := PackedVector3Array([Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO])
+var _d_wr := PackedVector3Array([Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO])
+var _d_vx := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _d_vy := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _fx_sum := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
+var _fy_sum := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
 var engine_type := "petrol"
 var engine_power_kw := 0.0
 var _base_mass := 1150.0
@@ -781,8 +788,10 @@ func _physics_step(delta: float) -> void:
 
 	# --- 4. opony i koła, w podkrokach ---
 	# Kierunki i prędkości w punktach styku są stałe w obrębie kroku.
-	var dirs: Array = []
-	for w in wheels:
+	# Tablice w polach zamiast nowych Array co krok (przegląd chmury A6;
+	# Float64 - te same wartości co zwykłe float GDScriptu).
+	for i in range(4):
+		var w := wheels[i]
 		var n := w.normal if w.contact else up
 		var wf := fwd.rotated(up, -w.steer_angle)
 		wf = (wf - n * wf.dot(n)).normalized()
@@ -790,13 +799,20 @@ func _physics_step(delta: float) -> void:
 		var v := Vector3.ZERO
 		if w.contact:
 			v = linear_velocity + angular_velocity.cross(w.contact_point - xf.origin)
-		dirs.append([wf, wr, v.dot(wf), v.dot(wr)])
+		_d_wf[i] = wf
+		_d_wr[i] = wr
+		_d_vx[i] = v.dot(wf)
+		_d_vy[i] = v.dot(wr)
 
 	var h := delta / float(TIRE_SUBSTEPS)
 	_abs_hit = false
 	var body_reaction := 0.0
-	var fx_sum: Array[float] = [0.0, 0.0, 0.0, 0.0]
-	var fy_sum: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	_fx_sum.fill(0.0)
+	_fy_sum.fill(0.0)
+	# Stałe w obrębie kroku - raz, nie w każdym podkroku i kole.
+	var hub_m := _hub()
+	var fwd_d := _is_fwd()
+	var awd_c := drive_layout == "awd" and not hub_m
 
 	for _s in range(TIRE_SUBSTEPS):
 		# Blokada dyferencjału zależy od różnicy prędkości kół osi.
@@ -806,9 +822,9 @@ func _physics_step(delta: float) -> void:
 				-lsd_max_torque, lsd_max_torque)
 		# 4x4: podział 40/60 i wiskoza między osiami (przenosi moment z osi
 		# szybszej na wolniejszą).
-		var t_front := axle_torque if _is_fwd() else 0.0
-		var t_rear := 0.0 if _is_fwd() else axle_torque
-		if drive_layout == "awd" and not _hub():
+		var t_front := axle_torque if fwd_d else 0.0
+		var t_rear := 0.0 if fwd_d else axle_torque
+		if awd_c:
 			# Limit sprzęgła rośnie z momentem napędu: stałe 900 Nm przy
 			# ~9700 Nm na osiach (700 kW na 1. biegu) nic nie dawało - przy
 			# ruszaniu buksował odciążony przód, a dociśnięty tył się nudził
@@ -824,7 +840,7 @@ func _physics_step(delta: float) -> void:
 		# (użytkownik 2026-11-10: "już powyżej setki widać, jest nadsterowny").
 		var load_sum := 0.0
 		var rear_k := 1.0
-		if _hub() and axle_torque < 0.0:
+		if hub_m and axle_torque < 0.0:
 			# Z ESP: w łuku odzysk przechodzi z tylnych kół na przednie (od
 			# 0,1 g bocznie, przy 0,5 g cały na przodzie) - tył zostaje wolny
 			# do trzymania toru (użytkownik 2026-11-11: "na luzie
@@ -837,12 +853,11 @@ func _physics_step(delta: float) -> void:
 					load_sum += w.load * (1.0 if w.front else rear_k)
 		for i in range(4):
 			var w := wheels[i]
-			var d: Array = dirs[i]
 
 			var fx := 0.0
 			var fy := 0.0
 			if w.contact and w.load > 1.0:
-				var f := _tire_forces(w, d[2], d[3], h)
+				var f := _tire_forces(w, _d_vx[i], _d_vy[i], h)
 				fx = f.x
 				fy = f.y
 			else:
@@ -851,7 +866,7 @@ func _physics_step(delta: float) -> void:
 			# Momenty na kole: napęd, opona, opór toczenia, hamulec.
 			var t_drive := 0.0
 			var inertia_w := wheel_inertia
-			if _hub():
+			if hub_m:
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
 				if axle_torque > 0.0:
 					t_drive = axle_torque * 0.25 * _hub_tcs[i]
@@ -884,19 +899,18 @@ func _physics_step(delta: float) -> void:
 
 			# Napęd i hamulec działają na koło, nadwozie dostaje przeciwny moment.
 			body_reaction += (t_drive + applied_brake) / float(TIRE_SUBSTEPS)
-			fx_sum[i] += fx / float(TIRE_SUBSTEPS)
-			fy_sum[i] += fy / float(TIRE_SUBSTEPS)
+			_fx_sum[i] += fx / float(TIRE_SUBSTEPS)
+			_fy_sum[i] += fy / float(TIRE_SUBSTEPS)
 
 	# --- 5. siły opon na nadwozie ---
 	for i in range(4):
 		var w := wheels[i]
 		if not w.contact:
 			continue
-		var d: Array = dirs[i]
 		var hub := xf * (w.mount - Vector3.UP * w.spring_len)
 		# Wzdłużna na piaście, boczna w punkcie styku.
-		apply_force(d[0] * fx_sum[i], hub - xf.origin)
-		apply_force(d[1] * fy_sum[i], w.contact_point - xf.origin)
+		apply_force(_d_wf[i] * _fx_sum[i], hub - xf.origin)
+		apply_force(_d_wr[i] * _fy_sum[i], w.contact_point - xf.origin)
 
 	# Moment "do przodu" na kole to wektor wzdłuż -X nadwozia, więc reakcja jest wzdłuż +X.
 	apply_torque(right * body_reaction)
@@ -1056,7 +1070,11 @@ func _tire_forces(w: Wheel, v_long: float, v_lat: float, h: float) -> Vector2:
 	w.tan_alpha = clampf(_relax(w.tan_alpha, v_lat, vx_abs, relax_lateral, h), -2.0, 2.0)
 
 	var sx := w.kappa / peak_slip_ratio
-	var sy := w.tan_alpha / tan(deg_to_rad(peak_slip_angle_deg))
+	# tan() kąta szczytowego tylko po zmianie parametru (A6; ta sama wartość).
+	if peak_slip_angle_deg != _tp_deg:
+		_tp_deg = peak_slip_angle_deg
+		_tp_tan = tan(deg_to_rad(peak_slip_angle_deg))
+	var sy := w.tan_alpha / _tp_tan
 	var rho := sqrt(sx * sx + sy * sy)
 	w.slip = rho
 
@@ -1067,7 +1085,11 @@ func _tire_forces(w: Wheel, v_long: float, v_lat: float, h: float) -> Vector2:
 	var fx := 0.0
 	var fy := 0.0
 	if rho > 1e-6:
-		var f := f_max * _magic_formula(rho)
+		if mf_shape_c != _mf_c:
+			_mf_c = mf_shape_c
+			_mf_b = tan(PI / (2.0 * mf_shape_c))
+		# Znormalizowana Magic Formula: maksimum 1 przy ρ = 1.
+		var f := f_max * sin(mf_shape_c * atan(_mf_b * rho))
 		fx = f * sx / rho
 		fy = -f * sy / rho
 
@@ -1086,6 +1108,12 @@ func _tire_forces(w: Wheel, v_long: float, v_lat: float, h: float) -> Vector2:
 	return Vector2(fx, fy)
 
 
+var _tp_deg := NAN
+var _tp_tan := 0.0
+var _mf_c := NAN
+var _mf_b := 0.0
+
+
 func _relax(state: float, input_vel: float, vx_abs: float, sigma: float, h: float) -> float:
 	var a := vx_abs / sigma
 	if a < 1e-3:
@@ -1094,18 +1122,12 @@ func _relax(state: float, input_vel: float, vx_abs: float, sigma: float, h: floa
 	return target + (state - target) * exp(-a * h)
 
 
-## Znormalizowana Magic Formula: maksimum 1 przy ρ = 1.
 ## Szczytowa siła opony przy obecnym docisku i nawierzchni [N] (jak f_max
 ## w _tire_forces) - dla ABS.
 func _tire_peak_force(w: Wheel) -> float:
 	var fz0 := car_mass * 9.81 * 0.25
 	var mu := tire_mu * clampf(1.0 - load_sensitivity * (w.load / fz0 - 1.0), 0.5, 1.3)
 	return mu * w.grip * w.load
-
-
-func _magic_formula(rho: float) -> float:
-	var b := tan(PI / (2.0 * mf_shape_c))
-	return sin(mf_shape_c * atan(b * rho))
 
 
 func _brake_torque_for(w: Wheel, i: int, h: float) -> float:
