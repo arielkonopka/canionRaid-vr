@@ -77,7 +77,7 @@ zawsze `"surface": "dry"`), a niebo jest stałe w `main.tscn`.
    odcinkach z rękawem wiatru przy drodze; wycieraczki w kokpicie; pogoda
    w trybie wąwozu (dziś losowe strefy mokre - zostają).
 7. Zrzut ekranu ciemnego nieba w ulewie dla użytkownika
-   (`tests/screenshot.gd`, np. ziarno 777, km 99,5 - tam ulewa), potem
+   (`tests/screenshot.gd`; km z ulewą wypisz z `WeatherPlan.front` z planem biomów - Python nie zna biomów, więc jego km 99,5 dla ziarna 777 może wypaść na pustyni), potem
    jazda w goglach: czy niebo ciemnieje wyraźnie przed deszczem
    i czy mokra jezdnia jest czytelna.
 
