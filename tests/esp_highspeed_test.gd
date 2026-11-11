@@ -110,9 +110,11 @@ func _physics_process(d: float) -> bool:
 	if phase == 2 and t_phase > 6.0:
 		print("ESP %s%s, %.0f km/h, amplituda skrętu %.2f: ESP aktywne %.2f s, hamowanie ESP maks %.0f Nm, napęd min %.2f, znoszenie maks %.1f°, obrót przy korektach %.3f rad/s, po 3 s spokoju %.3f rad/s" % [
 				"wł." if esp_on else "wył.", ", skręt wg przyczepności" if grip else "", car.speed * 3.6, amp, esp_frames / 120.0, esp_brake_max, min_drive, max_beta, yaw_in_max, late_yaw_max])
-		# Warunek (tylko "grip", pełny drążek): mieści się w przyczepności
-		# i po korektach się uspokaja.
-		var ok := not grip or (max_beta < 4.0 and late_yaw_max < 0.05)
+		# Warunek (tylko "grip"): korekta 30% drążka bez przepychanki z ESP
+		# (było: 30% przy limicie 6° = ESP 3 s, napęd 5%, 9,5°), a po
+		# korektach auto się uspokaja. Pełny drążek celowo dochodzi do granicy
+		# przyczepności (chmura: zapas 0,5° na znoszenie przodu).
+		var ok := not grip or (late_yaw_max < 0.05 and (amp > 0.5 or (esp_frames == 0 and max_beta < 3.0)))
 		print("esp_highspeed_test: ", "OK" if ok else "BŁĄD")
 		quit(0)
 		return true

@@ -306,10 +306,15 @@ const ABS_MAX := 1.15
 ## tego nie robi, ale gałka czy klawisz to nie kierownica z 900° obrotu.
 @export var steer_assist: bool = true
 ## Ograniczenie skrętu wg przyczepności (jawna pomoc, opcja "Wg
-## przyczepności"): pełny drążek = STEER_GRIP_K razy tyle skrętu, ile
-## opony przeniosą bocznie (model rowerowy: a = v²·tan δ / L).
+## przyczepności"): pełny drążek = STEER_GRIP_K razy kąt kinematyczny na
+## granicy przyczepności (model rowerowy: a = v²·tan δ / L) plus zapas
+## na kąt znoszenia przedniej osi. Chmura (car_sim.py, 2026-11-11): sam
+## kąt kinematyczny z K 1,5-2,5 nie pozwalał ciężkiemu podsterownemu 4x4
+## dojść do granicy (78% przy 300 km/h) - ukryte utrudnienie; z zapasem
+## 0,5° każde auto dochodzi do ~93-97%. μ z dociskiem spojlera.
 var steer_grip := false
 const STEER_GRIP_K := 2.5
+const STEER_GRIP_SLIP := 0.5        # [°] zapas na znoszenie przedniej osi
 @export var high_speed_steer_deg: float = 6.0
 @export var steer_assist_speed: float = 45.0
 ## Jak szybko koła nadążają za wejściem [pełne wychylenia na sekundę].
@@ -1441,7 +1446,11 @@ func _update_steering(delta: float) -> void:
 		var t := clampf(absf(speed) / steer_assist_speed, 0.0, 1.0)
 		max_angle = deg_to_rad(lerpf(max_steer_deg, high_speed_steer_deg, t))
 		if steer_grip and absf(speed) > 1.0:
-			max_angle = minf(max_angle, atan(STEER_GRIP_K * tire_mu * 9.81 * _wheelbase / (speed * speed)))
+			var v2 := speed * speed
+			var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" and style == "sedan" else "none"]
+			var mu_eff := tire_mu * (1.0 + 0.5 * AIR_RHO * float(sp["cla"]) * v2 / (car_mass * 9.81))
+			max_angle = minf(max_angle, atan(STEER_GRIP_K * mu_eff * 9.81 * _wheelbase / v2)
+					+ deg_to_rad(STEER_GRIP_SLIP))
 	var delta_ang := _steer_input_smoothed * max_angle
 	# Geometria Ackermanna: koło wewnętrzne skręca mocniej.
 	if absf(delta_ang) < 1e-4:

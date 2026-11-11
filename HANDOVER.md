@@ -45,11 +45,14 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   powodowała przepychanie z kontrolą trakcji"; zgoda "ok")**: trzecia
   wartość opcji `steer_assist` (true / "grip" / false; `GameSettings.
   apply_steer`, `StuntCar.steer_grip`): maks. skręt = min(dotychczasowy,
-  atan(2,5·μ·g·L/v²)). Przyczyna z `tests/esp_highspeed_test.gd`
+  atan(2,5·μ_eff·g·L/v²) + 0,5°) - zapas 0,5° na znoszenie przedniej osi
+  i μ z dociskiem spojlera wg chmury (car_sim: sam kąt kinematyczny
+  dawał ciężkiemu 4x4 tylko 78% przyczepności przy 300 km/h). Przyczyna z `tests/esp_highspeed_test.gd`
   (hatchback, elektryk w kołach): przy 6° limitu 10% drążka przy
   300 km/h to już cała przyczepność, 30% - ESP hamuje 3 s, napęd 5%,
   znoszenie 9,5° (pętla z kierowcą); auto i ESP bez kierowcy stabilne.
-  "Wg przyczepności": pełny drążek 1,7°, ESP nie działa. Fizyka bez zmian.
+  "Wg przyczepności": korekta 30% drążka 1,0°, ESP nie działa; pełny
+  drążek dochodzi do granicy (4°, ESP krótko). Fizyka bez zmian.
   Ocena użytkownika w goglach (2026-11-11): "jest nieźle, sam styl jest
   świetny i dynamiczny, podoba mi się też gradacja napędu".
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej

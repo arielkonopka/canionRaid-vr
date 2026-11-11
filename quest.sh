@@ -139,7 +139,7 @@ do_test() {
 	run_test stuck_net_test ""          "stuck_net_test|utknięcie"
 	run_test horn_control_test ""       "horn_control_test|najgorzej"
 	run_test horn_control_test "autostrada" "horn_control_test|najgorzej"
-	run_test esp_highspeed_test "on 300 1.0 grip" "esp_highspeed_test|^ESP"
+	run_test esp_highspeed_test "on 300 0.3 grip" "esp_highspeed_test|^ESP"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
