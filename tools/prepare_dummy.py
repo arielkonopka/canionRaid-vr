@@ -61,10 +61,12 @@ for b in ["spine", "chest"]:
 aim("neck", up * math.cos(deg(5)) - fwd * math.sin(deg(5)))
 aim("head", up)
 for s, sd in (("L", side_l), ("R", -side_l)):
-    # Uda do przodu, lekko w dół i na boki; łydki w dół i do przodu (pedały).
-    aim("thigh." + s, mix(1.0, -0.15, 0.12, sd))
-    aim("shin." + s, mix(0.45, -1.0, 0.05, sd))
-    aim("foot." + s, mix(1.0, -0.35))
+    # Pozycja w aucie (nisko, nogi wyciągnięte do pedałów): uda do przodu
+    # z kolanami lekko w górę, łydki pochyło w przód - stopy ~0,3 m pod
+    # biodrami, a nie 0,5 jak na krześle (wystawały spod podłogi auta).
+    aim("thigh." + s, mix(1.0, 0.12, 0.12, sd))
+    aim("shin." + s, mix(0.9, -0.55, 0.05, sd))
+    aim("foot." + s, mix(0.6, -0.8))
     # Ręce do kierownicy: ramię w przód i w dół, przedramię w przód i do środka.
     aim("upper_arm." + s, mix(0.75, -0.55, 0.15, sd))
     # Dłonie na kierownicy ~0,38 m: na "za dziesięć druga", ~0,18 m od osi.
@@ -117,11 +119,17 @@ for p in me.polygons:
 
 print("SKALA OBIEKTU", tuple(man.scale), "OBRÓT", tuple(man.rotation_euler))
 # OBJ (eksporter glTF w Blenderze z Debiana wymaga numpy, którego nie ma;
-# modele aut też są w OBJ). Godot: -Z przód, Y góra.
+# modele aut też są w OBJ). Godot: -Z przód (stopy manekina w -Z), Y góra.
 bpy.ops.wm.obj_export(filepath=out_glb, export_selected_objects=False, apply_modifiers=True,
-        forward_axis="NEGATIVE_Z", up_axis="Y", export_materials=True, path_mode="STRIP",
+        forward_axis="Z", up_axis="Y", export_materials=True, path_mode="STRIP",
         export_triangulated_mesh=True)
 print("ZAPISANO", out_glb, "trójkątów", sum(len(p.vertices) - 2 for p in me.polygons))
+# Tekstura w repo nazywa się dummy_texture.png (obok OBJ).
+mtl = out_glb[:-4] + ".mtl"
+with open(mtl) as fh:
+    lines = ["map_Kd dummy_texture.png\n" if l.startswith("map_Kd") else l for l in fh]
+with open(mtl, "w") as fh:
+    fh.writelines(lines)
 
 if preview:
     sc = bpy.context.scene

@@ -861,6 +861,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `models/period_cars/<model>/` | bryły CC0 (body.obj, wheel.obj) + `paint_mask.png` (lakier, `tools/make_paint_masks.py`) |
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
+| `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
 | `scripts/audio_util.gd` | `AudioUtil.wav(próbki, rate, bity, pętla)`: jedyny zapis dźwięków generowanych w kodzie (klakson, deszcz, sygnały, szum radia) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
 | `tests/_autopilot.gd` | wspólny autopilot testów (model rowerowy, `steer`, `beta_deg`) - `regen_highway_test`, `endless_test` na autostradzie |
@@ -2082,6 +2083,18 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   OBJ (eksporter glTF potrzebuje numpy - brak) -> `models/dummy/`.
   Źródło `.zip` w `build/media_in/dummy` (poza gitem; blendswap wymaga
   logowania i przeglądarki - pobiera użytkownik).
+  W grze: `StuntCar._update_dummy` - manekin w każdym aucie bota (także
+  z naprzeciwka), pozycja z oczu kierowcy (`seat` stylu / sedana) minus
+  `DUMMY_EYE`; fotel z kodu (siedzisko + oparcie 15°) tylko w modelach
+  z epoki (sedan bota ma własne wnętrze); rysowane do 60 m, bez cieni;
+  w modelach GGBotNet (kombi, hatchback, muscle, furgon - szyby
+  namalowane na teksturze) manekin ukryty. Szyby Quaterniusa (materiał
+  "Windows": klin, kabriolet, terenówka) przyciemnione, ale przezroczyste
+  (alfa 0,45). Poza "samochodowa" (nogi wysunięte, stopy ~0,3 m pod
+  biodrami - w pozie z krzesła stopy wystawały spod podłogi). Zrzuty:
+  `tests/dummy_shot.gd` (okno), `docs/renders/bot_manekin_*.png`.
+  Do zrobienia: pomiar GPU na goglach (S4) z manekinami; pomysły z wizji
+  (manekin w szale pochylony nad kierownicą, wylatujący przy wybuchu).
 - Chmura (przez skrzynkę): 130% zostaje (60 kl./s wystarcza) - poranna
   migracja do 120% cofnięta przed wydaniem; trudność tylko od dystansu.
 - "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
