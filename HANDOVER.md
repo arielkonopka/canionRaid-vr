@@ -2106,6 +2106,14 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    max_distance 80 m), potem cel: 120-130% przy 72 kl./s; dźwięk (tablica sinusa), fizyka gracza bez
    alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
+000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
+   było też przed zmianami wgnieceń 2026-11-11; dach i bok działają).
+   Podejrzenie chmury: próg `dent_threshold` (700) albo kontakt ze
+   ścianą testu. Nie blokuje.
+000. **Przegląd kodu - dalsze paczki** (inbox `przeglad-kodu`,
+   `plan-zatwierdzony`): D1 `sample_at`, A2, A7, A6 (z `drive_test` 3x2,
+   wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
+   z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
    "na później")**: zamiast samego mieszania terenu - granica biomu jako
    miejsce w krajobrazie, za którym wolno podmienić duże obiekty:
