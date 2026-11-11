@@ -2177,6 +2177,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    Kierownica: użytkownik potwierdził ("jako opcja sterowania zamiast
    manetką") i poprosił o przekazanie chmurze - szkic `scripts/air_wheel.gd`
    (nieprzetestowany, niepodpięty) czeka na ich test i ustalenia.
+   Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
+   manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
+   do ustalenia przez chmurę.
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak

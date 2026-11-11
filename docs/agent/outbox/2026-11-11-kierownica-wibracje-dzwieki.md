@@ -76,3 +76,16 @@ Kierownica: "w powietrzu", `xr_main._read_drive_input` (środek i oś
 z węzła `SteeringColumn/SteeringWheel` auta - oś obrotu to lokalne Y
 kolumny; w prawo - lokalne X), wizualna kierownica obracana 1:1 kątem
 `AirWheel.angle` zamiast 14x kąta kół.
+
+## Dopisek - ręce gracza jako ręce manekina
+
+Użytkownik: "czy ręce będą żółte, gdyż też jestem manekinem w grze?".
+Dziś kontrolery są w grze niewidoczne (XRController3D bez siatki).
+Propozycja agenta: dłonie + przedramiona wycięte z tego samego modelu
+(`tools/prepare_dummy.py`, kości hand.* / f_* / forearm.*), palce
+w chwycie, przypięte do kontrolerów; w trybie kierownicy obejmują
+wieniec, przy drążku - manetkę; palce lekko zaciskane spustem/gripem.
+Otwarte do ustalenia z użytkownikiem: czy także tułów i nogi manekina
+w fotelu gracza (widoczne przy spojrzeniu w dół) - więcej pracy
+(ramiona do kontrolerów = IK, ryzyko dziwnych łokci). Agent zrobi
+dłonie (Blender jest lokalnie), gdy ustalicie zakres.
