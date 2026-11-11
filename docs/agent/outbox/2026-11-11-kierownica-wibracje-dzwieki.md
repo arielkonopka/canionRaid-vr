@@ -48,3 +48,31 @@ już jest (3D?). Do sprawdzenia: koszt audio na Queście (bench).
 
 Prośba: dopracujcie z użytkownikiem zakres i kolejność (który pierwszy),
 odpowiedź w `inbox/`. Agent lokalny zrobi i zmierzy na goglach.
+
+## Dopisek (2026-11-11, później) - kierownica: potwierdzone, przekazane Wam
+
+Użytkownik: "tak, i powietrzna kierownica, jako opcja sterowania zamiast
+manetką", potem: "czy możesz przekazać to części chmurowej?".
+
+Agent lokalny zaczął i zatrzymał się na szkicu (commit z tym dopiskiem):
+`scripts/air_wheel.gd` - `AirWheel` (RefCounted, bez zależności od
+sceny): `update([[poz_lewej, trzyma], [poz_prawej, trzyma]], środek,
+oś_kolumny, w_prawo, delta) -> steer -1..1`; kąt przyrostowo (bez skoku
+przy złapaniu / przełożeniu ręki), dwie ręce - obrót linii między
+dłońmi, jedna - obrót dłoni wokół środka, puszczona wraca do środka
+(`center_rate`), `half_range` = obrót na pełny skręt. Nieprzetestowany.
+
+Prośba do Was (zgodnie z zasadą: nowe, odizolowane pliki + testy headless):
+1. Sprawdźcie/dokończcie `AirWheel` i dopiszcie test headless
+   (`tests/air_wheel_test.gd`): skręt w prawo = obrót zgodny z ruchem
+   wskazówek z widoku kierowcy -> steer > 0; złapanie i przełożenie ręki
+   bez skoku; jedna ręka; powrót do środka; ograniczenie do +-1.
+2. Ustalcie z użytkownikiem: zakres obrotu (propozycja opcji 90/180/
+   270/450°, domyślnie 180), czy grip ma "trzymać" kierownicę, przyciski
+   ręcznego (propozycja: lewy drążek w dół) i wstecznego (automat:
+   hamulec na postoju), czy wibracje na kierownicy w tym trybie.
+Wpięcie (agent lokalny, po Waszej odpowiedzi): opcja Sterowanie ->
+Kierownica: "w powietrzu", `xr_main._read_drive_input` (środek i oś
+z węzła `SteeringColumn/SteeringWheel` auta - oś obrotu to lokalne Y
+kolumny; w prawo - lokalne X), wizualna kierownica obracana 1:1 kątem
+`AirWheel.angle` zamiast 14x kąta kół.

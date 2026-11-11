@@ -2174,6 +2174,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    w powietrzu" (obie ręce), (2) wibracje kontrolerów (zderzenia,
    nawierzchnia, ABS/TCS), (3) dźwięki innych aut z efektem Dopplera
    i szumem mijania. Czekać na odpowiedź chmury z kolejnością.
+   Kierownica: użytkownik potwierdził ("jako opcja sterowania zamiast
+   manetką") i poprosił o przekazanie chmurze - szkic `scripts/air_wheel.gd`
+   (nieprzetestowany, niepodpięty) czeka na ich test i ustalenia.
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
