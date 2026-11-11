@@ -202,7 +202,9 @@ func _ready() -> void:
 		# XRCamera3D dziedziczy po Camera3D, więc bez XR działa jak zwykła kamera.
 		camera.current = true
 
-	if not Bench.on("shadows"):
+	if gs:
+		gs.apply_shadows($Sun as DirectionalLight3D)
+	elif not Bench.on("shadows"):
 		($Sun as DirectionalLight3D).shadow_enabled = false
 	car.landed.connect(_on_car_landed)
 	car.wrecked.connect(_on_car_wrecked)
@@ -511,6 +513,11 @@ func _read_drive_input() -> void:
 
 func _physics_process(delta: float) -> void:
 	_check_origin_shift()
+	# Dobudowa trasy pierwsza: błąd skryptu w dalszych funkcjach przerywa
+	# resztę kroku i trasa przestawała rosnąć ("trasa się skończyła" także
+	# na prostej, 2026-11-11 - hipoteza chmury).
+	if _endless:
+		_keep_track_ahead(delta)
 	if _mode == Mode.DRIVE and not Bench.active():
 		_read_drive_input()
 	else:
@@ -678,7 +685,11 @@ func player_compliant() -> bool:
 ## na starcie jazdy, w czasie wczytywania), usuwany bot wraca do puli:
 ## naprawiony, ukryty, wyłączony z fizyki (PROCESS_MODE_DISABLED zdejmuje
 ## ciało z przestrzeni fizyki).
-const BOT_POOL_WARM := 6
+## 14 (było 6): na autostradzie bywa 11 botów naraz - bench 2026-11-11
+## pokazywał skok ~170 ms co 30-40 s przy każdym nowym aucie ponad pulę.
+## Auta z naprzeciwka - osobna pula, rozgrzewana tak samo (ONCOMING_POOL_WARM).
+const BOT_POOL_WARM := 14
+const ONCOMING_POOL_WARM := 8
 var _bot_pool: Array[StuntCar] = []
 
 
@@ -724,6 +735,17 @@ func _bot_style(bot: StuntCar, st: String) -> void:
 	bot.apply_suspension_preset(d["suspension"])
 
 
+## Wybuch auta `c` (gracz, bot, auto ze scenki) w kolorze jego lakieru.
+func _explode(c: StuntCar) -> void:
+	Perf.mark("explosion")
+	var boom := Explosion.new()
+	boom.paint = c._paint_mat.albedo_color if c._paint_mat else Color(0.8, 0.6, 0.2)
+	boom.ignore = [car] + _bots
+	add_child(boom)
+	boom.add_to_group(WorldOrigin.GROUP)
+	boom.global_position = c.global_position
+
+
 ## Kierowca bota (BotDriver) - referencja w aucie zamiast get_node("Driver")
 ## (~25 miejsc, część w komparatorach sortowania).
 static func _drv(b: StuntCar) -> BotDriver:
@@ -735,6 +757,25 @@ func _warm_bot_pool() -> void:
 		var b := _new_bot_car()
 		_park_bot(b)
 		_bot_pool.append(b)
+	if track and track.get("autostrada") == true:
+		while _oncoming_pool.size() + _oncoming.size() < ONCOMING_POOL_WARM:
+			var c := _new_oncoming_car()
+			c.visible = false
+			c.process_mode = Node.PROCESS_MODE_DISABLED
+			c.global_position = Vector3(0.0, -500.0, 0.0)
+			_oncoming_pool.append(c)
+
+
+## Auto z naprzeciwka: kinematyczne (jazda po szynie), bez kierowcy.
+func _new_oncoming_car() -> StuntCar:
+	var c := StuntCar.new()
+	c.name = "Oncoming%d_%d" % [Time.get_ticks_msec(), _oncoming_pool.size() + _oncoming.size()]
+	c.is_bot = true
+	add_child(c)
+	c.add_to_group(WorldOrigin.GROUP)
+	c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	c.freeze = true
+	return c
 
 
 func _take_bot() -> StuntCar:
@@ -1031,13 +1072,7 @@ func _update_bots(delta: float) -> void:
 				var fell_out: bool = b.global_position.y < -50.0
 				score_chase_close(b, "wreck" if dead and not fell_out else "lost")
 			if dead:
-				Perf.mark("explosion")
-				var boom := Explosion.new()
-				boom.paint = b._paint_mat.albedo_color
-				boom.ignore = [car] + _bots
-				add_child(boom)
-				boom.add_to_group(WorldOrigin.GROUP)
-				boom.global_position = b.global_position
+				_explode(b)
 			_bots.erase(b)
 			_retire_bot(b, dead)
 			Perf.mark("bot_free")
@@ -1054,11 +1089,7 @@ func player_horn() -> void:
 	if _mode != Mode.DRIVE:
 		return
 	if _player_horn == null:
-		_player_horn = AudioStreamPlayer3D.new()
-		_player_horn.stream = BotDriver._make_horn()
-		_player_horn.unit_size = 8.0
-		_player_horn.bus = EnvAudio.BUS
-		car.add_child(_player_horn)
+		_player_horn = BotDriver.horn_on(car)
 	_player_horn.play()
 	var now := Time.get_ticks_msec() / 1000.0
 	if now < _horn_cd:
@@ -1113,7 +1144,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	var smp: Array = track.samples_from(d, 2.0)
 	if smp.is_empty():
 		return
-	var lane_w := (float(smp[0]["width"]) - 1.0) / 3.0
+	var lane_w := StuntTrack.lane_width(float(smp[0]["width"]))
 	var lim := float(smp[0]["limit"])
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
@@ -1665,6 +1696,8 @@ func _on_setting_changed(key: String) -> void:
 			gs.apply_xr_quality()
 		"game_speed":
 			gs.apply_game_speed()
+		"shadows":
+			gs.apply_shadows($Sun as DirectionalLight3D)
 
 
 ## Zmiana auta albo trasy w pauzie, potwierdzona: nowa jazda z nowymi
@@ -1919,6 +1952,25 @@ func _set_mode(m: Mode) -> void:
 # Tor: zapamiętywanie bezpiecznego miejsca i podnoszenie spadniętego auta
 # --------------------------------------------------------------------------
 
+var _ahead_t := 0.0
+var _ahead_log_t := 0.0
+## Siatka bezpieczeństwa dobudowy (EndlessTrack.ensure_ahead) i diagnostyka:
+## gdy przed autem zostaje mniej niż 600 m trasy, raz na sekundę stan do logu
+## (`./quest.sh log` po zgłoszeniu "trasa się skończyła").
+func _keep_track_ahead(delta: float) -> void:
+	_ahead_t -= delta
+	if _ahead_t > 0.0:
+		return
+	_ahead_t = 0.25
+	track.ensure_ahead(car.global_position)
+	var left: float = track.total_length() - _last_safe_dist
+	_ahead_log_t -= 0.25
+	if left < 600.0 and _ahead_log_t <= 0.0:
+		_ahead_log_t = 1.0
+		print("TRASA KONCZY SIE: zostało %.0f m, _last_safe_dist %.0f, %s" % [
+				left, _last_safe_dist, track.debug_state()])
+
+
 func _watch_track(delta: float) -> void:
 	_track_check_timer -= delta
 	if _track_check_timer > 0.0:
@@ -1936,8 +1988,10 @@ func _watch_track(delta: float) -> void:
 	_rain_target = float(s.get("rain", 0))
 	_update_env(s)
 	if _endless:
-		# Dobudowa trasy przed autem, sprzątanie za nim.
-		track.update_progress(float(s["dist"]))
+		# Dobudowa trasy przed autem, sprzątanie za nim. Bez cofania: auto
+		# w locie nad wcześniejszym kawałkiem cofało `_current` i okno
+		# szukania mogło zgubić kawałek z autem (hipoteza chmury 2026-11-11).
+		track.update_progress(maxf(float(s["dist"]), _last_safe_dist))
 		# Biom: przejście trwa 2,8 km - 5 razy na sekundę wystarczy (było co klatkę).
 		_update_biome()
 		var sec: int = track.section_at(_last_safe_dist)
@@ -2078,7 +2132,7 @@ func _safe_pose(d: float) -> Transform3D:
 		xf = track.transform_at_distance(dd)
 		var smp: Array = track.samples_from(dd, 2.0)
 		var w: float = smp[0]["width"] if not smp.is_empty() else 9.0
-		var lane := (w - 1.0) / 3.0
+		var lane := StuntTrack.lane_width(w)
 		if _endless and track.autostrada:
 			lane = hwy_lane_off(0)          # prawy pas autostrady, nie pas awaryjny
 		xf.origin += xf.basis.x * lane + xf.basis.y * 0.9
@@ -2145,12 +2199,7 @@ func lose_life(reason: String) -> void:
 	race_state = Race.EXPLODING
 	_cine_reason = reason
 	_cine_t = 0.0
-	var boom := Explosion.new()
-	boom.paint = car._paint_mat.albedo_color if car._paint_mat else Color(0.8, 0.6, 0.2)
-	boom.ignore = [car] + _bots
-	add_child(boom)
-	boom.add_to_group(WorldOrigin.GROUP)
-	boom.global_position = car.global_position
+	_explode(car)
 	if car.get_node_or_null("Audio"):
 		car.get_node("Audio").thud(1.0)
 	car.visible = false
@@ -2215,14 +2264,14 @@ func _restart_section() -> void:
 	for b in _bots:
 		_retire_bot(b)
 	_bots.clear()
-	for o in _oncoming:
-		(o["car"] as Node).queue_free()
-	_oncoming.clear()
+	# Auta z naprzeciwka do puli (było: niszczone razem z pulą - po każdym
+	# odrodzeniu budowane od nowa, ~170 ms na auto na Queście).
+	for o in _oncoming.duplicate():
+		(o["car"] as StuntCar).repair_body()
+		_pool_oncoming(o)
 	_osk = null
+	_osk_cars = {}
 	_osk_next_d = d + OSK_GAP_MIN
-	for c in _oncoming_pool:
-		c.queue_free()
-	_oncoming_pool.clear()
 	_reset_bot_pattern(track.section_at(d))
 
 
@@ -2256,6 +2305,7 @@ func _respawn() -> void:
 	var xf: Transform3D = _safe_pose(d)
 	if _endless:
 		_last_safe_dist = d
+		track.update_progress(d)
 	car.place(xf)
 	_fallen_time = 0.0
 	if _mode == Mode.DRIVE and not _xr_ready:
@@ -2610,26 +2660,12 @@ func _osk_event(ev: Dictionary) -> void:
 	var c: StuntCar = o["car"]
 	match ev["type"]:
 		"horn":
-			var h: AudioStreamPlayer3D = c.get_node_or_null("OskHorn")
-			if h == null:
-				h = AudioStreamPlayer3D.new()
-				h.name = "OskHorn"
-				h.stream = BotDriver._make_horn()
-				h.unit_size = 8.0
-				h.bus = EnvAudio.BUS
-				c.add_child(h)
-			h.play()
+			BotDriver.horn_on(c).play()
 		"hit":
 			# B dostaje z boku od strony A (A jest bliżej pasa rozdziału).
 			c.dent(Vector3(-0.85, 0.55, 0.3), Vector3(1.0, 0.0, 0.0), 0.07)
 		"boom":
-			Perf.mark("explosion")
-			var boom := Explosion.new()
-			boom.paint = c._paint_mat.albedo_color
-			boom.ignore = [car] + _bots
-			add_child(boom)
-			boom.add_to_group(WorldOrigin.GROUP)
-			boom.global_position = c.global_position
+			_explode(c)
 		# "sparks", "smoke" - na razie bez efektu (do zrobienia).
 
 
@@ -2747,7 +2783,7 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var xf: Transform3D = track.transform_at_distance(d)
 	var smp: Array = track.samples_from(d, 2.0)
 	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
-	var lane_w := (w - 1.0) / 3.0
+	var lane_w := StuntTrack.lane_width(w)
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	if _endless and track.autostrada:
 		# 2+2: wolny pas jezdni z naprzeciwka (lane 0) przy jej poboczu,
@@ -2766,13 +2802,7 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 		c.visible = true
 		c.process_mode = Node.PROCESS_MODE_INHERIT
 	else:
-		c = StuntCar.new()
-		c.name = "Oncoming%d" % Time.get_ticks_msec()
-		c.is_bot = true
-		add_child(c)
-		c.add_to_group(WorldOrigin.GROUP)
-		c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-		c.freeze = true
+		c = _new_oncoming_car()
 	c.apply_style(_pick_style())
 	for w in c.wheels:
 		w.spring_len = c.rest_length - 0.04

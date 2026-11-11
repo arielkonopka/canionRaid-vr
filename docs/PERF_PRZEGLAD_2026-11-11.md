@@ -16,12 +16,22 @@ Bench: `tools/bench_quest.sh WYNIK.txt "S4:130:"`. Gogle muszą mieć
 wstrzymanego Guardiana (`adb shell setprop debug.oculus.guardian_pause 1`),
 inaczej start gry blokuje okno granic strefy (pułapka w HANDOVER).
 
-| | Przed (b7869af) | Po |
-| --- | --- | --- |
-| kl./s (śr.) | 59 | patrz "Wynik" niżej |
-| GPU (VrApi App) | 12,9 ms | |
-| GPU (gra) | 15-16 ms | |
-| proces | ~14 ms | |
+| | Przed (b7869af) | Po (pule aut, 060d7d6) | Po, 110% |
+| --- | --- | --- | --- |
+| kl./s (śr., VrApi) | 59,7 | 59,7 | **71,9** |
+| GPU (gra) | 15,0 ms | 15,6 ms | 11,9 ms |
+| najdłuższa klatka | 92 ms | 54 ms | 55 ms |
+| `hud` śr. / maks | 27,5 / 8,9 ms | 9,0 / 3,0 ms | |
+| `bot_ster` śr. | 41,8 | 24,2 | |
+| `trasa` śr. / maks | 16,6 / 5,0 ms | 2,0 / 0,9 ms | |
+| `boty_mgr` śr. / maks | 38,8 / 181 ms | 24,3 / 23 ms | |
+| `auto_fiz` śr. | 48,8 | 59,9 | |
+
+Średnie w ms na sekundę, bez dwóch pierwszych pomiarów (rozruch).
+Lusterko wyłączone (A/B): +1 kl./s - nie ono ogranicza GPU.
+`auto_fiz` +11 ms/s: odzysk koło po kole i przenoszenie na przód
+(ustawienia użytkownika: elektryk w kołach) - do zbadania przy
+porządkach fizyki gracza (propozycja 3).
 
 Rozkład procesora przed (ms na sekundę, suma / najdłuższy pojedynczy):
 `auto_fiz 48/1,7`, `bot_ster 41/1,7`, `hud 28/8,5`, `boty_mgr 22/7,1`,
@@ -72,6 +82,16 @@ odciążyć GPU (lusterko, cienie) albo zejść z rozdzielczością.
    Boty na naszej jezdni już spełniały zasadę: w pobliżu gracza (LOD NEAR,
    120 m) i w szale z żetonem jadą fizycznie.
 
+10. **Pule aut przy wczytywaniu**: nowe auto (bot, z naprzeciwka) to
+    ~170 ms jednej klatki na Queście (na PC 6-8 ms) - skoki co 30-40 s.
+    `BOT_POOL_WARM` 14 (było 6), nowa pula aut z naprzeciwka
+    (`ONCOMING_POOL_WARM` 8, `_new_oncoming_car` - jeden sposób
+    tworzenia, DRY), odrodzenie oddaje auta do puli zamiast je niszczyć.
+11. **Porządki DRY**: `StuntTrack.lane_width` (6 kopii wzoru),
+    `XrMain._explode` (3 kopie), `BotDriver.horn_on` (3 kopie; przy okazji
+    wyciek - każdy nowy kierowca bota dokładał autu z puli kolejny
+    odtwarzacz klaksonu), usunięty nieużywany `Gauges.set_limit`.
+
 ## Propozycje (nie zrobione - do decyzji albo na następne sesje)
 
 Kolejność: zysk / ryzyko.
@@ -90,9 +110,9 @@ Kolejność: zysk / ryzyko.
 4. **Budowa kawałka trasy co ~1 km**: kroki `_build_mesh`,
    `_build_road_collision`, `_build_highway` po `await` nie są mierzone
    (Perf) - najpierw pomiar, potem dzielenie albo WorkerThreadPool.
-5. **Auta z naprzeciwka**: `_oncoming_xf` woła `samples_from` co krok
-   tylko po szerokość (na autostradzie stała) - użyć
-   `HighwayGenerator.WIDTH`.
+5. ~~Auta z naprzeciwka: `_oncoming_xf` po szerokość~~ - **odrzucone**:
+   szerokość naszej jezdni zmienia się przy zjazdach i w miastach, a od
+   niej zależy położenie drugiej jezdni; koszt to 2 kopie próbek na auto.
 6. **Ruch (TrafficZone, co 0,5 s)**: `wanted()` 2x po 18 punktów, każdy
    `nearest_city` alokuje słowniki - zapamiętać `city(n)`.
 7. **Boty na szynie poza wzrokiem w 7%**: obecny podział LOD
@@ -112,9 +132,8 @@ Kolejność: zysk / ryzyko.
   autostrady (`HighwayGenerator.lane_center`, `hwy_lane_off`,
   `OncomingSkirmish.hwy_from_median`).
 - Cykl życia bota i auta z naprzeciwka: dwie pule, dwa `spawn`, dwa
-  `park`; `_restart_section` zwalnia pulę aut z naprzeciwka zamiast jej
-  użyć.
-- Wybuch (3 kopie bloku), klakson (3 tworzenia odtwarzacza), sygnały
-  dźwiękowe (`_make_chirp`, `_make_beep`, `_make_horn`).
-- Dwa znaki ograniczenia (`TrackHud.show_limit`, nieużywany
-  `Gauges.set_limit`).
+  `park` (różne: bot ma kierowcę i fizykę, auto z naprzeciwka jedzie po
+  szynie) - wspólna mogłaby być klasa puli.
+- Sygnały dźwiękowe generowane trzema funkcjami (`_make_chirp`,
+  `_make_beep`, `_make_horn`) - różne kształty, wspólny byłby tylko zapis
+  WAV.

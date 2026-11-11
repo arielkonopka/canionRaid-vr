@@ -192,7 +192,7 @@ func change(dir: int) -> void:
 			var opt: Dictionary = e["opt"]
 			var values: Array = opt["values"]
 			var gs := _gs()
-			gs.set(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
+			gs.set_option(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
 			gs.save_settings()
 			setting_changed.emit(opt["key"])
 			refresh()

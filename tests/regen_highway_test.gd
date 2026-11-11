@@ -5,7 +5,8 @@ extends SceneTree
 ## auto na boku). Ustawienia użytkownika: elektryk 1000 kW w kołach, 4x4,
 ## 2500 kg, opływowość sportowa, odzysk mocny, wspomagania wł. Autopilot
 ## (jak endless_test) trzyma pas; cykl: gaz do V, 4 s bez gazu, powtórka.
-##   godot --headless --xr-mode off -s res://tests/regen_highway_test.gd -- [V=150] [czas=90] [odzysk=strong] </dev/null
+##   godot --headless --xr-mode off -s res://tests/regen_highway_test.gd -- [V=150] [czas=90] [odzysk=strong] [old] </dev/null
+## "old" - stary autopilot (porównanie; sam rozbujał auto przy 210 km/h).
 ## CANION_TIME_SCALE=1.3 - tempo gry jak u użytkownika.
 
 var main
@@ -22,6 +23,8 @@ var max_lock := 0.0
 var max_off := 0.0
 var max_beta := 0.0
 var rolled := false
+var old_ap := false
+const AP = preload("res://tests/_autopilot.gd")
 
 
 func _initialize() -> void:
@@ -38,6 +41,7 @@ func _initialize() -> void:
 	gs.body_mass = 2500
 	gs.aero = "sport"
 	gs.regen = a[2] if a.size() > 2 else "strong"
+	old_ap = a.size() > 3 and a[3] == "old"
 	gs.transmission = "auto"
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
@@ -73,8 +77,11 @@ func _physics_process(delta: float) -> bool:
 	var head_err := fwd.signed_angle_to(s["fwd"], car.global_basis.y)
 	var lane: float = main.hwy_lane_off(0) if main.has_method("hwy_lane_off") else 0.0
 	var off: float = float(info["offset"]) - lane
-	var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
-	car.steer = clampf((-off * 0.25 - head_err * 2.5) * gain, -1, 1)
+	if old_ap:
+		var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
+		car.steer = clampf((-off * 0.25 - head_err * 2.5) * gain, -1, 1)
+	else:
+		car.steer = AP.steer(car, off, head_err)
 	var kmh := car.speed * 3.6
 	# Ograniczenia (miasta) ważniejsze od testu - tam bez cyklu.
 	var lim: float = main.current_limit * 1.1
@@ -93,7 +100,7 @@ func _physics_process(delta: float) -> bool:
 		for w in car.wheels:
 			max_slip = maxf(max_slip, w.slip)
 			max_lock = maxf(max_lock, 1.0 - absf(w.omega) * car.wheel_radius / maxf(car.speed, 1.0))
-		var beta := rad_to_deg(absf(fwd.signed_angle_to(car.linear_velocity.normalized(), car.global_basis.y)))
+		var beta: float = AP.beta_deg(car)
 		if car.speed > 10.0:
 			if beta > max_beta and beta > 5.0:
 				print("  znoszenie %.1f° przy %.0f km/h, %.1f s po puszczeniu gazu, krzywizna %.4f, skręt %.2f, ESP %s" % [beta, kmh, lift_t, float(s.get("curve", 0.0)), car.steer, car.esp_active])

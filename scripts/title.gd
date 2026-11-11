@@ -100,7 +100,7 @@ func _ready() -> void:
 		# Kołami na jezdni: środek koła ~0,41 m pod mocowaniem (ugięcie
 		# pod ciężarem) + promień koła (sedan i concept mają różne koła).
 		var xf := track.transform_at_distance(30.0)
-		var lane := (float(track.samples_from(30.0, 1.0)[0]["width"]) - 1.0) / 3.0
+		var lane := StuntTrack.lane_width(float(track.samples_from(30.0, 1.0)[0]["width"]))
 		car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane
 				+ xf.basis.y * (0.41 + car.wheel_radius)))
 		car.linear_velocity = Vector3.ZERO
@@ -122,7 +122,7 @@ func _ready() -> void:
 ## Auto na trasie w odległości `d`, w ruchu (prawy pas, 50 km/h).
 func _place_car(d: float) -> void:
 	var xf := track.transform_at_distance(d)
-	var lane := (float(track.samples_from(d, 1.0)[0]["width"]) - 1.0) / 3.0
+	var lane := StuntTrack.lane_width(float(track.samples_from(d, 1.0)[0]["width"]))
 	car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
 	car._settle_t = 0.0
 	var v := 50.0 / 3.6
@@ -335,6 +335,9 @@ func _hint_for(e: Dictionary) -> String:
 				"spoiler":
 					if GameSettings.body_model != "sedan" and GameSettings.spoiler != "none":
 						h = "Tylko sedan - inne modele nie mają spojlera (bez docisku i oporu)."
+				"body_model":
+					if GameSettings.body_model != "concept":
+						h += "\nUstawia fabryczny silnik, napęd, zawieszenie i masę - potem możesz je zmienić."
 				"aero":
 					if GameSettings.body_model not in ["sedan", "concept"]:
 						h = "Tylko sedan i concept - model z epoki ma opór swojej bryły."
@@ -436,7 +439,7 @@ func _change(dir: int) -> void:
 		"option":
 			var opt: Dictionary = e["opt"]
 			var values: Array = opt["values"]
-			GameSettings.set(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
+			GameSettings.set_option(opt["key"], values[wrapi(_value_index(opt) + dir, 0, values.size())])
 			if opt["key"] == "xr_resolution" or opt["key"] == "xr_foveation":
 				GameSettings.apply_xr_quality()
 			if opt["group"] in ["car", "body"]:

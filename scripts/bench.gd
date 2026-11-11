@@ -13,7 +13,7 @@ class_name Bench
 ##   seed=4242
 ##   res=160                ; rozdzielczość w goglach [%] (0 = z ustawień)
 ##   ab="mirror,rain"       ; WYŁĄCZONE: mirror, rain, tunnel_lights,
-##                          ; shadows, rock_simple
+##                          ; shadows, shadows_far (= cienie bliskie), rock_simple
 ##
 ## Bez pliku i argumentów: gra jak zwykle (wszystko włączone).
 

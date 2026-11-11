@@ -12,6 +12,7 @@ var t := 0.0
 var frame := 0
 var limit := 240.0
 var seed_v := 777
+const AP = preload("res://tests/_autopilot.gd")
 var last_cranes := -1
 var last_bots := 0
 ## 6. argument: prędkość wjazdu na wielkie skocznie autostrady [km/h] (długie loty -
@@ -142,8 +143,18 @@ func _physics_process(delta: float) -> bool:
 	var head_err := fwd.signed_angle_to(s["fwd"], car.global_basis.y)
 	# Wzmocnienie maleje z prędkością - przy 220 km/h na autostradzie stałe
 	# wzmocnienie rozbujało regulator (wychylenie z pasa rosło do pełnego skrętu).
-	var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
-	var steer: float = clampf((-info["offset"] * 0.25 - head_err * 2.5) * gain, -1, 1)
+	# Autopilot wspólny z regen_highway_test (tests/_autopilot.gd - stałe
+	# wzmocnienia rozbujały auto przy 210 km/h). OLD_AP=1 - stary, do porównań.
+	var steer: float
+	if OS.has_environment("OLD_AP"):
+		var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
+		steer = clampf((-info["offset"] * 0.25 - head_err * 2.5) * gain, -1, 1)
+	else:
+		# Krzywizna toru z kierunku 10 m dalej [rad/m, + w lewo] - człon
+		# wyprzedzający na łukach (bez niego wąwóz: łuk łapany z opóźnieniem).
+		var ahead_fwd: Vector3 = -trk.transform_at_distance(here + 10.0).basis.z
+		var curve: float = (s["fwd"] as Vector3).signed_angle_to(ahead_fwd, car.global_basis.y) / 10.0
+		steer = AP.steer(car, float(info["offset"]), head_err, curve)
 	var kmh: float = car.speed * 3.6
 	if OS.has_environment("DBG_D") and absf(here - float(OS.get_environment("DBG_D"))) < 150.0 and frame % 15 == 0:
 		print("  dbg d=%.0f off %.2f head %.3f steer %.2f %3.0f km/h krzywizna %.4f szer %.1f poz %s próbka %s" % [here, info["offset"], head_err, steer, kmh, float(s.get("curve", 0.0)), float(s["width"]), str(car.global_position.snapped(Vector3.ONE * 0.1)), str((s["pos"] as Vector3).snapped(Vector3.ONE * 0.1))])
