@@ -1,6 +1,6 @@
 # Boty tracą panowanie po klaksonie
 
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Napraw utratę kontroli botów po klaksonie"
 Decyzje użytkownika: zgłoszenie 2026-11-11 - "Boty, gdy na nie zatrąbić,
 często tracą kontrolę nad jazdą... Zdarza się, że tylko od tego mają
@@ -70,3 +70,27 @@ Prośba do agenta lokalnego:
 Otwarte dla użytkownika (nie wdrożone): rzadka cecha "nerwus" - ułamek
 botów reaguje na klakson paniką (gwałtowne hamowanie z odbiciem) i może
 wtedy naprawdę wpaść w poślizg. Tylko jako jawna, rzadka cecha.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-11) Test działa po poprawkach typów (Godot nie zgadywał typów
+`fwd`, `kmh`, `id`, `off` z elementów `main._bots` - pętla `for b:
+StuntCar` i jawne typy). Wyniki `horn_control_test` (najgorszy bot w 10 s):
+
+| | wąwóz | autostrada |
+|---|---|---|
+| przed (bot_driver z d3611f2) | obrót 30°, a_bok 7,5 m/s², OK | **obrót 179°, a_bok 333 m/s² (zderzenie), BŁĄD** |
+| po (#62) | obrót 11°, a_bok 3,7 m/s², OK | obrót 10°, a_bok 3,8 m/s², OK |
+
+Problem odtworzony na autostradzie i naprawiony. Oba tryby w `./quest.sh
+test`. Pełny zestaw OK (w tym horn_test, feud_test, feud_play_test,
+bot_drive_test), `drive_test` 3x2 bez zmian (24.12/24.19, 24.22/24.23,
+24.22/24.29). `bot_rage_test` 3x (nie ma kryterium OK/BŁĄD, to podgląd):
+bot w szale trzyma się gracza 11-67 m, gaz narasta (0,3 na początku);
+w jednym przebiegu błąd skryptu testu - bot zwolniony do puli, a test
+czyta `Driver.rage` (do poprawy w teście, nie w grze). Pościg nie wygląda
+na za miękki - `LAT_GRIP` bez zmian.
+
+Użytkownik (2026-11-11): "fajnie, jeśli potyczki z botami są
+niedeterministyczne, to podnosi emocje" - losowość zostaje (HANDOVER
+sekcja 2). Cecha "nerwus" - pytanie do użytkownika przez Was.

@@ -58,7 +58,7 @@ func _physics_process(delta: float) -> bool:
 			return true
 	if horn_f < 0:
 		return false
-	for b in main._bots:
+	for b: StuntCar in main._bots:
 		if not is_instance_valid(b):
 			continue
 		var drv: BotDriver = b.get_node("Driver")
@@ -66,17 +66,17 @@ func _physics_process(delta: float) -> bool:
 			continue
 		var xf: Transform3D = main.track.transform_at_distance(drv.dist)
 		var road_fwd := -xf.basis.z
-		var fwd := -b.global_basis.z
-		var kmh := absf(b.speed) * 3.6
+		var fwd: Vector3 = -b.global_basis.z
+		var kmh: float = absf(b.speed) * 3.6
 		if kmh > 20.0 and drv._reverse_t <= 0.0:
 			worst_head = maxf(worst_head, rad_to_deg(fwd.angle_to(road_fwd)))
 		var smp: Array = main.track.samples_from(drv.dist, 1.0)
 		if not smp.is_empty():
-			var off := absf((b.global_position - (smp[0]["pos"] as Vector3)).dot(smp[0]["right"]))
+			var off: float = absf((b.global_position - (smp[0]["pos"] as Vector3)).dot(smp[0]["right"]))
 			worst_off = maxf(worst_off, off - float(smp[0]["width"]) * 0.5)
 		if b.global_basis.y.y < 0.3:
 			flipped += 1
-		var id := b.get_instance_id()
+		var id: int = b.get_instance_id()
 		var v: Vector3 = b.linear_velocity
 		if prev_v.has(id) and kmh > 20.0:
 			var a: Vector3 = (v - prev_v[id]) / delta

@@ -83,3 +83,11 @@ kod gry, GPL-3.0). Tekstury pobiera `tools/fetch_highway_media.py`
 - "Realistic Car Pack" (Nov 2018) - Quaternius (https://quaternius.com),
   CC0 - w `models/quaternius/` (OBJ: NormalCar1/2, SportsCar/2, SUV; bez
   Cop i Taxi).
+
+## Manekin crash-test
+
+- "Crash Test Dummy mark1" - Panckuha, Blend Swap #88294
+  (https://blendswap.com/blend/19677), CC0 - w `models/dummy/`
+  (poza siedząca wypieczona z rigu i przeskalowana przez
+  `tools/prepare_dummy.py`; tekstura manekina `man_neutral_Texture1.png`
+  jako `dummy_texture.png`).

@@ -36,6 +36,10 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 - **Trudność trasy (użytkownik przez chmurę 2026-11-11)**: "Trudność
   zależy niezmiennie od odległości przejechanej i trudności początkowej" -
   moc ani wybór auta jej nie zmieniają.
+- **Potyczki z botami mają być nieprzewidywalne (użytkownik 2026-11-11:
+  "fajnie, jeśli potyczki z botami są niedeterministyczne, to podnosi
+  emocje")** - nie usuwać losowości z zachowania botów w szale. Testy
+  szału (`bot_rage_test`) uruchamiać kilka razy i oceniać łącznie.
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
@@ -2067,6 +2071,17 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   postawiło auto od razu. W logu 25x błąd silnika "global_shader_uniforms
   ... has(p_name)" + "should never be used outside the editor" (ktoś
   czyta parametr globalny shadera w grze) - do sprawdzenia.
+- Poprawka chmury (PR #62) "boty tracą panowanie po klaksonie" - czas
+  reakcji 0,5 s, narastanie szału 1,5 s, płynny cel toru, skręt toru
+  ograniczony przyczepnością (`bot_driver.gd`). `horn_control_test` (oba
+  tryby w zestawie): autostrada przed 179° obrotu i zderzenie, po 10°.
+- Manekin crash-test: "Crash Test Dummy mark1" (Panckuha, CC0), wybrany
+  przez użytkownika ("są super!" po renderach `docs/renders/manekin_*`).
+  `tools/prepare_dummy.py` (Blender 5.2 z Debiana, zainstalowany
+  2026-11-11): poza siedząca z rigu, wypieczona, 1,75 m, zero w biodrach,
+  OBJ (eksporter glTF potrzebuje numpy - brak) -> `models/dummy/`.
+  Źródło `.zip` w `build/media_in/dummy` (poza gitem; blendswap wymaga
+  logowania i przeglądarki - pobiera użytkownik).
 - Chmura (przez skrzynkę): 130% zostaje (60 kl./s wystarcza) - poranna
   migracja do 120% cofnięta przed wydaniem; trudność tylko od dystansu.
 - "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
