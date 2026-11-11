@@ -2228,9 +2228,9 @@ func _on_car_wrecked() -> void:
 ## Generowane w kodzie jako 8-bitowy PCM, jak w starych konsolach.
 func _make_chirp() -> AudioStreamWAV:
 	var rate := 22050
-	var data := PackedByteArray()
-	data.resize(int(rate * 0.75))
-	data.fill(0)
+	var smp := PackedInt32Array()
+	smp.resize(int(rate * 0.75))
+	smp.fill(0)
 	var tones := [987.8, 1318.5, 1975.5]
 	for rep in range(2):
 		var start := int(rep * 0.5 * rate)
@@ -2243,13 +2243,8 @@ func _make_chirp() -> AudioStreamWAV:
 				# końcu każdego tonu, żeby nie trzaskało.
 				var env := clampf((n1 - n) / 80.0, 0.0, 1.0)
 				var v := 70 if fmod(n - n0, period) < period * 0.5 else -70
-				data[n] = int(v * env) & 0xFF
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_8_BITS
-	wav.mix_rate = rate
-	wav.stereo = false
-	wav.data = data
-	return wav
+				smp[n] = int(v * env)
+	return AudioUtil.wav(smp, rate, 8)
 
 
 ## Utrata życia: auto wybucha, kamera odjeżdża i pokazuje eksplozję,
@@ -2544,8 +2539,8 @@ func _log_perf(delta: float) -> void:
 static func _make_rain_noise() -> AudioStreamWAV:
 	var rate := 22050
 	var n := rate * 2
-	var data := PackedByteArray()
-	data.resize(n * 2)
+	var smp := PackedInt32Array()
+	smp.resize(n)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 	var lp := 0.0
@@ -2553,16 +2548,8 @@ static func _make_rain_noise() -> AudioStreamWAV:
 		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.35
 		# Pojedyncze trzaski kropel na dachu.
 		var tick := rng.randf_range(-1.0, 1.0) * 0.6 if rng.randf() < 0.002 else 0.0
-		var s16 := int(clampf(lp * 0.6 + tick, -1.0, 1.0) * 26000.0)
-		data[i * 2] = s16 & 0xFF
-		data[i * 2 + 1] = (s16 >> 8) & 0xFF
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = rate
-	wav.data = data
-	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	wav.loop_end = n
-	return wav
+		smp[i] = int(clampf(lp * 0.6 + tick, -1.0, 1.0) * 26000.0)
+	return AudioUtil.wav(smp, rate, 16, true)
 
 
 
@@ -2990,20 +2977,17 @@ func _update_popups(delta: float) -> void:
 func _make_beep(freqs: Array) -> AudioStreamWAV:
 	var rate := 22050
 	var seg := int(rate * 0.06)
-	var data := PackedByteArray()
-	data.resize(seg * freqs.size())
+	var smp := PackedInt32Array()
+	smp.resize(seg * freqs.size())
 	for k in range(freqs.size()):
 		var f: float = freqs[k]
 		for i in range(seg):
 			var t := float(i) / rate
 			var v := 1.0 if fmod(t * f, 1.0) < 0.5 else -1.0
 			var env := clampf((seg - i) / (seg * 0.3), 0.0, 1.0)
-			data[k * seg + i] = int(128.0 + 40.0 * v * env)
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_8_BITS
-	wav.mix_rate = rate
-	wav.data = data
-	return wav
+			# 8 bitów ze znakiem (było "128 + x" bez znaku - trzask na końcu).
+			smp[k * seg + i] = int(40.0 * v * env)
+	return AudioUtil.wav(smp, rate, 8)
 
 
 

@@ -570,20 +570,14 @@ static func _make_horn() -> AudioStreamWAV:
 static func _gen_horn() -> AudioStreamWAV:
 	var rate := 22050
 	var n := int(rate * 0.4)
-	var data := PackedByteArray()
-	data.resize(n * 2)
+	var smp := PackedInt32Array()
+	smp.resize(n)
 	for i in range(n):
 		var t := float(i) / rate
 		var env := clampf(t / 0.02, 0.0, 1.0) * clampf((0.4 - t) / 0.05, 0.0, 1.0)
 		var v: float = (signf(sin(TAU * 420.0 * t)) + signf(sin(TAU * 498.0 * t))) * 0.25 * env
-		var s16 := int(v * 30000.0)
-		data[i * 2] = s16 & 0xFF
-		data[i * 2 + 1] = (s16 >> 8) & 0xFF
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = rate
-	wav.data = data
-	return wav
+		smp[i] = int(v * 30000.0)
+	return AudioUtil.wav(smp, rate)
 
 
 

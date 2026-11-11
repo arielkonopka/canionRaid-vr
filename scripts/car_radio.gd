@@ -310,8 +310,8 @@ static func _make_static() -> AudioStreamWAV:
 	if _noise != null:
 		return _noise
 	var n := int(RATE * 0.5)
-	var data := PackedByteArray()
-	data.resize(n * 2)
+	var smp := PackedInt32Array()
+	smp.resize(n)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1984
 	var lp := 0.0
@@ -320,13 +320,6 @@ static func _make_static() -> AudioStreamWAV:
 		var v := lp * 0.6
 		if rng.randf() < 0.004:
 			v += rng.randf_range(-0.9, 0.9)       # trzask
-		data.encode_s16(i * 2, int(clampf(v, -1.0, 1.0) * 32000.0))
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = RATE
-	wav.stereo = false
-	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	wav.loop_end = n
-	wav.data = data
-	_noise = wav
-	return wav
+		smp[i] = int(clampf(v, -1.0, 1.0) * 32000.0)
+	_noise = AudioUtil.wav(smp, RATE, 16, true)
+	return _noise

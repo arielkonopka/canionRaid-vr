@@ -852,7 +852,9 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `models/period_cars/<model>/` | bryły CC0 (body.obj, wheel.obj) + `paint_mask.png` (lakier, `tools/make_paint_masks.py`) |
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
+| `scripts/audio_util.gd` | `AudioUtil.wav(próbki, rate, bity, pętla)`: jedyny zapis dźwięków generowanych w kodzie (klakson, deszcz, sygnały, szum radia) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
+| `tests/_autopilot.gd` | wspólny autopilot testów (model rowerowy, `steer`, `beta_deg`) - `regen_highway_test`, `endless_test` na autostradzie |
 
 ## 5. Jak to działa
 
@@ -2112,7 +2114,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    ścianą testu. Nie blokuje.
 000. **Przegląd kodu - dalsze paczki** (inbox `przeglad-kodu`,
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
-   8 miejsc), A2, A7, A6 (z `drive_test` 3x2,
+   8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
+   w bit jak przedtem, `_make_beep` naprawiony - zapisywał 8 bitów bez
+   znaku, koniec sygnału trzaskał), A2, A7, A6 (z `drive_test` 3x2,
    wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
    z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
