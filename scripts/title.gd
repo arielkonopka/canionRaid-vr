@@ -100,7 +100,7 @@ func _ready() -> void:
 		# Kołami na jezdni: środek koła ~0,41 m pod mocowaniem (ugięcie
 		# pod ciężarem) + promień koła (sedan i concept mają różne koła).
 		var xf := track.transform_at_distance(30.0)
-		var lane := (float(track.samples_from(30.0, 1.0)[0]["width"]) - 1.0) / 3.0
+		var lane := StuntTrack.lane_width(float(track.samples_from(30.0, 1.0)[0]["width"]))
 		car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane
 				+ xf.basis.y * (0.41 + car.wheel_radius)))
 		car.linear_velocity = Vector3.ZERO
@@ -122,7 +122,7 @@ func _ready() -> void:
 ## Auto na trasie w odległości `d`, w ruchu (prawy pas, 50 km/h).
 func _place_car(d: float) -> void:
 	var xf := track.transform_at_distance(d)
-	var lane := (float(track.samples_from(d, 1.0)[0]["width"]) - 1.0) / 3.0
+	var lane := StuntTrack.lane_width(float(track.samples_from(d, 1.0)[0]["width"]))
 	car.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
 	car._settle_t = 0.0
 	var v := 50.0 / 3.6

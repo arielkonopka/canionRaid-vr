@@ -178,7 +178,7 @@ func _drive_step(delta: float) -> void:
 
 	var right: Vector3 = best["right"]
 	var w := float(best["width"])
-	var lane_w := (w - 1.0) / 3.0
+	var lane_w := StuntTrack.lane_width(w)
 	var rel := car.global_position - (best["pos"] as Vector3)
 	var offset := rel.dot(right)
 	var target_off := lane_w                          # prawy pas
@@ -429,12 +429,7 @@ func _ready() -> void:
 	# Zderzenie: sygnał body_entered (contact_monitor jest włączony w aucie) -
 	# odpytywanie kontaktów w klatce gubiło krótkie uderzenia.
 	car.body_entered.connect(_on_body_entered)
-	_horn = AudioStreamPlayer3D.new()
-	_horn.stream = _make_horn()
-	_horn.unit_size = 8.0
-	EnvAudio.ensure_bus()
-	_horn.bus = EnvAudio.BUS
-	car.add_child(_horn)
+	_horn = horn_on(car)
 
 
 ## Zderzenie z autem gracza (fizyka już zadziałała) - bot wpada w szał.
@@ -543,6 +538,22 @@ func enrage(origin := "self") -> void:
 
 ## Klakson: dwa tony (~420 i ~500 Hz, jak typowy samochodowy), 0,4 s,
 ## generowany w kodzie.
+## Klakson auta: istniejący odtwarzacz "Horn" albo nowy (raz na auto).
+## Wspólne dla botów, gracza i scenek (były 3 kopie; nowy BotDriver
+## dokładał autu z puli kolejny odtwarzacz przy każdym użyciu).
+static func horn_on(c: Node3D) -> AudioStreamPlayer3D:
+	var h := c.get_node_or_null("Horn") as AudioStreamPlayer3D
+	if h == null:
+		h = AudioStreamPlayer3D.new()
+		h.name = "Horn"
+		h.stream = _make_horn()
+		h.unit_size = 8.0
+		EnvAudio.ensure_bus()
+		h.bus = EnvAudio.BUS
+		c.add_child(h)
+	return h
+
+
 ## Klakson: jeden dźwięk na grę (był generowany w GDScript dla każdego
 ## nowego bota - 8820 próbek przy każdym pojawieniu się).
 static var _horn_stream: AudioStreamWAV

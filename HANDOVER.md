@@ -1980,6 +1980,15 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   wył. tylko +1 kl./s. Skoki ~170 ms co 30-40 s = budowa nowego auta
   ponad pulę -> pule 14 + 8 aut z naprzeciwka przy wczytywaniu.
   `auto_fiz` 49 -> 59 ms/s (odzysk koło po kole - do sprawdzenia).
+  **Przy 110% pełne 72 kl./s** (71,9). Porządki DRY:
+  `StuntTrack.lane_width`, `XrMain._explode`, `BotDriver.horn_on`
+  (wyciek odtwarzaczy klaksonu w autach z puli), usunięty martwy
+  `Gauges.set_limit`. Testy: pełny `quest.sh test` OK, drive_test
+  95 × (soft/sport/stiff) × (auto/manual) - wszystkie meta 24,1-24,3 s.
+  Chmura scaliła PR #57 (z pierwszą częścią przeglądu); dalej PR #58 -
+  **PR-y otwiera teraz agent lokalny** (użytkownik 2026-11-11, notka
+  chmury), w opisie lista testów i wyniki, przy fizyce zawsze drive_test
+  (zawieszenia × skrzynie).
 - Noc 2026-11-11 (użytkownik śpi, gogle podłączone, **utrzymane w czuwaniu**:
   `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close` i
   `adb shell svc power stayon true`; przywrócenie:

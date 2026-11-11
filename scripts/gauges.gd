@@ -26,8 +26,6 @@ var _rpm_dial: Node3D
 var _speed_max := 400.0
 var _rpm_max := 8000.0
 var _zones := {}                           # nazwa strefy -> [materiał, segment]
-var _limit_label: Label3D                  # liczba na znaku ograniczenia
-var _limit_sign: Node3D                    # znak ograniczenia pod wskaźnikiem uszkodzeń
 var _fuel_needle: Node3D
 var _fuel_light: MeshInstance3D
 var _fuel_light_mat: StandardMaterial3D
@@ -473,19 +471,6 @@ func update_values(kmh: float, rpm: float, damage: Dictionary) -> void:
 
 
 ## Ograniczenie prędkości i ostrzeżenie o przekroczeniu (limit <= 0: puste).
-func set_limit(limit: float, over: bool) -> void:
-	if _limit_label == null:
-		return
-	if _limit_sign == null:
-		return
-	if limit <= 0.0:
-		_limit_sign.visible = false
-		return
-	_limit_label.text = str(roundi(limit))
-	# Przekroczenie: znak miga (co 0,4 s).
-	_limit_sign.visible = not over or int(Time.get_ticks_msec() / 400) % 2 == 0
-
-
 func _mark_mat_white() -> StandardMaterial3D:
 	return _unshaded(Color(0.97, 0.97, 0.95))
 

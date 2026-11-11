@@ -1732,6 +1732,12 @@ func _build_workshop(stop_dist: float) -> void:
 
 
 ## Próbki od `dist` na długości `length` (HUD trasy, autopilot).
+## Szerokość pasa w 3-pasowym układzie wąwozu (jezdnia minus pobocza
+## po 0,5 m) - wspólna dla botów, scen i menu (było 6 kopii wzoru).
+static func lane_width(road_w: float) -> float:
+	return (road_w - 1.0) / 3.0
+
+
 ## stride > 1: co stride-ta próbka plus każda ze znacznikiem (meta) - mapka
 ## na desce i ostrzeżenia nie potrzebują próbki co 1 m (było ~1500 kopii
 ## słowników 4 razy na sekundę, skoki do 20 ms na Queście).

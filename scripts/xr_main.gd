@@ -728,6 +728,17 @@ func _bot_style(bot: StuntCar, st: String) -> void:
 	bot.apply_suspension_preset(d["suspension"])
 
 
+## Wybuch auta `c` (gracz, bot, auto ze scenki) w kolorze jego lakieru.
+func _explode(c: StuntCar) -> void:
+	Perf.mark("explosion")
+	var boom := Explosion.new()
+	boom.paint = c._paint_mat.albedo_color if c._paint_mat else Color(0.8, 0.6, 0.2)
+	boom.ignore = [car] + _bots
+	add_child(boom)
+	boom.add_to_group(WorldOrigin.GROUP)
+	boom.global_position = c.global_position
+
+
 ## Kierowca bota (BotDriver) - referencja w aucie zamiast get_node("Driver")
 ## (~25 miejsc, część w komparatorach sortowania).
 static func _drv(b: StuntCar) -> BotDriver:
@@ -1054,13 +1065,7 @@ func _update_bots(delta: float) -> void:
 				var fell_out: bool = b.global_position.y < -50.0
 				score_chase_close(b, "wreck" if dead and not fell_out else "lost")
 			if dead:
-				Perf.mark("explosion")
-				var boom := Explosion.new()
-				boom.paint = b._paint_mat.albedo_color
-				boom.ignore = [car] + _bots
-				add_child(boom)
-				boom.add_to_group(WorldOrigin.GROUP)
-				boom.global_position = b.global_position
+				_explode(b)
 			_bots.erase(b)
 			_retire_bot(b, dead)
 			Perf.mark("bot_free")
@@ -1077,11 +1082,7 @@ func player_horn() -> void:
 	if _mode != Mode.DRIVE:
 		return
 	if _player_horn == null:
-		_player_horn = AudioStreamPlayer3D.new()
-		_player_horn.stream = BotDriver._make_horn()
-		_player_horn.unit_size = 8.0
-		_player_horn.bus = EnvAudio.BUS
-		car.add_child(_player_horn)
+		_player_horn = BotDriver.horn_on(car)
 	_player_horn.play()
 	var now := Time.get_ticks_msec() / 1000.0
 	if now < _horn_cd:
@@ -1136,7 +1137,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	var smp: Array = track.samples_from(d, 2.0)
 	if smp.is_empty():
 		return
-	var lane_w := (float(smp[0]["width"]) - 1.0) / 3.0
+	var lane_w := StuntTrack.lane_width(float(smp[0]["width"]))
 	var lim := float(smp[0]["limit"])
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
@@ -2101,7 +2102,7 @@ func _safe_pose(d: float) -> Transform3D:
 		xf = track.transform_at_distance(dd)
 		var smp: Array = track.samples_from(dd, 2.0)
 		var w: float = smp[0]["width"] if not smp.is_empty() else 9.0
-		var lane := (w - 1.0) / 3.0
+		var lane := StuntTrack.lane_width(w)
 		if _endless and track.autostrada:
 			lane = hwy_lane_off(0)          # prawy pas autostrady, nie pas awaryjny
 		xf.origin += xf.basis.x * lane + xf.basis.y * 0.9
@@ -2168,12 +2169,7 @@ func lose_life(reason: String) -> void:
 	race_state = Race.EXPLODING
 	_cine_reason = reason
 	_cine_t = 0.0
-	var boom := Explosion.new()
-	boom.paint = car._paint_mat.albedo_color if car._paint_mat else Color(0.8, 0.6, 0.2)
-	boom.ignore = [car] + _bots
-	add_child(boom)
-	boom.add_to_group(WorldOrigin.GROUP)
-	boom.global_position = car.global_position
+	_explode(car)
 	if car.get_node_or_null("Audio"):
 		car.get_node("Audio").thud(1.0)
 	car.visible = false
@@ -2633,26 +2629,12 @@ func _osk_event(ev: Dictionary) -> void:
 	var c: StuntCar = o["car"]
 	match ev["type"]:
 		"horn":
-			var h: AudioStreamPlayer3D = c.get_node_or_null("OskHorn")
-			if h == null:
-				h = AudioStreamPlayer3D.new()
-				h.name = "OskHorn"
-				h.stream = BotDriver._make_horn()
-				h.unit_size = 8.0
-				h.bus = EnvAudio.BUS
-				c.add_child(h)
-			h.play()
+			BotDriver.horn_on(c).play()
 		"hit":
 			# B dostaje z boku od strony A (A jest bliżej pasa rozdziału).
 			c.dent(Vector3(-0.85, 0.55, 0.3), Vector3(1.0, 0.0, 0.0), 0.07)
 		"boom":
-			Perf.mark("explosion")
-			var boom := Explosion.new()
-			boom.paint = c._paint_mat.albedo_color
-			boom.ignore = [car] + _bots
-			add_child(boom)
-			boom.add_to_group(WorldOrigin.GROUP)
-			boom.global_position = c.global_position
+			_explode(c)
 		# "sparks", "smoke" - na razie bez efektu (do zrobienia).
 
 
@@ -2770,7 +2752,7 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var xf: Transform3D = track.transform_at_distance(d)
 	var smp: Array = track.samples_from(d, 2.0)
 	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
-	var lane_w := (w - 1.0) / 3.0
+	var lane_w := StuntTrack.lane_width(w)
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	if _endless and track.autostrada:
 		# 2+2: wolny pas jezdni z naprzeciwka (lane 0) przy jej poboczu,
