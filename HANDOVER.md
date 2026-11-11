@@ -531,6 +531,31 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   razu (`"live": true` w OPTIONS - bez restartu mimo grupy Trasa).
   **Testy bez okna zawsze 100%** (kalibracja); `CANION_TIME_SCALE=1.3`
   wymusza tempo w teście.
+- **Dwie drogi postępu (użytkownik 2026-11-11)**: (1) szybka jazda bez
+  wypadków, (2) furia drogowa. Punktację furii dopracowywać - np. "wzorowy
+  szeryf" za 5 min pościgu bez dania się wyprzedzić, premia za wyhamowanie
+  bota na drodze (zrobione, `ScoreKeeper.chase_tick`).
+- **Zasada wydajności botów (użytkownik 2026-11-11, przy zleceniu
+  przeglądu)**: auto gracza **zawsze** zgodnie z fizyką. Boty mogą
+  "oszukiwać", gdy gracz ich nie widzi, albo gdy odstępstwo od fizyki
+  (np. prędkość) mieści się w **7%**. **Wyjątek**: bot uderzony przez
+  auto gracza zawsze zachowuje bezwładność i reakcję na zderzenie zgodne
+  z fizyką ("chodzi o odczucie gry"). Refaktoring w duchu DRY.
+- **Inne auta dla gracza (użytkownik 2026-11-11: "nawet jeśli środek będzie
+  wyglądał tak samo, rozkład masy byłby inny")**: menu Nadwozie -> Model
+  auta: sedan, concept + 7 modeli z epoki. Ustalenia agenta (do oceny):
+  model daje bryłę, rozstawy, rozkład masy (środek masy, bezwładność),
+  mnożniki zawieszenia, hamulce i opór (cd·area - opcja Opływowość tylko
+  dla sedana/concept, spojler tylko sedan); **silnik, moc, napęd i masa
+  dalej z menu**. Kokpit sedana przesunięty do fotela modelu (`seat`),
+  bryła modelu niewidoczna z kokpitu (`STYLE_BODY_LAYER`, warstwa 10 -
+  pusta skorupa od środka dawała strzępy dachu).
+- **Premia za odcinek ze średniej prędkości (użytkownik 2026-11-11)**:
+  "średnia 100 km/h = 100 pkt, 200 = 1000, 300 = 10 000" -> 10^(v/100+1)
+  (`ScoreKeeper.section_points`, płynnie pomiędzy, 150 km/h = 316).
+  Średnia od bramy do bramy w czasie gry (tempo gry nie zmienia wyniku),
+  postoje (stacja, warsztat, odrodzenie) liczą się do czasu. Bez mnożnika
+  serii. Napis "+N ODCINEK 134 km/h", log "ODCINEK n: ... średnio".
 - **Waśnie: mniej scenek z naprzeciwka, więcej na naszej jezdni**
   (użytkownik 2026-11-10): scenki na drugiej jezdni co 3-6 km
   (`OSK_GAP_MIN/MAX`, było 1,2-2,5 km); samoistna iskra między wrogami
@@ -1899,6 +1924,45 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   inteligentnie, zsynchronizowane z ESP"): `_regen_wheel` - ESP zdejmuje
   odzysk tylko z tylnych kół, ABS według poślizgu każdego koła; przednie
   dalej hamują i ładują baterię.
+  **"Kontrola trakcji przy rekuperacji pozostawia wiele do życzenia"**
+  (jazda po tym): log - 213 km/h na prostej, gaz puszczony, koła 89-93%
+  poślizgu, skoki 3-6 g. Na równej drodze odzysk gładki (0,3 g, poślizg
+  10%); przyczyna - garby: ABS odzysku sprawdzał tylko koła z kontaktem,
+  koło odciążone/w powietrzu silnik zatrzymywał, po lądowaniu blokada.
+  `_regen_abs`: jak prawdziwy ABS - obroty koła a prędkość auta (od 4%
+  poślizgu wzdłużnego odzysk maleje, 12% = zero), też w powietrzu. Test
+  na garbach 0,35 m przy 213 km/h: poślizg 100% -> 12%, skok przy
+  lądowaniu 29 g -> 19 g (sam garb). Łuk: 9°, prosta 0,30 g. Pełny
+  `quest.sh test` OK.
+  **"Nadal nie dostałoby atestów" / "na luzie z rekuperacją, już powyżej
+  setki widać, jest nadsterowny"**: przyczyna - odzysk w kołach dzielony
+  po równo (25% na koło); przy hamowaniu przód dociśnięty, tył odciążony,
+  więc tył hamowany za mocno (jak hamulce ustawione na tył). Teraz udział
+  koła = jego docisk / suma docisków (`_physics_step`, gałąź `_hub()`).
+  Łuk 120 km/h, skręt 0,18, mocny odzysk: 9,1° -> 3,8° (bez odzysku 5,2°),
+  hamowanie podobne. Testy w zestawie: `liftoff_test` (łuk, < 6°) i
+  `regen_highway_test` (autostrada, ustawienia użytkownika, cykl gaz do
+  150 km/h / 4 s bez gazu; 120-180 km/h: znoszenie < 2°).
+  **Otwarte - stabilność > 200 km/h**: autopilot testu przy 200-210 km/h
+  na prostej pływa 6° nawet bez odzysku (z odzyskiem 10-35°, wyniki
+  zmienne między przebiegami) - ten sam problem co "przy 400 km/h szybko
+  traci przyczepność"; do zbadania osobno (autopilot czy auto).
+  Pełny `quest.sh test` OK (z liftoff_test i regen_highway_test).
+  Ocena użytkownika w goglach: **"jest widocznie lepiej"**.
+  2026-11-11: "nieźle, nadal na luzie z rekuperacją na zakrętach trochę
+  nadsterowny, dziwne, bo lepiej na zakręcie dodawać gazu" -> z ESP odzysk
+  w łuku przechodzi z tyłu na przód (`rear_k`: od 0,1 g bocznie, przy
+  0,5 g cały odzysk na przednich kołach), jak w elektrykach z silnikami
+  w kołach. Łuk 120 km/h: skręt 0,18 3,8° -> 2,9°, 0,25 4,2° -> 3,2°
+  (bez odzysku 5,2°). Bez ESP - podział tylko według docisku. Częściowy
+  gaz (5-30%): 2,9-4,5°, płynnie (więcej przy 15-20% z powodu większej
+  prędkości w tym samym łuku).
+- Noc 2026-11-11 (użytkownik śpi, gogle podłączone, **utrzymane w czuwaniu**:
+  `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close` i
+  `adb shell svc power stayon true`; przywrócenie:
+  `... vrpowermanager.automation_disable` i `svc power stayon false`):
+  premie szeryfa, auta z epoki dla gracza (drive_test 95 sport auto
+  w każdym modelu - meta 23,9-25,0 s), potem przegląd wydajności.
 - **Przegląd chmury PR #56** (inbox na gałęzi `claude/project-thread-c1gdbc`,
   `2026-11-10-pr56-przeglad.md`): (1) pełne szukanie próbki > 30 m
   włączało się dla sąsiednich kawałków przy każdym wywołaniu -> parametr

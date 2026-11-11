@@ -117,6 +117,12 @@ var current_limit := 100.0
 # --- ćwierknięcie przy nowym odcinku ---
 var _chirp: AudioStreamPlayer
 var _last_section := 1
+var _race_label_t := 0.0
+var _race_label_state := -1
+## Początek bieżącego odcinka (premia za średnią prędkość - ScoreKeeper.
+## section_done): czas jazdy i dystans bramy.
+var _sec_t0 := 0.0
+var _sec_d0 := 0.0
 
 # --- utrata życia: eksplozja i odjazd kamery ---
 const CINE_MOVE := 2.2               # odjazd kamery [s]
@@ -718,6 +724,12 @@ func _bot_style(bot: StuntCar, st: String) -> void:
 	bot.apply_suspension_preset(d["suspension"])
 
 
+## Kierowca bota (BotDriver) - referencja w aucie zamiast get_node("Driver")
+## (~25 miejsc, część w komparatorach sortowania).
+static func _drv(b: StuntCar) -> BotDriver:
+	return b.driver as BotDriver
+
+
 func _warm_bot_pool() -> void:
 	while _bot_pool.size() + _bots.size() < BOT_POOL_WARM:
 		var b := _new_bot_car()
@@ -751,6 +763,7 @@ func _retire_bot(b: StuntCar, dead := false) -> void:
 	# ponownym użyciu - remove_bot musi przyjść przed add_bot).
 	_feud_events(feud.remove_bot(b.get_instance_id(), race_time, dead))
 	var drv := b.get_node_or_null("Driver")
+	b.driver = null
 	if drv:
 		b.remove_child(drv)
 		drv.queue_free()
@@ -802,26 +815,26 @@ func _assign_tokens() -> void:
 	var held := 0
 	var want := []
 	for b in _bots:
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		if not (drv.rage > 0.0 or feud.in_feud(b.get_instance_id())):
 			drv.has_token = false
 		elif drv.has_token:
 			held += 1
 		else:
 			want.append(b)
-	want.sort_custom(func(a, b): return absf((a.get_node("Driver") as BotDriver).dist - _last_safe_dist) \
-			< absf((b.get_node("Driver") as BotDriver).dist - _last_safe_dist))
+	want.sort_custom(func(a, b): return absf(_drv(a).dist - _last_safe_dist) \
+			< absf(_drv(b).dist - _last_safe_dist))
 	for b in want:
 		if held >= CHASE_TOKENS:
 			break
-		(b.get_node("Driver") as BotDriver).has_token = true
+		_drv(b).has_token = true
 		held += 1
 
 
 func _free_tokens() -> int:
 	var held := 0
 	for b in _bots:
-		if (b.get_node("Driver") as BotDriver).has_token:
+		if _drv(b).has_token:
 			held += 1
 	return CHASE_TOKENS - held
 
@@ -829,7 +842,7 @@ func _free_tokens() -> int:
 ## Bot w zasięgu potyczki: z fizyką, bliżej niż `r` (domyślnie NEAR_R
 ## 120 m) i w stożku widzenia gracza.
 func _in_sight(b: StuntCar, r := BotLod.NEAR_R) -> bool:
-	var drv: BotDriver = b.get_node("Driver")
+	var drv: BotDriver = _drv(b)
 	if drv.lod == BotLod.RAIL or absf(drv.dist - _last_safe_dist) > r:
 		return false
 	return TrafficZone.visible(camera.global_position, -camera.global_basis.z, -car.global_basis.z, b.global_position)
@@ -850,7 +863,7 @@ func _feud_scan() -> void:
 	var now := race_time
 	var phys: Array = []
 	for b in _bots:
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		var id := b.get_instance_id()
 		# Waśń, której strona jest poza wzrokiem (stożek, 1,5 x NEAR_R)
 		# dłużej niż FEUD_OOS_MAX, gaśnie; żeton wraca do puli.
@@ -867,7 +880,7 @@ func _feud_scan() -> void:
 			_feud_oos.erase(id)
 		if drv.lod != BotLod.RAIL:
 			phys.append(b)
-	phys.sort_custom(func(a, b): return (a.get_node("Driver") as BotDriver).dist < (b.get_node("Driver") as BotDriver).dist)
+	phys.sort_custom(func(a, b): return _drv(a).dist < _drv(b).dist)
 	var room := _feud_count() < MAX_FEUDS and _free_tokens() >= 2
 	var order := {}
 	for i in range(phys.size()):
@@ -887,7 +900,7 @@ func _feud_scan() -> void:
 			if j >= phys.size():
 				break
 			var c: StuntCar = phys[j]
-			var dd := absf((c.get_node("Driver") as BotDriver).dist - (a.get_node("Driver") as BotDriver).dist)
+			var dd := absf(_drv(c).dist - _drv(a).dist)
 			if dd < FeudDirector.NEAR_SPARK_R:
 				_feud_events(feud.on_near(ida, c.get_instance_id(), 0.25, now, sa and _in_sight(c)))
 	_feud_order = order
@@ -908,7 +921,7 @@ func _feud_events(evs: Array) -> void:
 				# Potyczka potrzebuje żetonu dla każdej strony bez żetonu.
 				var need := 0
 				for x in [a, b]:
-					if x and not (x.get_node("Driver") as BotDriver).has_token:
+					if x and not _drv(x).has_token:
 						need += 1
 				if a and b and need > _free_tokens():
 					feud.calm(int(ev["a"]))
@@ -916,10 +929,10 @@ func _feud_events(evs: Array) -> void:
 					continue
 				if a and b:
 					for x in [a, b]:
-						(x.get_node("Driver") as BotDriver).has_token = true
-					(a.get_node("Driver") as BotDriver).feud_with(b)
+						_drv(x).has_token = true
+					_drv(a).feud_with(b)
 					if feud.target_of(int(ev["b"])) == int(ev["a"]):
-						(b.get_node("Driver") as BotDriver).feud_with(a)
+						_drv(b).feud_with(a)
 					print("Waśń: gang %d na gang %d" % [int(_bot_gang.get(int(ev["a"]), -1)), int(_bot_gang.get(int(ev["b"]), -1))])
 				if ev.get("provoked", false) and int(ev.get("points", 0)) > 0:
 					_score_pay(score.award_free("feud", int(ev["points"]), race_time, "PROWOKACJA"))
@@ -930,7 +943,7 @@ func _feud_events(evs: Array) -> void:
 					var bb := _bot_by_id(int(id))
 					if bb == null:
 						continue
-					var bd: BotDriver = bb.get_node("Driver")
+					var bd: BotDriver = _drv(bb)
 					if not bd.has_token and _free_tokens() > 0:
 						bd.has_token = true
 					if bd.has_token:
@@ -942,7 +955,7 @@ func _feud_events(evs: Array) -> void:
 			"feud_end":
 				var e := _bot_by_id(int(ev["id"]))
 				if e:
-					(e.get_node("Driver") as BotDriver).end_feud()
+					_drv(e).end_feud()
 			"feud_wreck":
 				if ev.get("provoked", false) and int(ev.get("points", 0)) > 0:
 					_score_pay(score.award_free("feud_wreck", int(ev["points"]), race_time, "WRAK Z WAŚNI"))
@@ -974,7 +987,7 @@ func _update_bot_lod(delta: float) -> void:
 	var dists := PackedFloat32Array()
 	var raging := []
 	for b in _bots:
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		dists.append(absf(drv.dist - _last_safe_dist))
 		raging.append(drv.has_token)
 	if _lod_prev.size() != _bots.size():
@@ -983,7 +996,7 @@ func _update_bot_lod(delta: float) -> void:
 	_lod_prev = lv
 	for i in range(_bots.size()):
 		var b: StuntCar = _bots[i]
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		drv.lod = lv[i]
 		b.TIRE_SUBSTEPS = 2 if lv[i] == BotLod.NEAR else 1
 	_feud_scan()
@@ -1004,7 +1017,7 @@ func _update_bots(delta: float) -> void:
 		if _bots.size() < limit:
 			_spawn_bot(_last_safe_dist + _bot_rng.randf_range(220.0, 900.0))
 	for b in _bots.duplicate():
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		# Bot w szale nie znika tak łatwo - ma czas dogonić gracza.
 		var behind_max := 700.0 if drv.rage > 0.05 else 250.0
 		# Autostrada: spokojny ruch usuwa TrafficZone (poza wzrokiem); bot
@@ -1055,7 +1068,7 @@ func player_horn() -> void:
 	for b in _bots:
 		if not is_instance_valid(b):
 			continue
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		if drv.rage < 0.5 and b.global_position.distance_to(car.global_position) < HORN_RADIUS:
 			drv.enrage("horn")
 			n += 1
@@ -1068,7 +1081,7 @@ func call_reinforcements(from: StuntCar, radius: float) -> void:
 	for b in _bots:
 		if b == from or not is_instance_valid(b):
 			continue
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		if drv.rage < 0.5 and b.global_position.distance_to(from.global_position) < radius:
 			drv.enrage("reinforce")
 
@@ -1080,7 +1093,7 @@ func rage_partner(me: StuntCar) -> StuntCar:
 	for b in _bots:
 		if b == me or not is_instance_valid(b):
 			continue
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		var dd := b.global_position.distance_to(car.global_position)
 		if drv.rage > 0.5 and dd < best_d:
 			best_d = dd
@@ -1133,6 +1146,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	drv.lane = maxi(lane_i, 0)
 	drv.has_token = false                 # żetony rozdaje _assign_tokens
 	bot.add_child(drv)
+	bot.driver = drv
 	_bots.append(bot)
 	feud.add_bot(bot.get_instance_id(), int(_bot_gang.get(bot.get_instance_id(), 0)))
 
@@ -1171,7 +1185,12 @@ func update_race(delta: float) -> void:
 	if _track_hud and _race_label:
 		_track_hud.show_limit(_hud_panel, _race_label.position + Vector3(0.062, -0.105, 0.0),
 				current_limit if _endless else -1.0, not player_compliant())
-	if _race_label:
+	# Napis zegara co 0,1 s (wcześniej co krok fizyki z setnymi sekundy -
+	# Label3D przebudowywał siatkę tekstu co klatkę).
+	_race_label_t -= delta
+	if _race_label and (_race_label_t <= 0.0 or race_state != _race_label_state):
+		_race_label_t = 0.1
+		_race_label_state = race_state
 		if race_state == Race.READY:
 			_race_label.text = "gotowy\nruszaj!"
 		elif race_state == Race.FINISHED:
@@ -1190,9 +1209,9 @@ func update_race(delta: float) -> void:
 			if score.combo_active(race_time):
 				pts += " x%d" % score.combo
 			_race_label.text = "odcinek %d\n%.2f km\n%s%s%s" % [
-					track.section_at(_last_safe_dist), _max_dist / 1000.0, _fmt_time(race_time), pts, cr]
+					_last_section, _max_dist / 1000.0, _fmt_time(race_time, true), pts, cr]
 		else:
-			_race_label.text = _fmt_time(race_time)
+			_race_label.text = _fmt_time(race_time, true)
 
 
 ## Meta przekroczona, gdy auto przejdzie przez płaszczyznę linii mety
@@ -1284,6 +1303,8 @@ func restart_race() -> void:
 	_next_ws = {}
 	_ws_done_stop = -INF
 	_last_section = 1
+	_sec_t0 = 0.0
+	_sec_d0 = 0.0
 	_next_station = {}
 	car.refuel(1.0)
 	if _ws_label:
@@ -1496,7 +1517,7 @@ func _update_warning(delta: float) -> void:
 		if not sd.is_empty() and float(sd["start"]) - 40.0 - _last_safe_dist < 400.0 \
 				and float(sd["start"]) > _last_safe_dist:
 			kind = svc[1]
-	for s in (track.samples_from(_last_safe_dist, 250.0) if kind == "" else []):
+	for s in (track.samples_from(_last_safe_dist, 250.0, 4) if kind == "" else []):
 		var m: Dictionary = s["meta"]
 		if m.has("curve_sign"):
 			kind = "curve_r" if m["curve_sign"] > 0 else "curve_l"
@@ -1545,7 +1566,8 @@ func _build_mirror() -> void:
 		# lusterko wisiało osobno obok atrapy - zgłoszenie użytkownika).
 		q.size = Vector2(StuntCar.MIRROR_GLASS_SIZE.x, StuntCar.MIRROR_GLASS_SIZE.y)
 		_mirror_vp.size = Vector2i(256, int(256.0 * q.size.y / q.size.x))
-		glass.transform = car.mirror_mount.translated_local(
+		# Model z epoki: kokpit sedana przesunięty o cockpit_offset.
+		glass.transform = Transform3D(car.mirror_mount.basis, car.mirror_mount.origin + car.cockpit_offset).translated_local(
 				Vector3(0.0, 0.0, StuntCar.MIRROR_GLASS_SIZE.z * 0.5 + 0.001))
 		car.add_child(glass)
 		return
@@ -1594,7 +1616,7 @@ func _build_radio() -> void:
 	_radio_label.modulate = Color(1.0, 0.85, 0.55)
 	_radio_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	if car.get_node_or_null("MirrorFace") and car.body_model == "sedan":
-		_radio_label.position = Vector3(0.10, 0.03, -0.24)
+		_radio_label.position = Vector3(0.10, 0.03, -0.24) + car.cockpit_offset
 		car.add_child(_radio_label)
 	else:
 		_radio_label.position = Vector3(0.0, -TrackHud.SIZE.y * 0.5 - 0.03, 0.0)
@@ -1661,7 +1683,11 @@ func _on_radio_text(text: String) -> void:
 		_show_popup(text.get_slice("\n", 0) + "  " + text.get_slice("\n", 1), false)
 
 
-func _fmt_time(t: float) -> String:
+## coarse: dziesiąte części sekundy (zegar na desce odświeżany co 0,1 s);
+## wyniki i log - setne.
+func _fmt_time(t: float, coarse := false) -> String:
+	if coarse:
+		return "%d:%04.1f" % [int(t / 60.0), fmod(t, 60.0)]
 	return "%d:%05.2f" % [int(t / 60.0), fmod(t, 60.0)]
 
 
@@ -1777,7 +1803,7 @@ func _process(delta: float) -> void:
 	var th := Time.get_ticks_usec()
 	if _track_hud:
 		_track_hud.refresh(delta, car.get_global_transform_interpolated(),
-				func(): return track.samples_from(_last_safe_dist - 10.0, TrackHud.RANGE + 20.0),
+				func(): return track.samples_from(_last_safe_dist - 10.0, TrackHud.RANGE + 20.0, TrackHud.STRIDE),
 				_last_safe_dist)
 		_update_warning(delta)
 	Perf.add("hud", th)
@@ -1787,7 +1813,7 @@ func _process(delta: float) -> void:
 	var p := car.global_position
 	gm.global_position = Vector3(snappedf(p.x, 50.0), 0.0, snappedf(p.z, 50.0))
 	# Góry na horyzoncie też (jak tło - nie da się do nich dojechać).
-	_update_biome()
+	# Biom (paleta, horyzont, morze) - w _watch_track, 5 razy na sekundę.
 	if _horizon:
 		_horizon.global_position = Vector3(p.x, 0.0, p.z)
 
@@ -1816,7 +1842,10 @@ func _follow_car(delta: float) -> void:
 ## Przezroczystość kabiny tylko w widoku z kokpitu; z zewnątrz auto pełne.
 func _update_cockpit_transparency() -> void:
 	var t := 0.0
-	if _mode == Mode.DRIVE and (_xr_ready or _cockpit_on_pc):
+	var inside := _mode == Mode.DRIVE and (_xr_ready or _cockpit_on_pc)
+	# Bryła modelu z epoki niewidoczna z kokpitu (StuntCar.STYLE_BODY_LAYER).
+	camera.set_cull_mask_value(10, not inside)
+	if inside:
 		var gs := get_node_or_null("/root/GameSettings")
 		t = (gs.cockpit_alpha if gs else 40) / 100.0
 	car.set_cockpit_transparency(t)
@@ -1909,9 +1938,20 @@ func _watch_track(delta: float) -> void:
 	if _endless:
 		# Dobudowa trasy przed autem, sprzątanie za nim.
 		track.update_progress(float(s["dist"]))
+		# Biom: przejście trwa 2,8 km - 5 razy na sekundę wystarczy (było co klatkę).
+		_update_biome()
 		var sec: int = track.section_at(_last_safe_dist)
 		if sec > _last_section:
 			_last_section = sec
+			# Premia za odcinek: średnia od bramy do bramy (w czasie gry).
+			var d1: float = track.checkpoint_before(_last_safe_dist)
+			var dt_s := race_time - _sec_t0
+			if race_state == Race.RACING and dt_s > 1.0 and d1 > _sec_d0:
+				var avg := (d1 - _sec_d0) / dt_s * 3.6
+				print("ODCINEK %d: %.0f m w %.1f s, średnio %.0f km/h" % [sec - 1, d1 - _sec_d0, dt_s, avg])
+				_score_pay(score.section_done(avg))
+			_sec_t0 = race_time
+			_sec_d0 = d1
 			feud.roll_relations(range(GANGS), sec)
 			_chirp.play()
 			score.new_section()
@@ -2356,7 +2396,7 @@ func _log_perf(delta: float) -> void:
 	_tempo_usec = usec
 	var rail := 0
 	for b in _bots:
-		if b.get_node("Driver").on_rail:
+		if _drv(b).on_rail:
 			rail += 1
 	var vp := get_viewport().get_viewport_rid()
 	if not _perf_measure:
@@ -2439,9 +2479,22 @@ func _update_oncoming(delta: float) -> void:
 	if _endless and track.autostrada:
 		_update_skirmish(delta)
 	for o in _oncoming.duplicate():
+		var c: StuntCar = o["car"]
+		if is_instance_valid(c) and not o.has("loose") and c.visible \
+				and (c.global_position - car.global_position).length_squared() < LOOSE_R * LOOSE_R:
+			_loosen_oncoming(o)
+		if o.has("loose"):
+			# Swobodne auto (po zbliżeniu gracza): sama fizyka, do puli daleko
+			# za graczem albo po LOOSE_TIME.
+			o["loose_t"] = float(o["loose_t"]) + delta
+			if not is_instance_valid(c) or float(o["loose_t"]) > LOOSE_TIME \
+					or (c.global_position - car.global_position).length() > 400.0:
+				if is_instance_valid(c):
+					c.repair()
+				_pool_oncoming(o)
+			continue
 		if o.has("osk"):
 			continue                           # scenka: _update_skirmish
-		var c: StuntCar = o["car"]
 		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
 		var d2: float = o["dist"]
 		if d2 < _last_safe_dist - 150.0 or not _is_highway_at(d2) or not is_instance_valid(c):
@@ -2594,10 +2647,36 @@ func _osk_end() -> void:
 	_osk_next_d = _last_safe_dist + _bot_rng.randf_range(OSK_GAP_MIN, OSK_GAP_MAX)
 
 
+## Auto z naprzeciwka tuż przy graczu przechodzi z jazdy po szynie
+## (kinematyczne - dla gracza jak ściana) na pełną fizykę z prędkością,
+## którą miało. Zasada użytkownika (2026-11-11): boty mogą oszukiwać, ale
+## uderzone przez gracza zawsze mają bezwładność i reakcję zgodną z fizyką.
+const LOOSE_R := 5.5           # środki aut - kontakt zaczyna się ~4,6 m
+const LOOSE_TIME := 30.0
+func _loosen_oncoming(o: Dictionary) -> void:
+	var c: StuntCar = o["car"]
+	if o.has("osk"):
+		# Scenka się kończy; drugie auto jedzie dalej jak zwykły ruch.
+		for who in _osk_cars:
+			(_osk_cars[who] as Dictionary).erase("osk")
+		_osk_cars = {}
+		_osk = null
+		_osk_next_d = _last_safe_dist + _bot_rng.randf_range(OSK_GAP_MIN, OSK_GAP_MAX)
+	o["loose"] = true
+	o["loose_t"] = 0.0
+	c.freeze = false
+	c.linear_velocity = -c.global_basis.z * float(o["v"])
+	c.angular_velocity = Vector3.ZERO
+	c.throttle = 0.0
+	c.brake = 0.0
+
+
 ## Auto z naprzeciwka do puli (ukryte), zamiast queue_free - bez alokacji.
 func _pool_oncoming(o: Dictionary) -> void:
 	var c: StuntCar = o["car"]
+	o.erase("loose")
 	if is_instance_valid(c):
+		c.freeze = true                        # z powrotem na szynę (po _loosen_oncoming)
 		c.visible = false
 		c.global_position.y -= 500.0
 		c.process_mode = Node.PROCESS_MODE_DISABLED   # w puli nic nie liczy
@@ -2625,7 +2704,7 @@ func _update_traffic(delta: float) -> void:
 	var cf := -car.global_basis.z
 	var cars := []
 	for b in _bots:
-		var drv: BotDriver = b.get_node("Driver")
+		var drv: BotDriver = _drv(b)
 		cars.append({"id": b.get_instance_id(), "dist": drv.dist, "lane": drv.lane, "oncoming": false,
 				"raging": drv.rage > 0.05, "visible": TrafficZone.visible(head, hf, cf, b.global_position)})
 	for o in _oncoming:
@@ -2718,6 +2797,11 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 ## niebezpieczeństwa. Każde zwraca wypłaty -> _score_pay.
 func score_chase_open(bot: StuntCar, origin: String) -> void:
 	_score_pay(score.open_chase(bot.get_instance_id(), origin, race_time))
+
+
+func score_chase_tick(bot: StuntCar, behind: float, side: float, dt: float) -> void:
+	_score_pay(score.chase_tick(bot.get_instance_id(), behind, side, absf(bot.speed) * 3.6,
+			absf(car.speed) * 3.6, dt, race_time))
 
 
 func score_contact(bot: StuntCar) -> void:

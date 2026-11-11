@@ -287,15 +287,15 @@ func total_length() -> float:
 
 
 ## Próbki wszystkich wczytanych kawałków (dla autopilota w testach).
-func samples_from(dist: float, length: float) -> Array:
+func samples_from(dist: float, length: float, stride := 1) -> Array:
 	var out := []
 	for c in _chunks:
 		var r := c.dist_range()
 		if r.y < dist or r.x > dist + length:
 			continue
 		if c.position == Vector3.ZERO:
-			out.append_array(c.samples_from(dist, length))
+			out.append_array(c.samples_from(dist, length, stride))
 		else:
-			for smp in c.samples_from(dist, length):
+			for smp in c.samples_from(dist, length, stride):
 				out.append(_g(c, smp))
 	return out

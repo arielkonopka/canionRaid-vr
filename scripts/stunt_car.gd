@@ -160,6 +160,12 @@ func set_aero(name_s: String) -> void:
 	if not AERO.has(name_s):
 		name_s = "classic"
 	aero = name_s
+	# Model z epoki ma opór ze swojej bryły (CarStyles cd·area); opcja menu
+	# działa na sedana i concept.
+	if style != "sedan" and CarStyles.STYLES.has(style):
+		var st: Dictionary = CarStyles.STYLES[style]
+		aero_drag = 0.5 * AIR_RHO * float(st["cd"]) * float(st["area"])
+		return
 	aero_drag = 0.5 * AIR_RHO * float(AERO[name_s]["cd"]) * float(AERO[name_s]["area"])
 ## Masa nadwozia bez napędu [kg] - opcja menu "Masa" (950-2500 kg).
 ## Bezwładność i zawieszenie skalują się proporcjonalnie do masy auta.
@@ -470,6 +476,9 @@ func _ready() -> void:
 
 ## Puste, zdalnie sterowane auto (bot): bez zegarów, dźwięku i kokpitu.
 @export var is_bot := false
+## Kierowca bota (BotDriver, dziecko "Driver") - ustawia scena przy
+## pojawieniu się bota, zeruje przy powrocie do puli.
+var driver: Node
 
 
 ## Światła w szale drogowym: przednie lampy pulsują na czerwono (0 = normalnie).
@@ -659,7 +668,7 @@ func set_spoiler(kind: String) -> void:
 		return
 	spoiler = kind
 	for k in _spoiler_nodes:
-		(_spoiler_nodes[k] as Node3D).visible = k == kind
+		(_spoiler_nodes[k] as Node3D).visible = k == kind and style == "sedan"
 
 
 # --------------------------------------------------------------------------
@@ -796,6 +805,23 @@ func _physics_step(delta: float) -> void:
 					* 0.5 * center_coupling, -c_max, c_max)
 			t_front = axle_torque * AWD_FRONT_SHARE - visc
 			t_rear = axle_torque * (1.0 - AWD_FRONT_SHARE) + visc
+		# Odzysk w kołach rozdzielany według docisku (jak podział hamulców:
+		# przy hamowaniu przód dociśnięty, tył odciążony). Po równo hamował
+		# odciążony tył za mocno - auto nadsterowne po puszczeniu gazu
+		# (użytkownik 2026-11-10: "już powyżej setki widać, jest nadsterowny").
+		var load_sum := 0.0
+		var rear_k := 1.0
+		if _hub() and axle_torque < 0.0:
+			# Z ESP: w łuku odzysk przechodzi z tylnych kół na przednie (od
+			# 0,1 g bocznie, przy 0,5 g cały na przodzie) - tył zostaje wolny
+			# do trzymania toru (użytkownik 2026-11-11: "na luzie
+			# z rekuperacją na zakrętach trochę nadsterowny").
+			if esp_enabled:
+				var a_lat := absf(speed * angular_velocity.dot(up))
+				rear_k = 1.0 - clampf((a_lat / 9.81 - 0.1) / 0.4, 0.0, 1.0)
+			for w in wheels:
+				if w.contact:
+					load_sum += w.load * (1.0 if w.front else rear_k)
 		for i in range(4):
 			var w := wheels[i]
 			var d: Array = dirs[i]
@@ -814,7 +840,11 @@ func _physics_step(delta: float) -> void:
 			var inertia_w := wheel_inertia
 			if _hub():
 				# Własny silnik w kole: ćwierć momentu, własna kontrola trakcji.
-				t_drive = axle_torque * 0.25 * (_hub_tcs[i] if axle_torque > 0.0 else _regen_wheel(w))
+				if axle_torque > 0.0:
+					t_drive = axle_torque * 0.25 * _hub_tcs[i]
+				else:
+					var share := (w.load * (1.0 if w.front else rear_k) / load_sum) if (load_sum > 1.0 and w.contact) else 0.0
+					t_drive = axle_torque * share * _regen_wheel(w)
 				inertia_w += reflected
 			elif not _is_driven(w):
 				pass
@@ -863,7 +893,8 @@ func _physics_step(delta: float) -> void:
 	if v2 > 0.01:
 		# Spojler tylko w sedanie - concept car go nie ma (bez niewidzialnego
 		# skrzydła; inbox menu-a-gra-niespojnosci pkt 4).
-		var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" else "none"]
+		# Spojler tylko na sedanie (concept i modele z epoki go nie mają).
+		var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" and style == "sedan" else "none"]
 		apply_central_force(-linear_velocity.normalized() * v2 * (aero_drag + 0.5 * AIR_RHO * sp["cda"]))
 		if sp["cla"] > 0.0:
 			# Docisk z prędkości wzdłuż auta, nad tylną osią (spojler na klapie).
@@ -1185,13 +1216,23 @@ func _regen_factor() -> float:
 	if esp_enabled:
 		k = _esp_factor
 	if abs_enabled:
-		var sl := 0.0
 		for w in wheels:
-			if w.contact and _is_driven(w):
-				sl = maxf(sl, w.slip)
-		# Zapas jak w ABS: od 60% szczytu krzywej odzysk maleje do zera przy szczycie.
-		k = minf(k, clampf((1.0 - sl) / 0.4, 0.0, 1.0))
+			if _is_driven(w):
+				k = minf(k, _regen_abs(w))
 	return k
+
+
+## ABS dla odzysku: jak prawdziwy ABS porównuje obroty koła z prędkością auta
+## (nie kontakt z jezdnią - koło odciążone na garbie albo w powietrzu
+## hamowane silnikiem stawało, a po lądowaniu zablokowane szarpało autem;
+## jazda 2026-11-10, 213 km/h: poślizg 90%, skoki 3 g). Od 4% poślizgu
+## wzdłużnego odzysk maleje, przy 12% - zero.
+func _regen_abs(w: Wheel) -> float:
+	var v := absf(speed)
+	if v < 3.0:
+		return 1.0
+	var lock := 1.0 - absf(w.omega) * wheel_radius / v
+	return clampf(1.0 - (lock - 0.04) / 0.08, 0.0, 1.0)
 
 
 ## Odzysk na jednym kole (silniki w kołach, użytkownik 2026-11-10:
@@ -1202,8 +1243,8 @@ func _regen_wheel(w: Wheel) -> float:
 	var k := 1.0
 	if esp_enabled and not w.front:
 		k = _esp_factor
-	if abs_enabled and w.contact:
-		k = minf(k, clampf((1.0 - w.slip) / 0.4, 0.0, 1.0))
+	if abs_enabled:
+		k = minf(k, _regen_abs(w))
 	return k
 
 
@@ -1562,7 +1603,9 @@ func _visual_step(delta: float) -> void:
 	if _tail_mat:
 		# Światła pozycyjne słabo, stop mocno.
 		var stop := maxf(brake if not (gear < 0 and automatic) else throttle, handbrake)
-		_tail_mat.emission_energy_multiplier = 0.4 + 2.6 * stop
+		var e := snappedf(0.4 + 2.6 * stop, 0.05)
+		if e != _tail_mat.emission_energy_multiplier:
+			_tail_mat.emission_energy_multiplier = e
 	if gauges:
 		var shown := _pending_gear if _shift_timer > 0.0 else gear
 		var g := "R" if shown < 0 else ("N" if shown == 0 else str(shown))
@@ -1728,7 +1771,11 @@ func _build_body() -> void:
 	pipe.rings = 1
 	_dent_add("chrome", pipe, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(-0.55, -0.40, 2.30)))
 	_dent_finish()
-	_build_wipers(dark)
+	# Wycieraczki i krople na szybie tylko u gracza (u botów kosztowały
+	# co klatkę 4 parametry shadera i ścieżkę węzła na auto; z bliska i tak
+	# boty to najczęściej modele z epoki bez szyby sedana).
+	if not is_bot:
+		_build_wipers(dark)
 
 	# --- wnętrze (sekcja "Wnętrze sedana" niżej) ---
 	_build_interior(trim, carpet, headliner, dark, chrome)
@@ -2887,6 +2934,10 @@ func _fix_concept_material(m: BaseMaterial3D, nm: String) -> void:
 # Modele z epoki (CarStyles, inbox 2026-11-09-auta-z-epoki)
 # --------------------------------------------------------------------------
 
+## Warstwa renderu bryły modelu z epoki u gracza: kamera w kokpicie jej nie
+## rysuje (bryła z paczki to pusta skorupa - od środka zostawały strzępy
+## dachu i słupków), z zewnątrz i w lusterku widać ją normalnie.
+const STYLE_BODY_LAYER := 1 << 9
 ## Bieżący model (klucz CarStyles.STYLES). "sedan" = własny sedan z kodu.
 var style := "sedan"
 var _style_body: MeshInstance3D
@@ -2910,7 +2961,22 @@ func _snapshot_sedan() -> void:
 			"cabin": [(get_node("CabinShape").shape as BoxShape3D).size, (get_node("CabinShape") as Node3D).position],
 			"gauges": gauges.position if gauges else Vector3.ZERO,
 			"rest": rest_length, "com": _base_com, "inertia": _base_inertia,
-			"mass": body_mass, "brakes": Vector2(brake_torque_front, brake_torque_rear)}
+			"mass": body_mass, "brakes": Vector2(brake_torque_front, brake_torque_rear),
+			"cockpit": _cockpit_positions()}
+
+
+## Kokpit sedana, który gracz zabiera do modelu z epoki (przesunięty do
+## fotela modelu): wnętrze, kolumna z kierownicą, zegary.
+const STYLE_COCKPIT := ["Interior", "SteeringColumn", "Gauges", "MirrorFace"]
+
+
+func _cockpit_positions() -> Dictionary:
+	var d := {}
+	for n in STYLE_COCKPIT:
+		var node := get_node_or_null(n) as Node3D
+		if node:
+			d[n] = node.position
+	return d
 
 
 ## Model z epoki: wymiary, fizyka (dane z symulacji chmury, przeniesione 1:1
@@ -3034,12 +3100,24 @@ func _style_visuals(on: bool) -> void:
 		for ch in w.node.get_children():
 			if not ch.has_meta("concept"):
 				(ch as Node3D).visible = not on
+	# Gracz: kokpit sedana przesunięty do fotela modelu (inbox auta-z-epoki
+	# pkt 5: "kokpit z sedana przesunięty do seat"); lusterko wsteczne
+	# zostaje tylko w sedanie (xr_main).
+	if not is_bot:
+		var pos: Dictionary = _sedan.get("cockpit", {})
+		for n in pos:
+			var node := get_node_or_null(n) as Node3D
+			if node:
+				node.position = (pos[n] as Vector3) + (cockpit_offset if on else Vector3.ZERO)
+				node.visible = true
 	if not on:
 		return
 	var d := _style_data(style)
 	_style_body = MeshInstance3D.new()
 	_style_body.name = "StyleBody"
 	_style_body.mesh = d["body"]
+	if not is_bot:
+		_style_body.layers = STYLE_BODY_LAYER
 	add_child(_style_body)
 	var body: Mesh = d["body"]
 	var mask_path := (CarStyles.STYLES[style]["model"] as String).get_base_dir() + "/paint_mask.png"
@@ -3076,6 +3154,7 @@ func _style_visuals(on: bool) -> void:
 		lm.material_override = _style_head
 		lm.position = Vector3(sx * a.size.x * 0.33, hy, a.position.z - 0.005)
 		lm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		lm.layers = _style_body.layers
 		_style_body.add_child(lm)
 	for w in wheels:
 		var wm := MeshInstance3D.new()

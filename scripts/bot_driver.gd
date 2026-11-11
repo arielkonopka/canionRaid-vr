@@ -101,6 +101,15 @@ var _horn: AudioStreamPlayer3D
 var _horn_timer := 0.0
 
 var _window: Array = []
+## Profil prędkości okna, liczony raz przy odświeżeniu (było: dwie prawie
+## identyczne pętle po słownikach co krok - _calm_speed i _curve_speed).
+## Co PROF_STEP próbek: [dystans, limit² (m/s)², vc² przy 0,6 g, vc² przy 0,7 g].
+var _prof := PackedFloat32Array()
+const PROF_STEP := 4
+const PROF_SPAN := 12            # próbki do kąta łuku (~12 m)
+## Indeks najbliższej próbki z poprzedniego kroku (szukanie lokalne).
+var _win_hint := 0
+var _lights_on := false
 var _window_timer := 0.0
 
 
@@ -127,16 +136,24 @@ func _drive_step(delta: float) -> void:
 	if _window_timer <= 0.0:
 		_window_timer = 0.15
 		_window = track.samples_from(dist - 15.0, WINDOW_AHEAD + 15.0)
+		_build_profile()
+		_win_hint = mini(15, _window.size() - 1)
 	if _window.is_empty():
 		return
-	# Najbliższa próbka w oknie - szukanie lokalne, nie po całej trasie.
-	var best: Dictionary = _window[0]
-	var best_d := INF
-	for s in _window:
-		var dd := (s["pos"] as Vector3).distance_squared_to(car.global_position)
-		if dd < best_d:
-			best_d = dd
-			best = s
+	# Najbliższa próbka w oknie: krok od poprzedniej w stronę bliższej (auto
+	# przesuwa się o < 1 próbkę na krok; było przeszukanie całego okna).
+	var here := car.global_position
+	var bi := clampi(_win_hint, 0, _window.size() - 1)
+	var bd: float = (_window[bi]["pos"] as Vector3).distance_squared_to(here)
+	for dir in [1, -1]:
+		while bi + dir >= 0 and bi + dir < _window.size():
+			var nd: float = (_window[bi + dir]["pos"] as Vector3).distance_squared_to(here)
+			if nd >= bd:
+				break
+			bi += dir
+			bd = nd
+	_win_hint = bi
+	var best: Dictionary = _window[bi]
 	dist = float(best["dist"])
 
 	_check_overtake(best, best["right"])
@@ -154,7 +171,10 @@ func _drive_step(delta: float) -> void:
 				if main and main.has_method("score_chase_close"):
 					main.score_chase_close(car, "calmed")
 
-	car.set_rage_lights(rage * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)))
+	# Światła szału: zapis materiału tylko w szale albo przy wygaszaniu.
+	if rage > 0.0 or _lights_on:
+		car.set_rage_lights(rage * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)))
+		_lights_on = rage > 0.0
 
 	var right: Vector3 = best["right"]
 	var w := float(best["width"])
@@ -213,24 +233,39 @@ func _drive_step(delta: float) -> void:
 ## Prędkość przepisowa: najniższy limit w oknie, z drogą hamowania (5 m/s²),
 ## i bezpieczna prędkość na łukach (pozioma krzywizna, przyczepność).
 func _calm_speed(_kmh: float) -> float:
-	var target := 200.0
-	for i in range(0, _window.size() - 12, 4):
+	var target := 200.0 / 3.6
+	var i := 0
+	while i < _prof.size():
+		var k := _prof[i] - dist
+		if k >= -2.0:
+			var brake := 2.0 * 5.0 * maxf(k, 0.0)
+			target = minf(target, sqrt(minf(_prof[i + 1], _prof[i + 2]) + brake))
+		i += 4
+	return target * 3.6
+
+
+## Profil prędkości okna (_prof): limit i bezpieczna prędkość na łuku (pozioma
+## krzywizna, przyczepność nawierzchni) - wspólne dla jazdy spokojnej (0,6 g)
+## i szału (0,7 g).
+func _build_profile() -> void:
+	_prof.resize(0)
+	for i in range(0, _window.size() - PROF_SPAN, PROF_STEP):
 		var a0: Dictionary = _window[i]
-		var k := float(a0["dist"]) - dist
-		if k < -2.0:
-			continue
+		var a1: Dictionary = _window[i + PROF_SPAN]
 		var lim := float(a0["limit"]) / 3.6
-		target = minf(target, sqrt(lim * lim + 2.0 * 5.0 * maxf(k, 0.0)) * 3.6)
-		var a1: Dictionary = _window[i + 12]
 		var f0: Vector3 = (a0["fwd"] as Vector3) * Vector3(1, 0, 1)
 		var f1: Vector3 = (a1["fwd"] as Vector3) * Vector3(1, 0, 1)
 		var ang := f0.angle_to(f1)
+		var vc2_calm := INF
+		var vc2_rage := INF
 		if ang > 0.01:
 			var span := float(a1["dist"]) - float(a0["dist"])
 			var grip: float = StuntTrack.SURFACES[a0["surface"]]["grip"]
-			var vc := sqrt(0.6 * grip * 9.8 * span / ang)
-			target = minf(target, sqrt(vc * vc + 2.0 * 5.0 * maxf(k, 0.0)) * 3.6)
-	return target
+			vc2_calm = 0.6 * grip * 9.8 * span / ang
+			# 0,7 g (było 0,8): z BotDriveModel bot przyspiesza mocniej i przy 0,8 g
+			# obracał się w łuku przy pełnym gazie (bot_rage_test 2026-11-09).
+			vc2_rage = 0.7 * grip * 9.8 * span / ang
+		_prof.append_array([float(a0["dist"]), lim * lim, vc2_calm, vc2_rage])
 
 
 ## Plan szału na ten krok: x = docelowe przesunięcie w poprzek drogi,
@@ -317,24 +352,14 @@ func _rage_plan(delta: float, best: Dictionary, right: Vector3, w: float,
 
 ## Prędkość bezpieczna na łukach w oknie (bez znaków ograniczenia).
 func _curve_speed() -> float:
-	var target := 400.0
-	for i in range(0, _window.size() - 12, 4):
-		var a0: Dictionary = _window[i]
-		var k := float(a0["dist"]) - dist
-		if k < -2.0:
-			continue
-		var a1: Dictionary = _window[i + 12]
-		var f0: Vector3 = (a0["fwd"] as Vector3) * Vector3(1, 0, 1)
-		var f1: Vector3 = (a1["fwd"] as Vector3) * Vector3(1, 0, 1)
-		var ang := f0.angle_to(f1)
-		if ang > 0.01:
-			var span := float(a1["dist"]) - float(a0["dist"])
-			var grip: float = StuntTrack.SURFACES[a0["surface"]]["grip"]
-			# 0,7 g (było 0,8): z BotDriveModel bot przyspiesza mocniej i przy 0,8 g
-			# obracał się w łuku przy pełnym gazie (bot_rage_test 2026-11-09).
-			var vc := sqrt(0.7 * grip * 9.8 * span / ang)
-			target = minf(target, sqrt(vc * vc + 2.0 * 6.0 * maxf(k, 0.0)) * 3.6)
-	return target
+	var target := 400.0 / 3.6
+	var i := 0
+	while i < _prof.size():
+		var k := _prof[i] - dist
+		if k >= -2.0 and _prof[i + 3] < INF:
+			target = minf(target, sqrt(_prof[i + 3] + 2.0 * 6.0 * maxf(k, 0.0)))
+		i += 4
+	return target * 3.6
 
 
 ## Jazda "po szynie" daleko od gracza. Zwraca true, gdy bot jest na
@@ -518,7 +543,16 @@ func enrage(origin := "self") -> void:
 
 ## Klakson: dwa tony (~420 i ~500 Hz, jak typowy samochodowy), 0,4 s,
 ## generowany w kodzie.
+## Klakson: jeden dźwięk na grę (był generowany w GDScript dla każdego
+## nowego bota - 8820 próbek przy każdym pojawieniu się).
+static var _horn_stream: AudioStreamWAV
 static func _make_horn() -> AudioStreamWAV:
+	if _horn_stream == null:
+		_horn_stream = _gen_horn()
+	return _horn_stream
+
+
+static func _gen_horn() -> AudioStreamWAV:
 	var rate := 22050
 	var n := int(rate * 0.4)
 	var data := PackedByteArray()
@@ -560,6 +594,9 @@ func _score_step(delta: float, best: Dictionary) -> void:
 	var rel := player.global_position - car.global_position
 	var ahead := rel.dot(best["fwd"] as Vector3)
 	var side := absf(rel.dot(best["right"] as Vector3))
+	# Premie szeryfa (pościg za graczem, nie waśń z innym botem).
+	if _foe() == player and main.has_method("score_chase_tick"):
+		main.score_chase_tick(car, ahead, side, 0.1)
 	# Odstęp boków aut w poprzek (szerokość auta ~1,8 m).
 	var gap := maxf(side - 1.8, 0.0)
 	var in_zone := absf(ahead) < 6.0 and gap < 3.0

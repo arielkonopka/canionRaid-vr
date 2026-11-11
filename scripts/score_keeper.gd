@@ -23,6 +23,7 @@ class_name ScoreKeeper
 ##   - inne (pit, wmanewrowanie, skok, formacja) → award(kind, id, now, kmh)
 ##   - sztuczka (StuntTracker)    → award_free(kind, pts, now, label)
 ##   - nowy odcinek               → new_section()
+##   - krok pościgu (10 Hz)       → chase_tick(id, behind, side, ...) - szeryf
 ## Każda metoda zwraca listę wypłat (Dictionary: kind, points, combo, text)
 ## do wyświetlenia (pula Label3D, tylko przy zdarzeniu) i do logu
 ## (log_line - "SCORE: ...").
@@ -48,6 +49,9 @@ const BASE := {
 	"damage": 400,        # obrażenia zadane: za 100% "structure" bota
 	"pit": 150,           # gracz obrócił bota (> 90°)
 	"formation": 250,     # rozbita formacja (kleszcze, ściana)
+	# szeryf (użytkownik 2026-11-11) - stałe kwoty, bez mnożnika prędkości
+	"sheriff": 2000,      # 5 min pościgu bez dania się wyprzedzić
+	"stopped": 800,       # bot w szale zatrzymany na drodze (gracz stoi przed nim)
 	# kara
 	"fine": -100,         # uderzenie spokojnego bota (mandat)
 }
@@ -57,6 +61,8 @@ const LABELS := {
 	"outmaneuver": "WMANEWROWANY", "jump_escape": "SKOK!",
 	"wreck": "ROZBITY", "pit": "OBRÓCONY", "formation": "PRZEBITY",
 	"fine": "MANDAT",
+	"section": "ODCINEK",
+	"sheriff": "WZOROWY SZERYF", "stopped": "ZATRZYMANY",
 }
 const NEAR_MISS := 1.5        # [m] - unik, gdy minął bliżej niż tyle
 const BLAME_TIME := 3.0       # [s] - wybuch liczony graczowi po kontakcie
@@ -200,6 +206,57 @@ func danger(c: Dictionary, now: float, kmh: float) -> float:
 	var pack := 1.0 + 0.25 * float(maxi(chases.size() - 1, 0)) # +25% za bota
 	var spd := clampf(kmh / 100.0, 0.5, 2.0)
 	return dur * minf(pack, 2.0) * spd
+
+
+## Wzorowy szeryf: tyle sekund pościgu (bot w szale za graczem, do
+## SHERIFF_RANGE m) bez wyprzedzenia przez bota. Potem licznik od nowa.
+const SHERIFF_TIME := 300.0
+const SHERIFF_RANGE := 200.0
+## Zatrzymanie: oba auta wolniej niż tyle, bot tuż za graczem (do
+## STOP_GAP m), a wcześniej w pościgu jechał co najmniej STOP_MIN_KMH.
+const STOP_KMH := 5.0
+const STOP_GAP := 20.0
+const STOP_MIN_KMH := 60.0
+
+
+## Krok pościgu (10 Hz, z BotDriver): `behind` [m] - o ile bot jest za
+## graczem wzdłuż drogi (ujemne = wyprzedził), `side` [m] w poprzek.
+## Premie szeryfa: za 5 min nieustępliwości i za zatrzymanie bota.
+func chase_tick(id: int, behind: float, side: float, bot_kmh: float, player_kmh: float,
+		dt: float, now: float) -> Array:
+	var c: Dictionary = chases.get(id, {})
+	if c.is_empty():
+		return []
+	c["max_kmh"] = maxf(float(c.get("max_kmh", 0.0)), bot_kmh)
+	var out := []
+	if behind < -2.0:
+		c["lead_t"] = 0.0                       # wyprzedził - od nowa
+	elif behind < SHERIFF_RANGE:
+		c["lead_t"] = float(c.get("lead_t", 0.0)) + dt
+		if float(c["lead_t"]) >= SHERIFF_TIME:
+			c["lead_t"] = 0.0
+			out.append(_pay("sheriff", base["sheriff"], _bump_combo(now)))
+	if not bool(c.get("stopped", false)) and float(c["max_kmh"]) >= STOP_MIN_KMH \
+			and bot_kmh < STOP_KMH and player_kmh < STOP_KMH \
+			and behind > 2.0 and behind < STOP_GAP and side < 3.0:
+		c["stopped"] = true
+		out.append(_pay("stopped", base["stopped"], _bump_combo(now)))
+	return out
+
+
+## Premia za odcinek ze średniej prędkości (użytkownik 2026-11-11):
+## 100 km/h = 100 pkt, 200 = 1000, 300 = 10 000 - czyli 10^(v/100 + 1).
+static func section_points(avg_kmh: float) -> int:
+	return int(round(pow(10.0, maxf(avg_kmh, 0.0) / 100.0 + 1.0)))
+
+
+## Odcinek przejechany: premia za średnią prędkość (bez mnożnika serii -
+## to nagroda za tempo, nie za sztuczkę).
+func section_done(avg_kmh: float) -> Array:
+	var pts := section_points(avg_kmh)
+	if pts <= 0:
+		return []
+	return [_pay("section", pts, 1, "ODCINEK %.0f km/h" % avg_kmh)]
 
 
 ## Nowy odcinek: zerowanie licznika pościgów (malejąca nagroda).
