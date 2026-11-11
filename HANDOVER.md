@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-10, sesja 7 (popołudnie: biomy co ~5 km z powolnym przejściem, boty i ruch w modelach aut z epoki)
+Ostatnia aktualizacja: 2026-11-11, sesja 8 (rano: model auta ustawia fabryczny silnik i masę, rozdzielczość do 120%)
 
 ---
 
@@ -33,6 +33,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 
 - Komunikacja **po polsku**, luźno ("siemka"). Często dorzuca pomysły
   w trakcie pracy - zapisuj je od razu do kolejki (sekcja 8).
+- **Pytania i decyzje projektowe najpierw do chmury** (użytkownik
+  2026-11-11: "konsultuj też takie rzeczy najpierw z chmurą, jest mi
+  łatwiej przez nią rozmawiać. zwłaszcza w dni wolne"): plik w
+  `docs/agent/outbox/` + commit i push (powiadomienie agent-mail),
+  odpowiedź przychodzi w `docs/agent/inbox/`. W terminalu krótko.
 - **Korzystaj z tego, co jest w systemie.** Nie pobieraj narzędzi,
   wtyczek ani assetów bez zgody. Grafikę i dźwięk generuj w kodzie.
   Uwaga: na dysku jest więcej, niż widać w pakietach systemowych
@@ -188,6 +193,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
     anizotropia 4x. Użytkownikowi 160% podobało się wizualnie - cel:
     odzyskać je optymalizacjami. Prawdziwego "4K jak monitor" się nie
     da (~25 px/°). Od 2026-11-09 domyślnie 110% (uczciwy pomiar, sekcja 5).
+    **2026-11-11 (użytkownik "tak" na: zejść do 110-120% i szukać
+    oszczędności w grafice)**: migracja v11 obcina zapisane do 120%;
+    130% ~60 kl./s (GPU 15,6 ms), 110% 72 kl./s. **Cienie: opcja w menu
+    Wygląd (użytkownik 2026-11-11)** - Wył. / Bliskie (40 m, jedna mapa)
+    / Pełne (80 m, dwie mapy - jak dotąd, domyślne); działa od razu,
+    także w pauzie (`GameSettings.apply_shadows`). Ekran tytułowy zawsze
+    bez cieni. Dalej: A/B cieni i lusterka na goglach.
   - **Zmiana rozdzielczości ma działać od razu, bez restartu aplikacji**
     (użytkownik, 2026-11-09) - działa, pod warunkiem wyłączonej
     dynamicznej rozdzielczości Meta (sekcja 3, pułapki).
@@ -546,8 +558,13 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   auta: sedan, concept + 7 modeli z epoki. Ustalenia agenta (do oceny):
   model daje bryłę, rozstawy, rozkład masy (środek masy, bezwładność),
   mnożniki zawieszenia, hamulce i opór (cd·area - opcja Opływowość tylko
-  dla sedana/concept, spojler tylko sedan); **silnik, moc, napęd i masa
-  dalej z menu**. Kokpit sedana przesunięty do fotela modelu (`seat`),
+  dla sedana/concept, spojler tylko sedan). **Wybór modelu ustawia jego
+  fabryczny silnik, moc, napęd, zawieszenie i masę (użytkownik 2026-11-11:
+  "tak"), potem gracz może każdą z nich zmienić** (`GameSettings.set_option`,
+  jedno miejsce dla menu głównego i pauzy; Masa "Fabryczna" = 0 ->
+  `factory_mass()`). Wczytanie ustawień nie przestawia silnika - tylko zmiana
+  modelu w menu. **Kokpit sedana we wszystkich modelach - zaakceptowany**
+  (2026-11-11). Kokpit sedana przesunięty do fotela modelu (`seat`),
   bryła modelu niewidoczna z kokpitu (`STYLE_BODY_LAYER`, warstwa 10 -
   pusta skorupa od środka dawała strzępy dachu).
 - **Premia za odcinek ze średniej prędkości (użytkownik 2026-11-11)**:
@@ -2005,17 +2022,35 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   w ustawieniach jako `GameSettings.STATION_ONLINE` (-1), nie indeks;
   migracja v10 (zapisany indeks = liczba stacji -> -1).
 
+### 2026-11-11, sesja 8 - rano
+
+- Odpowiedzi użytkownika na pytania z sekcji 9 ("na wszystko tak"):
+  model auta ustawia fabryczny silnik/moc/napęd/zawieszenie/masę
+  (`GameSettings.set_option`, opcja Masa "Fabryczna"), kokpit sedana
+  zostaje, rozdzielczość: migracja v11 do maks. 120% + oszczędności GPU
+  (bench A/B czeka na podłączenie gogli - kabel był odpięty).
+- Testy: `title_test` (nowy warunek: muscle -> petrol 180 kW rwd soft,
+  masa fabryczna 1550 kg - OK), `pause_test` OK.
+- Opcja "Cienie" (Wył./Bliskie/Pełne) w menu Wygląd - wybór użytkownika
+  zamiast stałego skrócenia; `title_test` sprawdza ustawienie słońca.
+  Silnik elektryczny i rekuperacja nie zmieniają się z modelem
+  (użytkownik: benzyna/diesel nic nie odzyskają, hybrydy nie ma).
+- Ustalenie: pytania i decyzje najpierw przez chmurę (sekcja 2);
+  outbox `2026-11-11-model-fabryczny-i-gpu.md`.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
 000. **Do oceny w goglach (noc 2026-11-11)**: auta z epoki dla gracza
-   (menu Nadwozie -> Model auta), premie "WZOROWY SZERYF" / "ZATRZYMANY",
-   premia za odcinek, odzysk w łuku, płynność po przeglądzie. Pytania
-   w sekcji 9.
+   (menu Nadwozie -> Model auta, teraz z fabrycznym silnikiem i masą),
+   premie "WZOROWY SZERYF" / "ZATRZYMANY", premia za odcinek, odzysk
+   w łuku, płynność po przeglądzie.
 000. **Wydajność - dalej** (`docs/PERF_PRZEGLAD_2026-11-11.md`,
-   "Propozycje"): przy 130% ogranicza GPU - cienie / lusterko / scenerię
-   zmierzyć benchem A/B; dźwięk (tablica sinusa), fizyka gracza bez
+   "Propozycje"): przy 130% ogranicza GPU - **najpierw** bench A/B na
+   goglach (`tools/bench_quest.sh`, scenariusze S4 przy 130% z wyłączonymi
+   `shadows` / `mirror` i S4 przy 120%; cienie słońca: `main.tscn`,
+   max_distance 80 m), potem cel: 120-130% przy 72 kl./s; dźwięk (tablica sinusa), fizyka gracza bez
    alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
@@ -2236,13 +2271,6 @@ Propozycje (do uzgodnienia):
   `nearest_sample`. Zmierzyć na sprzęcie.
 
 ## 9. Otwarte pytania do użytkownika
-
-- **Auta z epoki dla gracza**: model daje bryłę, rozkład masy, zawieszenie,
-  hamulce i opór; silnik, napęd i masa z menu (twoje 1000 kW zostaje).
-  Czy wybór modelu ma też ustawiać fabryczny silnik/masę (jak w planie
-  chmury), czy zostaje tak? Kokpit sedana - wystarczy?
-- **Rozdzielczość 130%**: gogle ograniczone przez GPU (~59-60 kl./s).
-  Zejść do 110-120% albo szukać oszczędności w grafice (cienie)?
 
 - (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
   było (zwykły podjazd / rozbieg skoczni / po dźwigu)? (Zużycie:

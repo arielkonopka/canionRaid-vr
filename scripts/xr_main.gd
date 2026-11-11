@@ -202,7 +202,9 @@ func _ready() -> void:
 		# XRCamera3D dziedziczy po Camera3D, więc bez XR działa jak zwykła kamera.
 		camera.current = true
 
-	if not Bench.on("shadows"):
+	if gs:
+		gs.apply_shadows($Sun as DirectionalLight3D)
+	elif not Bench.on("shadows"):
 		($Sun as DirectionalLight3D).shadow_enabled = false
 	car.landed.connect(_on_car_landed)
 	car.wrecked.connect(_on_car_wrecked)
@@ -1689,6 +1691,8 @@ func _on_setting_changed(key: String) -> void:
 			gs.apply_xr_quality()
 		"game_speed":
 			gs.apply_game_speed()
+		"shadows":
+			gs.apply_shadows($Sun as DirectionalLight3D)
 
 
 ## Zmiana auta albo trasy w pauzie, potwierdzona: nowa jazda z nowymi

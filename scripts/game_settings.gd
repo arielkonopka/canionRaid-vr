@@ -11,7 +11,7 @@ const PATH := "user://settings.cfg"
 ## Wersja formatu ustawień. 2: "endless" przestało znaczyć "domyślna trasa
 ## bez końca" (teraz to estakady; domyślny jest wąwóz) - stare zapisy
 ## przestawiamy na wąwóz, reszta ustawień zostaje.
-const SETTINGS_VERSION := 10
+const SETTINGS_VERSION := 11
 
 const TRANSMISSIONS := {
 	"auto": "Automat",
@@ -33,7 +33,7 @@ var drive_layout: String = "rwd"
 ## "sedan" (własny z lat 70., z wgnieceniami). Boty zawsze sedany.
 var body_model: String = "sedan"
 ## Masa nadwozia [kg] (bez napędu: diesel +50, elektryk +200).
-var body_mass: int = 1150
+var body_mass: int = 0              # 0 = fabryczna masa modelu
 ## Spojler: "none", "small", "large" (StuntCar.SPOILERS).
 var spoiler: String = "none"
 ## Wytrzymałość auta: 1 = zgodna z fizyką, wyżej mnożnik (jawna pomoc,
@@ -83,6 +83,7 @@ var xr_resolution: int = 110
 ## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
+var shadows: String = "full"
 ## Rodzaj trasy (menu "Trasa"): "canyon" wąwóz bez końca albo "autostrada"
 ## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
 ## (estakady) i "demo" (pokazowa z metą) zostały w kodzie dla testów
@@ -219,9 +220,10 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "body_mass", "group": "body", "label": "Masa",
-		"values": [950, 1150, 1500, 2000, 2500],
-		"names": ["950 kg", "1150 kg", "1500 kg", "2000 kg", "2500 kg"],
+		"values": [0, 950, 1150, 1500, 2000, 2500],
+		"names": ["Fabryczna", "950 kg", "1150 kg", "1500 kg", "2000 kg", "2500 kg"],
 		"hints": [
+			"Tyle, ile waży wybrany model auta (sedan 1150 kg).",
 			"Lekkie jak wyczynówka: żwawe, ale łatwo traci przyczepność i fruwa na garbach.",
 			"Tyle, ile sedan z epoki.",
 			"Cięższe: spokojniejsze, dłużej hamuje.",
@@ -447,6 +449,16 @@ var OPTIONS: Array[Dictionary] = [
 		],
 	},
 	{
+		"key": "shadows", "group": "look", "label": "Cienie", "live": true,
+		"values": ["off", "near", "full"],
+		"names": ["Wył.", "Bliskie", "Pełne"],
+		"hints": [
+			"Bez cieni słońca - najlżej dla gogli.",
+			"Cienie do 40 m, jedna mapa cieni - lżej niż pełne.",
+			"Cienie do 80 m, dwie mapy (ostrzej blisko auta) - najciężej.",
+		],
+	},
+	{
 		"key": "xr_foveation", "group": "look", "label": "Foweacja",
 		"values": [0, 1, 2, 3],
 		"names": ["Wył.", "Słaba", "Średnia", "Mocna"],
@@ -576,6 +588,10 @@ func load_settings() -> void:
 		if opt["values"].has(v):
 			set(key, v)
 	var version: int = cfg.get_value("meta", "version", 1)
+	if version < 11:
+		# Użytkownik 2026-11-11: przy 130% gogle ograniczone przez GPU
+		# (~60 kl./s) - zejść do 110-120% i szukać oszczędności w grafice.
+		xr_resolution = mini(xr_resolution, 120)
 	if version < 10:
 		# Do v9 Jamendo w menu Stacja było indeksem za stacjami offline
 		# (2026-11-10, kilka godzin) - teraz STATION_ONLINE.
@@ -647,9 +663,30 @@ func apply_game_speed() -> void:
 	Engine.time_scale = ts
 
 
+## Masa wybranego modelu (opcja Masa = "Fabryczna").
+func factory_mass() -> float:
+	var st: Dictionary = CarStyles.STYLES.get(body_model, CarStyles.STYLES["sedan"])
+	return float(st["mass"])
+
+
+## Zmiana opcji z menu (główne i pauza - jedno miejsce). Wybór modelu auta
+## ustawia jego fabryczny silnik, moc, napęd, zawieszenie i masę
+## (użytkownik 2026-11-11); potem każdą z nich można zmienić.
+func set_option(key: String, value: Variant) -> void:
+	set(key, value)
+	if key == "body_model" and CarStyles.STYLES.has(value):
+		var st: Dictionary = CarStyles.STYLES[value]
+		engine_type = st["engine"]
+		engine_power = int(st["power_kw"])
+		drive_layout = st["drive"]
+		suspension = st["suspension"]
+		body_mass = 0
+
+
 func apply_to_car(car: StuntCar) -> void:
 	# Modele z epoki (CarStyles): bryła, rozstawy, rozkład masy, zawieszenie,
-	# hamulce, opór. Silnik, napęd i masa dalej z menu.
+	# hamulce, opór. Silnik, napęd i masa z menu - wybór modelu ustawia je
+	# na fabryczne (set_option), gracz może je potem zmienić.
 	if body_model != "concept" and CarStyles.STYLES.has(body_model):
 		car.set_body_model("sedan")
 		car.apply_style(body_model)
@@ -663,7 +700,7 @@ func apply_to_car(car: StuntCar) -> void:
 	car.apply_engine(engine_type, effective_power(engine_type, motor_layout == "hub", engine_power))
 	car.automatic = transmission == "auto"
 	car.apply_suspension_preset(suspension)
-	car.set_body_mass(body_mass)
+	car.set_body_mass(body_mass if body_mass > 0 else factory_mass())
 	car.set_spoiler(spoiler)
 	car.durability = float(durability)
 	car.set_aero(aero)
@@ -688,6 +725,19 @@ func apply_xr_quality() -> void:
 	xr.foveation_dynamic = xr_foveation > 0
 	print("XR: rozdzielczość %d%%, obraz na oko %s, foweacja %d" % [
 			xr_resolution, xr.get_render_target_size(), xr.foveation_level])
+
+
+## Cienie słońca wg opcji Cienie (użytkownik 2026-11-11: opcja w menu,
+## bo przy 130% gogle ogranicza GPU). Bench w A/B: "shadows" wyłącza,
+## "shadows_far" wymusza bliskie (pomiar opcji bez zmiany ustawień gracza).
+func apply_shadows(sun: DirectionalLight3D) -> void:
+	sun.shadow_enabled = shadows != "off" and Bench.on("shadows")
+	if shadows == "near" or not Bench.on("shadows_far"):
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_max_distance = 40.0
+	else:
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		sun.directional_shadow_max_distance = 80.0
 
 
 func enable_xr(viewport: Viewport) -> bool:

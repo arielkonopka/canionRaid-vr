@@ -17,6 +17,11 @@ func _process(_d: float) -> bool:
 				"stick_sensitivity": 70, "cockpit_alpha": 60}
 		var gs = root.get_node("GameSettings")
 		gs.persist = false        # nie nadpisujemy ustawień gracza
+		# Wybór modelu ustawia fabryczny silnik, napęd, zawieszenie i masę.
+		gs.set_option("body_model", "muscle")
+		var fab := [gs.engine_type, gs.engine_power, gs.drive_layout, gs.suspension, gs.body_mass, gs.factory_mass()]
+		print("muscle fabrycznie: ", fab, "  ", "OK" if fab == ["petrol", 180, "rwd", "soft", 0, 1550.0] else "FAIL")
+		gs.set_option("body_model", "sedan")
 		for g in gs.GROUPS:
 			title.enter_group(g["id"])
 			for i in range(title._entries.size()):
@@ -41,5 +46,14 @@ func _process(_d: float) -> bool:
 		var car = scene.get_node_or_null("Car") if scene else null
 		if car:
 			print("czułość=%d%%, przezroczystość=%d%%, lakier=%s  auto: napęd=%s %d kW (moment %d Nm, masa %d kg) automat=%s k=%d abs=%s tcs=%s esp=%s" % [root.get_node("GameSettings").stick_sensitivity, root.get_node("GameSettings").cockpit_alpha, car._paint_mat.albedo_color, car.engine_type, car.engine_power_kw, car.peak_torque(), car.mass, car.automatic, car.spring_k, car.abs_enabled, car.tcs_enabled, car.esp_enabled])
+		# Opcja Cienie działa od razu na słońcu sceny jazdy.
+		var gs2 = root.get_node("GameSettings")
+		var sun: DirectionalLight3D = scene.get_node("Sun")
+		var res := []
+		for v in ["off", "near", "full"]:
+			gs2.shadows = v
+			gs2.apply_shadows(sun)
+			res.append([sun.shadow_enabled, sun.directional_shadow_max_distance])
+		print("cienie: ", res, "  ", "OK" if res == [[false, 80.0], [true, 40.0], [true, 80.0]] else "FAIL")
 		return true
 	return false
