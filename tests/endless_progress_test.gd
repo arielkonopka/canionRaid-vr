@@ -16,7 +16,7 @@ var min_ahead := INF
 var min_ahead2 := INF
 const V := 60.0
 const PHASE1 := 70.0     # [s] ~4,2 km
-const PHASE2 := 60.0     # [s] ~3,6 km
+const PHASE2 := 120.0    # [s] ~7,2 km - dłużej niż zbudowana trasa przed autem
 
 
 func _initialize() -> void:
@@ -66,7 +66,9 @@ func _physics_process(delta: float) -> bool:
 
 func _finish() -> bool:
 	_check(min_ahead > 300.0, "cofany _current: przed autem zawsze trasa (min %.0f m)" % min_ahead)
-	_check(min_ahead2 > 300.0, "bez _watch_track: trasa dalej rośnie (min %.0f m)" % min_ahead2)
+	# Bez _watch_track `_last_safe_dist` stoi - zostaje sama linia prosta
+	# (ENSURE_R 300 m), więc przed autem bywa mniej niż w fazie 1.
+	_check(min_ahead2 > 150.0, "bez _watch_track: trasa dalej rośnie (min %.0f m)" % min_ahead2)
 	print("endless_progress_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails else 0)
 	return true

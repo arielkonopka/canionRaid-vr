@@ -136,6 +136,7 @@ do_test() {
 	run_test liftoff_test ""            "liftoff_test|odzysk"
 	run_test regen_highway_test ""      "regen_highway_test|odpuszcz"
 	run_test endless_progress_test ""   "endless_progress_test|TRASA"
+	run_test stuck_net_test ""          "stuck_net_test|utknięcie"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

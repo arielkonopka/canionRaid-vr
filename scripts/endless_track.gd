@@ -153,18 +153,22 @@ func _update_progress(dist: float) -> void:
 
 
 ## Siatka bezpieczeństwa (zgłoszenie "trasa się skończyła" wraca,
-## 2026-11-11): niezależnie od dystansu z najbliższej próbki. Gdy auto jest
-## w linii prostej bliżej niż ENSURE_R od końca zbudowanej trasy, `_current`
+## 2026-11-11). Włącza się, gdy po drodze zostało < ENSURE_ROAD
+## (`road_left` od sceny) albo auto jest w linii prostej bliżej niż
+## ENSURE_R od końca zbudowanej trasy - to drugie niezależne od dystansu
+## z próbek (gdyby śledzenie postępu stanęło). Sama linia prosta 700 m
+## dawała fałszywe alarmy na krętym wąwozie (przegląd PR #58). `_current`
 ## liczony jest od nowa pełnym szukaniem we wszystkich kawałkach (okno
 ## mogło zostać w tyle), a brakujące kawałki dobudowane. Zwraca true, gdy
 ## musiała zadziałać - to znaczy, że zwykła ścieżka zawiodła (log).
-const ENSURE_R := 700.0
-func ensure_ahead(world_pos: Vector3) -> bool:
+const ENSURE_R := 300.0
+const ENSURE_ROAD := 700.0
+func ensure_ahead(world_pos: Vector3, road_left := INF) -> bool:
 	if _chunks.is_empty():
 		return false
 	var last: StuntTrack = _chunks[-1]
 	var end := last.transform_at_distance(last.total_length()).origin
-	if end.distance_squared_to(world_pos) > ENSURE_R * ENSURE_R:
+	if road_left >= ENSURE_ROAD and end.distance_squared_to(world_pos) > ENSURE_R * ENSURE_R:
 		return false
 	var before := _current
 	var best_d := INF
@@ -179,8 +183,8 @@ func ensure_ahead(world_pos: Vector3) -> bool:
 	var n := _chunks.size()
 	var r := _chunks[_current].dist_range()
 	_update_progress((r.x + r.y) * 0.5)
-	print("TRASA: awaryjna dobudowa - auto %.0f m od końca, kawałek %d -> %d z %d, teraz %d kawałków" % [
-			end.distance_to(world_pos), before, _current, n, _chunks.size()])
+	print("TRASA: awaryjna dobudowa - auto %.0f m od końca (po drodze %.0f), kawałek %d -> %d z %d, teraz %s" % [
+			end.distance_to(world_pos), road_left, before, _current, n, debug_state()])
 	return true
 
 
