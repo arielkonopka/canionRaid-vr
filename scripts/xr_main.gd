@@ -2098,7 +2098,9 @@ func _use_crane(automatic := false) -> void:
 		# nie przycisk gracza.
 		var ahead := 0.0
 		if automatic:
-			var now := Time.get_ticks_msec() / 1000.0
+			# Czas gry (race_time), nie zegar - przy tempie gry < 100% okno
+			# 10 s zegara mieściło mniej postawień (przegląd PR #61).
+			var now := race_time
 			_auto_rights = _auto_rights.filter(func(x: float) -> bool: return now - x < 10.0)
 			if _auto_rights.size() >= 3:
 				_auto_rights.clear()
