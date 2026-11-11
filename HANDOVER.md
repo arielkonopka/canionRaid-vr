@@ -655,6 +655,17 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
+- **Bench / start gry przez adb nic nie loguje, VrApi pokazuje ~1 ms
+  GPU**: logcat ma "Launch is blocked because: a Guardian dialog is
+  currently showing" - gogle leżą (ciemno, bez śledzenia) i system prosi
+  o strefę. `adb shell setprop debug.oculus.guardian_pause 1` (do
+  restartu gogli). Do tego czuwanie: `am broadcast -a
+  com.oculus.vrpowermanager.prox_close` + `svc power stayon true`.
+- **Nowe auto bota albo z naprzeciwka = ~170 ms jednej klatki na Queście**
+  (na PC 6-8 ms): budowa StuntCar (siatki sedana, materiały). Wszystkie
+  auta budować przy wczytywaniu (pule `BOT_POOL_WARM` 14,
+  `ONCOMING_POOL_WARM` 8) i nie niszczyć ich przy odrodzeniu.
+
 - **Nowe modele (OBJ) się nie importują, `load()` daje "No loader found
   for resource ...obj"**, a w logu importu "Blender path is invalid" →
   Godot skanuje `build/media_in` (źródłowe paczki z `.blend`) i import
@@ -794,7 +805,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 | plik | rola |
 |---|---|
-| `project.godot` | scena startowa `title.tscn`, autoload `GameSettings`, 240 Hz fizyki, renderer mobile, MSAA 4x, ETC2/ASTC, OpenXR (`reference_space=0` - local, na siedząco) |
+| `project.godot` | scena startowa `title.tscn`, autoload `GameSettings`, 120 Hz fizyki, renderer mobile, MSAA 4x, ETC2/ASTC, OpenXR (`reference_space=0` - local, na siedząco) |
 | `export_presets.cfg` | preset **"Quest"**: Android arm64, gradle, Meta plugin, tylko Quest 3, pakiet `com.stunttrackvr.game`, wyklucza `tests/*` |
 | `quest.sh` | **jedno polecenie na wszystko**: testy, build APK, wgranie na gogle, start, logi (`./quest.sh help`) |
 | `icon.svg` | ikona aplikacji (własna: tor na słupach, auto nad przerwą) |
@@ -805,6 +816,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `scripts/game_settings.gd` | autoload: opcje (OPTIONS), zapis/odczyt, `apply_to_car()`, `enable_xr()` |
 | `scripts/stunt_car.gd` | `StuntCar`: fizyka, napędy (`ENGINE_TYPES`), zawieszenia (`SUSPENSION_PRESETS`), ABS/TCS/ESP, geometria auta |
 | `scripts/stunt_track.gd` | `StuntTrack`: generator toru, nawierzchnie (`SURFACES`), siatka, kolizja, API |
+| `scripts/car_styles.gd` | `CarStyles`: modele z epoki (dane z symulacji chmury; `StuntCar.apply_style`) |
+| `models/period_cars/<model>/` | bryły CC0 (body.obj, wheel.obj) + `paint_mask.png` (lakier, `tools/make_paint_masks.py`) |
+| `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
+| `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
 
 ## 5. Jak to działa
@@ -1957,6 +1972,14 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   (bez odzysku 5,2°). Bez ESP - podział tylko według docisku. Częściowy
   gaz (5-30%): 2,9-4,5°, płynnie (więcej przy 15-20% z powodu większej
   prędkości w tym samym łuku).
+- **Przegląd wydajności (noc 2026-11-11)** - szczegóły
+  `docs/PERF_PRZEGLAD_2026-11-11.md`. Bench S4 130% przed/po: mapka
+  (`hud`) 27,5 -> 9,0 ms/s (skoki 8,9 -> 3,6 ms), sterowanie botów
+  41,8 -> 24,3, trasa 16,6 -> 2,1, zarządzanie botami 38,8 -> 26,8. Kl./s
+  ~59-60 bez zmian: przy 130% ogranicza **GPU (~15-16 ms)**; lusterko
+  wył. tylko +1 kl./s. Skoki ~170 ms co 30-40 s = budowa nowego auta
+  ponad pulę -> pule 14 + 8 aut z naprzeciwka przy wczytywaniu.
+  `auto_fiz` 49 -> 59 ms/s (odzysk koło po kole - do sprawdzenia).
 - Noc 2026-11-11 (użytkownik śpi, gogle podłączone, **utrzymane w czuwaniu**:
   `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close` i
   `adb shell svc power stayon true`; przywrócenie:
@@ -1976,6 +1999,15 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+000. **Do oceny w goglach (noc 2026-11-11)**: auta z epoki dla gracza
+   (menu Nadwozie -> Model auta), premie "WZOROWY SZERYF" / "ZATRZYMANY",
+   premia za odcinek, odzysk w łuku, płynność po przeglądzie. Pytania
+   w sekcji 9.
+000. **Wydajność - dalej** (`docs/PERF_PRZEGLAD_2026-11-11.md`,
+   "Propozycje"): przy 130% ogranicza GPU - cienie / lusterko / scenerię
+   zmierzyć benchem A/B; dźwięk (tablica sinusa), fizyka gracza bez
+   alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,
    "na później")**: zamiast samego mieszania terenu - granica biomu jako
@@ -2195,6 +2227,13 @@ Propozycje (do uzgodnienia):
   `nearest_sample`. Zmierzyć na sprzęcie.
 
 ## 9. Otwarte pytania do użytkownika
+
+- **Auta z epoki dla gracza**: model daje bryłę, rozkład masy, zawieszenie,
+  hamulce i opór; silnik, napęd i masa z menu (twoje 1000 kW zostaje).
+  Czy wybór modelu ma też ustawiać fabryczny silnik/masę (jak w planie
+  chmury), czy zostaje tak? Kokpit sedana - wystarczy?
+- **Rozdzielczość 130%**: gogle ograniczone przez GPU (~59-60 kl./s).
+  Zejść do 110-120% albo szukać oszczędności w grafice (cienie)?
 
 - (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
   było (zwykły podjazd / rozbieg skoczni / po dźwigu)? (Zużycie:

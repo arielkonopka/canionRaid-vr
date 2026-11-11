@@ -2,7 +2,7 @@ extends SceneTree
 ## Zjazd w pole na wprost od łuku (jazda 2026-11-10: gra "widziała" auto
 ## przy 14 767 m, a ono jechało 170 km/h w pole - trasa przestała się
 ## dobudowywać i "urwała się"). Auto jedzie 3 s po trasie, potem prosto
-## pod kątem 9° od drogi: najbliższa próbka ma iść za autem, a daleko od
+## pod kątem 34° od drogi (trasa losowa - przy małym kącie łuk w tę samą stronę zostawiał auto przy drodze): najbliższa próbka ma iść za autem, a daleko od
 ## drogi gra ma uznać zjazd (odrodzenie na trasie).
 ##   godot --headless --xr-mode off -s res://tests/offroad_test.gd </dev/null
 
@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> bool:
 		if t + delta >= 8.0:
 			normal_scans = StuntTrack.full_scans - scans0
 			pos = xf.origin + xf.basis.x * 20.0
-			dir = (-xf.basis.z).rotated(Vector3.UP, 0.15)
+			dir = (-xf.basis.z).rotated(Vector3.UP, 0.6)
 		return false
 	var t2 := t - 8.0
 	pos += dir * 47.0 * delta

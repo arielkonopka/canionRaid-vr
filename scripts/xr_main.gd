@@ -678,7 +678,11 @@ func player_compliant() -> bool:
 ## na starcie jazdy, w czasie wczytywania), usuwany bot wraca do puli:
 ## naprawiony, ukryty, wyłączony z fizyki (PROCESS_MODE_DISABLED zdejmuje
 ## ciało z przestrzeni fizyki).
-const BOT_POOL_WARM := 6
+## 14 (było 6): na autostradzie bywa 11 botów naraz - bench 2026-11-11
+## pokazywał skok ~170 ms co 30-40 s przy każdym nowym aucie ponad pulę.
+## Auta z naprzeciwka - osobna pula, rozgrzewana tak samo (ONCOMING_POOL_WARM).
+const BOT_POOL_WARM := 14
+const ONCOMING_POOL_WARM := 8
 var _bot_pool: Array[StuntCar] = []
 
 
@@ -735,6 +739,25 @@ func _warm_bot_pool() -> void:
 		var b := _new_bot_car()
 		_park_bot(b)
 		_bot_pool.append(b)
+	if track and track.get("autostrada") == true:
+		while _oncoming_pool.size() + _oncoming.size() < ONCOMING_POOL_WARM:
+			var c := _new_oncoming_car()
+			c.visible = false
+			c.process_mode = Node.PROCESS_MODE_DISABLED
+			c.global_position = Vector3(0.0, -500.0, 0.0)
+			_oncoming_pool.append(c)
+
+
+## Auto z naprzeciwka: kinematyczne (jazda po szynie), bez kierowcy.
+func _new_oncoming_car() -> StuntCar:
+	var c := StuntCar.new()
+	c.name = "Oncoming%d_%d" % [Time.get_ticks_msec(), _oncoming_pool.size() + _oncoming.size()]
+	c.is_bot = true
+	add_child(c)
+	c.add_to_group(WorldOrigin.GROUP)
+	c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	c.freeze = true
+	return c
 
 
 func _take_bot() -> StuntCar:
@@ -2215,14 +2238,14 @@ func _restart_section() -> void:
 	for b in _bots:
 		_retire_bot(b)
 	_bots.clear()
-	for o in _oncoming:
-		(o["car"] as Node).queue_free()
-	_oncoming.clear()
+	# Auta z naprzeciwka do puli (było: niszczone razem z pulą - po każdym
+	# odrodzeniu budowane od nowa, ~170 ms na auto na Queście).
+	for o in _oncoming.duplicate():
+		(o["car"] as StuntCar).repair_body()
+		_pool_oncoming(o)
 	_osk = null
+	_osk_cars = {}
 	_osk_next_d = d + OSK_GAP_MIN
-	for c in _oncoming_pool:
-		c.queue_free()
-	_oncoming_pool.clear()
 	_reset_bot_pattern(track.section_at(d))
 
 
@@ -2766,13 +2789,7 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 		c.visible = true
 		c.process_mode = Node.PROCESS_MODE_INHERIT
 	else:
-		c = StuntCar.new()
-		c.name = "Oncoming%d" % Time.get_ticks_msec()
-		c.is_bot = true
-		add_child(c)
-		c.add_to_group(WorldOrigin.GROUP)
-		c.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-		c.freeze = true
+		c = _new_oncoming_car()
 	c.apply_style(_pick_style())
 	for w in c.wheels:
 		w.spring_len = c.rest_length - 0.04
