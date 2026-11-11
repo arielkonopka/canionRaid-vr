@@ -2182,7 +2182,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by
    było się widzieć jako ten manekin, co ma nogi na pedałach gazu
    i hamulca" (stopy wg spustów, ręce IK do kontrolerów; potrzebny glTF
-   ze szkieletem -> `python3-numpy` dla Blendera).
+   ze szkieletem - `python3-numpy` zainstalowany 2026-11-11, eksport
+   glTF ze szkieletem z Blendera działa, sprawdzone).
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak

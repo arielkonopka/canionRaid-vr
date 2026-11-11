@@ -99,7 +99,8 @@ między pedałami), lewa przy sprzęgle (w manualu wciska przy zmianie
 biegu), ręce prowadzone do kontrolerów (IK dwóch kości: ramię-łokieć-
 dłoń; dłonie na wieńcu w trybie kierownicy).
 Technicznie: potrzebny model ze szkieletem (Skeleton3D) - eksport glTF
-z Blendera wymaga `python3-numpy` (brak; instaluje użytkownik), rig
+z Blendera wymaga `python3-numpy` - zainstalowany, eksport ze szkieletem
+sprawdzony (2026-11-11), rig
 Rigify z modelu jest. Widok z kokpitu: głowa manekina ukryta (kamera
 w jej miejscu), ciało z warstwy widocznej w kokpicie.
 Prośba: ująć w specyfikacji razem z kierownicą i dłońmi (kolejność,
