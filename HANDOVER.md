@@ -2116,7 +2116,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
    8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
    w bit jak przedtem, `_make_beep` naprawiony - zapisywał 8 bitów bez
-   znaku, koniec sygnału trzaskał), A2, A7, A6 (z `drive_test` 3x2,
+   znaku, koniec sygnału trzaskał), A2, ~~A7~~ (zrobione:
+   `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
+   warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
+   nieużywany `_plain_material` usunięty), A6 (z `drive_test` 3x2,
    wyniki co do setnej), D2, D4, D5, D7, D8. Każda paczka = commit
    z testami w opisie, PR #61 przegląda chmura.
 000. **Przejścia między biomami "z uzasadnieniem" (użytkownik 2026-11-10,

@@ -625,12 +625,16 @@ func _concrete_material() -> Material:
 	return _shared_mats["concrete"]
 
 
-func _plain_material(color: Color, rough: float) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = rough
-	m.metallic_specular = 0.8
-	return m
+## Jednolity kolor, jeden materiał na klucz dla wszystkich kawałków
+## (przegląd chmury A7: tablice, słupki, warsztaty dostawały nowy
+## materiał na każdy obiekt). Domyślna szorstkość jak StandardMaterial3D.
+func _flat_mat(key: String, color: Color, rough := 1.0) -> Material:
+	if not _shared_mats.has(key):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = color
+		m.roughness = rough
+		_shared_mats[key] = m
+	return _shared_mats[key]
 
 
 # --------------------------------------------------------------------------
@@ -708,10 +712,8 @@ func _build_line(node_name: String, dist: float, gate: bool, text := "META") -> 
 	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
 	var s := _sample_near(dist)
 	var width: float = s["width"]
-	var white := StandardMaterial3D.new()
-	white.albedo_color = Color(0.95, 0.95, 0.95)
-	var black := StandardMaterial3D.new()
-	black.albedo_color = Color(0.05, 0.05, 0.05)
+	var white := _flat_mat("line_white", Color(0.95, 0.95, 0.95))
+	var black := _flat_mat("line_black", Color(0.05, 0.05, 0.05))
 	var n := 12
 	var sq := width / n
 	for row in range(2):
@@ -726,8 +728,7 @@ func _build_line(node_name: String, dist: float, gate: bool, text := "META") -> 
 			root.add_child(m)
 	if not gate:
 		return
-	var post_mat := StandardMaterial3D.new()
-	post_mat.albedo_color = Color(0.85, 0.15, 0.1)
+	var post_mat := _flat_mat("gate_post", Color(0.85, 0.15, 0.1))
 	for side in [-1.0, 1.0]:
 		var post := MeshInstance3D.new()
 		var pb := BoxMesh.new()
@@ -1043,11 +1044,7 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 				bar.rotation = Vector3(0, 0, PI * 0.25)
 		"fuel":
 			# Znak stacji paliw: niebieska tablica, białe pole, dystrybutor.
-			if not _shared_mats.has("sign_blue"):
-				var bm := StandardMaterial3D.new()
-				bm.albedo_color = Color(0.05, 0.25, 0.65)
-				_shared_mats["sign_blue"] = bm
-			_sign_box(root, Vector3(0.6, 0.85, 0.02), face, _shared_mats["sign_blue"])
+			_sign_box(root, Vector3(0.6, 0.85, 0.02), face, _flat_mat("sign_blue", Color(0.05, 0.25, 0.65)))
 			_sign_box(root, Vector3(0.44, 0.44, 0.02), face + Vector3(0, 0.12, 0.012), mats["white"])
 			_sign_box(root, Vector3(0.14, 0.26, 0.01), face + Vector3(-0.03, 0.1, 0.025), mats["black"])
 			_sign_box(root, Vector3(0.04, 0.16, 0.01), face + Vector3(0.09, 0.14, 0.025), mats["black"])
@@ -1057,11 +1054,7 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 			# Autostrada / koniec autostrady (wzór jak w Polsce): niebieska
 			# tablica, biały piktogram - dwie jezdnie pod wiaduktem; koniec -
 			# czerwony skos.
-			if not _shared_mats.has("sign_blue"):
-				var bmh := StandardMaterial3D.new()
-				bmh.albedo_color = Color(0.05, 0.25, 0.65)
-				_shared_mats["sign_blue"] = bmh
-			_sign_box(root, Vector3(0.8, 0.8, 0.02), face, _shared_mats["sign_blue"])
+			_sign_box(root, Vector3(0.8, 0.8, 0.02), face, _flat_mat("sign_blue", Color(0.05, 0.25, 0.65)))
 			_sign_box(root, Vector3(0.56, 0.06, 0.01), face + Vector3(0, 0.12, 0.015), mats["white"])
 			for sx in [-1.0, 1.0]:
 				var lane := _sign_box(root, Vector3(0.07, 0.36, 0.01), face + Vector3(0.11 * sx, -0.08, 0.015), mats["white"])
@@ -1072,11 +1065,7 @@ func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0)
 				bar.rotation = Vector3(0, 0, -0.75)
 		"repair":
 			# Znak warsztatu: niebieska tablica, białe pole, klucz.
-			if not _shared_mats.has("sign_blue"):
-				var bm2 := StandardMaterial3D.new()
-				bm2.albedo_color = Color(0.05, 0.25, 0.65)
-				_shared_mats["sign_blue"] = bm2
-			_sign_box(root, Vector3(0.6, 0.85, 0.02), face, _shared_mats["sign_blue"])
+			_sign_box(root, Vector3(0.6, 0.85, 0.02), face, _flat_mat("sign_blue", Color(0.05, 0.25, 0.65)))
 			_sign_box(root, Vector3(0.44, 0.44, 0.02), face + Vector3(0, 0.12, 0.012), mats["white"])
 			var wr := _sign_box(root, Vector3(0.05, 0.3, 0.01), face + Vector3(0, 0.12, 0.025), mats["black"])
 			wr.rotation = Vector3(0, 0, 0.8)
@@ -1514,13 +1503,9 @@ func _island_front(d0: float) -> void:
 	board.position = Vector3(0, 1.0, z + 0.017)
 	root.add_child(board)
 	# C-11: niebieska tarcza, dwie białe strzałki w dół, w lewo i w prawo.
-	if not _shared_mats.has("sign_blue"):
-		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color(0.05, 0.25, 0.65)
-		_shared_mats["sign_blue"] = bm
 	var face := Vector3(0, 2.25, z)
 	_sign_disc(root, face, 0.42, mats["white"], 0.0)
-	_sign_disc(root, face, 0.38, _shared_mats["sign_blue"], 0.012)
+	_sign_disc(root, face, 0.38, _flat_mat("sign_blue", Color(0.05, 0.25, 0.65)), 0.012)
 	for sx in [-1.0, 1.0]:
 		var shaft := _sign_box(root, Vector3(0.06, 0.34, 0.01), face + Vector3(0.1 * sx, -0.02, 0.03), mats["white"])
 		shaft.rotation = Vector3(0, 0, 0.75 * sx)
@@ -1584,11 +1569,7 @@ func _town_sign(dist: float, text: String, crossed := false) -> void:
 	# albo niżej niż środek).
 	var y0: float = (smp["right"] as Vector3).y * x
 	var mats := _sign_mats()
-	if not _shared_mats.has("sign_green"):
-		var g := StandardMaterial3D.new()
-		g.albedo_color = Color(0.05, 0.42, 0.2)
-		g.roughness = 0.5
-		_shared_mats["sign_green"] = g
+	_flat_mat("sign_green", Color(0.05, 0.42, 0.2), 0.5)
 	for px in [-0.55, 0.55]:
 		_sign_box(root, Vector3(0.07, 2.6, 0.07), Vector3(x + px, y0 + 1.0, -0.05), mats["post"])
 	var cy := y0 + 2.2
@@ -1637,8 +1618,7 @@ func _build_sign(dist: float, text: String, board_color := Color(0.95, 0.75, 0.1
 	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
 	var s := _sample_near(dist)
 	var x: float = s["width"] * 0.5 + 0.6
-	var post_mat := StandardMaterial3D.new()
-	post_mat.albedo_color = Color(0.6, 0.6, 0.62)
+	var post_mat := _flat_mat("town_post", Color(0.6, 0.6, 0.62))
 	var post := MeshInstance3D.new()
 	var pb := BoxMesh.new()
 	pb.size = Vector3(0.12, 2.6, 0.12)
@@ -1646,8 +1626,7 @@ func _build_sign(dist: float, text: String, board_color := Color(0.95, 0.75, 0.1
 	post.mesh = pb
 	post.position = Vector3(x, 1.3, 0.0)
 	root.add_child(post)
-	var board_mat := StandardMaterial3D.new()
-	board_mat.albedo_color = board_color
+	var board_mat := _flat_mat("town_board_" + board_color.to_html(), board_color)
 	var board := MeshInstance3D.new()
 	var bb := BoxMesh.new()
 	bb.size = Vector3(2.6, 0.9, 0.06)
@@ -1674,14 +1653,10 @@ func _build_workshop(stop_dist: float) -> void:
 	root.transform = global_transform.affine_inverse() * transform_at_distance(stop_dist)
 	var s := _sample_near(stop_dist)
 	var hw: float = s["width"] * 0.5
-	var wall := StandardMaterial3D.new()
-	wall.albedo_color = Color(0.78, 0.74, 0.66)
-	var roof := StandardMaterial3D.new()
-	roof.albedo_color = Color(0.45, 0.18, 0.12)
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.08, 0.08, 0.09)
-	var yellow := StandardMaterial3D.new()
-	yellow.albedo_color = Color(0.95, 0.8, 0.1)
+	var wall := _flat_mat("ws_wall", Color(0.78, 0.74, 0.66))
+	var roof := _flat_mat("ws_roof", Color(0.45, 0.18, 0.12))
+	var dark := _flat_mat("ws_dark", Color(0.08, 0.08, 0.09))
+	var yellow := _flat_mat("ws_yellow", Color(0.95, 0.8, 0.1))
 	# Hala stoi na platformie przy jezdni (na tej samej wysokości).
 	var hall_x := hw + 6.0
 	var parts := [
@@ -1937,11 +1912,7 @@ func _build_station(d0: float, st: Dictionary) -> void:
 
 
 func _station_green() -> Material:
-	if not _shared_mats.has("station_green"):
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(0.1, 0.6, 0.3)
-		_shared_mats["station_green"] = m
-	return _shared_mats["station_green"]
+	return _flat_mat("station_green", Color(0.1, 0.6, 0.3))
 
 
 ## Zjazdy danego rodzaju: [{"start", "end" - strefa, "lane_x" - od tej
