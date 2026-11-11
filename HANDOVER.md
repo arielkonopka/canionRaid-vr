@@ -50,6 +50,8 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   300 km/h to już cała przyczepność, 30% - ESP hamuje 3 s, napęd 5%,
   znoszenie 9,5° (pętla z kierowcą); auto i ESP bez kierowcy stabilne.
   "Wg przyczepności": pełny drążek 1,7°, ESP nie działa. Fizyka bez zmian.
+  Ocena użytkownika w goglach (2026-11-11): "jest nieźle, sam styl jest
+  świetny i dynamiczny, podoba mi się też gradacja napędu".
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
