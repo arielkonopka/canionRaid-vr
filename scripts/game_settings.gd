@@ -741,8 +741,9 @@ func apply_shadows(sun: DirectionalLight3D) -> void:
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		sun.directional_shadow_max_distance = 80.0
 		RenderingServer.directional_shadow_atlas_set_size(full_size, true)
-	print("CIENIE: %s, mapa %d" % [shadows if Bench.on("shadows_far") else "near (bench)",
-			mini(full_size, 1024) if sun.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL else full_size])
+	var near := shadows == "near" or not Bench.on("shadows_far")
+	print("CIENIE: %s" % ("wył." if not sun.shadow_enabled else
+			"%s, mapa %d" % ["bliskie" if near else "pełne", mini(full_size, 1024) if near else full_size]))
 
 
 func enable_xr(viewport: Viewport) -> bool:

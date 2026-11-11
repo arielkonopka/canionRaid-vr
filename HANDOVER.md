@@ -2058,10 +2058,20 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - "Trasa się skończyła" wraca: dobudowa niezależna od reszty kroku,
   siatka bezpieczeństwa, diagnostyka, `endless_progress_test` (sekcja 8,
   pkt 0). `endless_test` autostrada 3 ziarna x 600 s: 0 błędów skryptu,
-  trasa nigdy się nie kończyła. **Znalezisko**: w 2 z 3 przejazdów auto
-  po locie z przechyłem 62-83° zawisło (0 km/h, koła bez kontaktu,
-  przechył 2°) i stało do końca testu (9 min) bez odrodzenia - do
-  zbadania (`_use_crane` -> `_right_car` co 3 s nie pomaga?).
+  trasa nigdy się nie kończyła. "Auto zawisło po locie" w 2 z 3
+  przejazdów - wyjaśnione: auto stało **na kołach** w poprzek drogi
+  przodem w barierze, a autopilot testu nie umiał cofać (gracz by cofnął).
+  `endless_test` cofa teraz po 2 s postoju ("STOI ... cofam"). W grze
+  i tak siatka (użytkownik zatwierdził przez chmurę): automatyczne
+  stawianie na koła 3. raz w 10 s - 15 m dalej, 4. - utrata życia
+  "utknięcie" (`_use_crane(true)`, przycisk gracza się nie liczy; test
+  `stuck_net_test`). Diagnostyka w logu: "ZAWIESZONE", "NA KOŁA".
+  `ensure_ahead`: dystans po drodze < 700 m lub linia prosta < 300 m.
+  Akceptacja (chmura): `endless_test` autostrada 3 ziarna x 600 s -
+  23,6 / 24,7 / 24,6 km, 0 zawieszeń, 0 błędów skryptu, 0 awaryjnych
+  dobudów; ziarno 11 w ostatnich 20 s stało tyłem do kierunku jazdy
+  w barierze (autopilot testu cofa, ale nie zawraca o 180°). Pełny
+  `./quest.sh test` OK (ze `stuck_net_test`).
 - Stabilność > 200 km/h: autopilot testów, nie auto (sekcja 2, odzysk).
   `endless_test` używa nowego autopilota tylko na autostradzie; w wąwozie
   stary (porównanie niejednoznaczne: ziarno 777 nowy 4,95 km + upadek,
@@ -2209,8 +2219,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    2026-11-11, także raz na prostej bez dużej prędkości).** Zrobione
    2026-11-11 (inbox `koniec-trasy-wraca`): dobudowa jako pierwsza rzecz
    w `_physics_process` (`_keep_track_ahead`), siatka bezpieczeństwa
-   `EndlessTrack.ensure_ahead` (auto < 700 m w linii prostej od końca
-   trasy -> pełne szukanie kawałka i dobudowa, log "TRASA: awaryjna
+   `EndlessTrack.ensure_ahead` (po drodze < 700 m albo w linii prostej
+   < 300 m od końca trasy -> pełne szukanie kawałka i dobudowa, log "TRASA: awaryjna
    dobudowa"), postęp bez cofania (`maxf(dist, _last_safe_dist)`),
    `update_progress` po odrodzeniu, diagnostyka "TRASA KONCZY SIE"
    (< 600 m przed autem, raz na sekundę). Test `endless_progress_test`.

@@ -13,6 +13,9 @@ var frame := 0
 var limit := 240.0
 var seed_v := 777
 const AP = preload("res://tests/_autopilot.gd")
+var autostrada_ap := false
+var _stuck_t := 0.0
+var _rev_t := 0.0
 var last_cranes := -1
 var last_bots := 0
 ## 6. argument: prędkość wjazdu na wielkie skocznie autostrady [km/h] (długie loty -
@@ -28,6 +31,7 @@ func _initialize() -> void:
 	var gs = root.get_node("GameSettings")
 	gs.persist = false
 	gs.track_mode = args[4] if args.size() > 4 else "endless"   # endless / canyon / autostrada
+	autostrada_ap = gs.track_mode == "autostrada"
 	gs.cranes = 3
 	gs.engine_power = int(args[0]) if args.size() > 0 else 180
 	gs.engine_type = args[1] if args.size() > 1 else "petrol"
@@ -139,14 +143,34 @@ func _physics_process(delta: float) -> bool:
 		return t > limit
 	var s: Dictionary = info["sample"]
 	var here := float(s["dist"])
+	# Auto stoi z kołami na ziemi (zawieszenie po locie, 2026-11-11): co 5 s
+	# gdzie i w co patrzy - autopilot nie umie wycofać.
+	# Autopilot nie umiał wycofać: po locie auto stawało w poprzek drogi
+	# przodem w barierze i stało do końca testu (ziarna 222, 3333). Gracz
+	# by cofnął - test też: po 2 s postoju 2,5 s wstecz (automat: hamulec
+	# na postoju = wsteczny) ze skrętem w drugą stronę.
+	if car.linear_velocity.length() < 0.5 and car.wheels_on_ground >= 3 and t > 5.0 and _rev_t <= 0.0:
+		_stuck_t += delta
+		if _stuck_t > 2.0:
+			_stuck_t = 0.0
+			_rev_t = 2.5
+			var hd := rad_to_deg((-car.global_basis.z).signed_angle_to(s["fwd"], car.global_basis.y))
+			print("  STOI t=%.0f s, d %.0f, w poprzek %.1f m, kąt do toru %.0f°, ostatni kontakt %s - cofam" % [
+					t, here, float(info["offset"]), hd, str(car.last_hit.get("what", "-"))])
+	else:
+		_stuck_t = 0.0
 	var fwd: Vector3 = -car.global_basis.z
 	var head_err := fwd.signed_angle_to(s["fwd"], car.global_basis.y)
 	# Wzmocnienie maleje z prędkością - przy 220 km/h na autostradzie stałe
 	# wzmocnienie rozbujało regulator (wychylenie z pasa rosło do pełnego skrętu).
-	# Autopilot wspólny z regen_highway_test (tests/_autopilot.gd - stałe
-	# wzmocnienia rozbujały auto przy 210 km/h). OLD_AP=1 - stary, do porównań.
+	# Autopilot: na autostradzie wspólny z regen_highway_test
+	# (tests/_autopilot.gd - stałe wzmocnienia rozbujały auto przy 210 km/h).
+	# W wąwozie stary: porównanie 2026-11-11 niejednoznaczne (ziarno 777:
+	# nowy 4,95 km i upadek po skoku, stary 6,95 km bez; ziarno 31: nowy
+	# 5,11 km, stary 3,36 km). OLD_AP=1 / NEW_AP=1 wymusza.
 	var steer: float
-	if OS.has_environment("OLD_AP"):
+	var old_ap := OS.has_environment("OLD_AP") or (not autostrada_ap and not OS.has_environment("NEW_AP"))
+	if old_ap:
 		var gain := clampf(25.0 / maxf(car.speed, 1.0), 0.3, 1.0)
 		steer = clampf((-info["offset"] * 0.25 - head_err * 2.5) * gain, -1, 1)
 	else:
@@ -205,6 +229,11 @@ func _physics_process(delta: float) -> bool:
 	car.throttle = 1.0 if kmh < target else 0.0
 	car.brake = clampf((kmh - target - 2.0) * 0.15, 0.0, 1.0)
 	car.steer = steer if car.wheels_on_ground > 0 else 0.0
+	if _rev_t > 0.0:
+		_rev_t -= delta
+		car.throttle = 0.0
+		car.brake = 1.0
+		car.steer = -steer
 	if car.wheels_on_ground == 0:
 		# W locie bez pedałów - gaz albo hamulec obracają auto (reakcja napędu).
 		car.throttle = 0.0

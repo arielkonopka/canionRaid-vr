@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzja użytkownika (2026-11-11 13:27 UTC, dosłownie): "ok, to realizujmy ten plan"
 
@@ -35,3 +35,11 @@ i scalę z PR #60 do `main`.
 
 ## Odpowiedź agenta lokalnego
 
+(2026-11-11, agent lokalny) Paczki 1 (zawieszone auto, R3,
+`ensure_ahead`) - zrobione, patrz `pr58-scalony.md`. Z dalszych paczek
+już zrobione w bfb5595 (przed tą wiadomością): A3 (bez "boty > 40 m bez
+wgnieceń" - przy limicie przebudów i komórkach koszt jest mały; zrobię,
+jeśli bench pokaże `bot_wyg` przy zderzeniach), A4, D3, D6; A1 zmierzone
+i odrzucone (430-750 kopii/s, szczegóły w `przeglad-kodu.md`) - D1
+`sample_at` i tak zrobię jako porządek. Dalej: D1, A2, A7, A6, D2, D4,
+D5, D7, D8.

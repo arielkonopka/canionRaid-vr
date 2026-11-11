@@ -1965,8 +1965,8 @@ func _keep_track_ahead(delta: float) -> void:
 	if _ahead_t > 0.0:
 		return
 	_ahead_t = 0.25
-	track.ensure_ahead(car.global_position)
 	var left: float = track.total_length() - _last_safe_dist
+	track.ensure_ahead(car.global_position, left)
 	_ahead_log_t -= 0.25
 	if left < 600.0 and _ahead_log_t <= 0.0:
 		_ahead_log_t = 1.0
@@ -2060,6 +2060,8 @@ func _watch_track(delta: float) -> void:
 		fell = fell or (off_track and _endless)
 		# Zawieszone podwoziem na krawędzi jezdni, koła w powietrzu - samo nie zjedzie.
 		var beached := car.wheels_on_ground < 3 and car.linear_velocity.length() < 0.5
+		if beached:
+			_stuck_diag(s, fell, upside_down, below)
 		if fell or upside_down or beached or car.global_position.y < -50.0:
 			# Chwila na zrozumienie, co się stało, potem dźwig stawia auto na torze.
 			# Przy zawieszeniu na krawędzi dłużej - gracz może jeszcze próbować zjechać.
@@ -2073,22 +2075,39 @@ func _watch_track(delta: float) -> void:
 				elif _canyon:
 					_right_car()          # zawieszone na krawędzi - tylko na koła
 				else:
-					_use_crane()
+					_use_crane(true)
 		else:
 			_fallen_time = 0.0
 
 
 ## Dźwig na żądanie gracza albo po upadku. Na trasie bez końca w trakcie
 ## jazdy zabiera życie; po ostatnim - koniec jazdy.
-func _use_crane() -> void:
+var _auto_rights: Array[float] = []
+func _use_crane(automatic := false) -> void:
 	if _endless and race_state == Race.RACING:
 		# Trasa bez końca: bez dźwigu. Auto na kołach, ale utknięte - stawiamy
 		# na koła w miejscu. Auto na dachu - to utrata życia (wybuch), żadnego
 		# ratowania przyciskiem.
 		if car.global_basis.y.y < 0.3:
 			lose_life("auto na dachu")
-		else:
-			_right_car()
+			return
+		# Siatka bezpieczeństwa (użytkownik przez chmurę 2026-11-11): gdy
+		# samo stawianie w tym samym miejscu nie pomaga (2 razy w 10 s),
+		# trzecie stawia 15 m dalej, czwarte to utrata życia - gracz nie
+		# utknie na zawsze. Tylko automatyczne (zawieszenie na krawędzi),
+		# nie przycisk gracza.
+		var ahead := 0.0
+		if automatic:
+			var now := Time.get_ticks_msec() / 1000.0
+			_auto_rights = _auto_rights.filter(func(x: float) -> bool: return now - x < 10.0)
+			if _auto_rights.size() >= 3:
+				_auto_rights.clear()
+				lose_life("utknięcie")
+				return
+			if _auto_rights.size() == 2:
+				ahead = 15.0
+			_auto_rights.append(now)
+		_right_car(ahead)
 		return
 	if _canyon:
 		_right_car()
@@ -2110,9 +2129,42 @@ func _right_car(ahead := 0.0) -> void:
 		return
 	var d := float(info["sample"]["dist"]) + ahead
 	var dmg: Dictionary = car.damage.duplicate(true)
-	car.place(_safe_pose(d))
+	var before := car.global_position
+	var xf := _safe_pose(d)
+	print("NA KOŁA: d %.1f (+%.0f), z %s na %s" % [d, ahead,
+			before.snapped(Vector3.ONE * 0.1), xf.origin.snapped(Vector3.ONE * 0.1)])
+	car.place(xf)
 	car.damage = dmg
 	_fallen_time = 0.0
+
+
+## Diagnostyka "auto zawisło po locie" (endless_test autostrada, ziarna
+## 222 i 3333: 0 km/h, koła bez kontaktu, 9 min bez odrodzenia). Raz na
+## sekundę: stan, promienie spod mocowań kół (co jest pod autem), kawałki.
+var _stuck_log_t := 0.0
+func _stuck_diag(s: Dictionary, fell: bool, upside_down: bool, below: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _stuck_log_t < 1.0:
+		return
+	_stuck_log_t = now
+	var space := get_world_3d().direct_space_state
+	var parts := PackedStringArray()
+	var up := car.global_basis.y
+	for w in car.wheels:
+		var m := car.global_transform * w.mount
+		var q := PhysicsRayQueryParameters3D.create(m + up * 0.5, m - up * 3.0)
+		q.exclude = [car.get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			parts.append("nic")
+		else:
+			var o: Object = hit["collider"]
+			parts.append("%s %.2f m" % [(o as Node).name if o is Node else "?",
+					(m - (hit["position"] as Vector3)).length()])
+	print("ZAWIESZONE: stan %d, _fallen_time %.1f, fell %s, dach %s, pod jezdnią %.2f m, koła %d, dist %.1f, up.y %.2f, ostatni kontakt %s | koła: %s | %s" % [
+			race_state, _fallen_time, fell, upside_down, below, car.wheels_on_ground,
+			float(s["dist"]), up.y, str(car.last_hit.get("what", "-")),
+			", ".join(parts), track.debug_state() if _endless else ""])
 
 
 ## Bezpieczne miejsce na postawienie auta od dystansu `d`: prawy pas (na
