@@ -40,6 +40,16 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   "fajnie, jeśli potyczki z botami są niedeterministyczne, to podnosi
   emocje")** - nie usuwać losowości z zachowania botów w szale. Testy
   szału (`bot_rage_test`) uruchamiać kilka razy i oceniać łącznie.
+- **Ograniczenie skrętu "Wg przyczepności" (użytkownik 2026-11-11: przy
+  300 km/h "auto wpadało w oscylacje, jakby drobna korekta kierownicą
+  powodowała przepychanie z kontrolą trakcji"; zgoda "ok")**: trzecia
+  wartość opcji `steer_assist` (true / "grip" / false; `GameSettings.
+  apply_steer`, `StuntCar.steer_grip`): maks. skręt = min(dotychczasowy,
+  atan(2,5·μ·g·L/v²)). Przyczyna z `tests/esp_highspeed_test.gd`
+  (hatchback, elektryk w kołach): przy 6° limitu 10% drążka przy
+  300 km/h to już cała przyczepność, 30% - ESP hamuje 3 s, napęd 5%,
+  znoszenie 9,5° (pętla z kierowcą); auto i ESP bez kierowcy stabilne.
+  "Wg przyczepności": pełny drążek 1,7°, ESP nie działa. Fizyka bez zmian.
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;

@@ -335,7 +335,11 @@ func toggle_assist(which: String) -> void:
 	car.set(key, not car.get(key))
 	var gs := _gs
 	if gs:
-		gs.set(key, car.get(key))
+		if which == "steer":
+			# Włączenie wraca do trybu z auta (Wł. albo Wg przyczepności).
+			gs.steer_assist = ("grip" if car.steer_grip else true) if car.steer_assist else false
+		else:
+			gs.set(key, car.get(key))
 		gs.save_settings()
 
 
@@ -1695,8 +1699,10 @@ func _on_setting_changed(key: String) -> void:
 			_pause.apply_volume()
 		"radio_online":
 			_radio.set_online(gs.radio_online)
-		"abs_enabled", "tcs_enabled", "esp_enabled", "steer_assist":
+		"abs_enabled", "tcs_enabled", "esp_enabled":
 			car.set(key, gs.get(key))
+		"steer_assist":
+			gs.apply_steer(car)
 		"paint":
 			car.set_paint(gs.PAINTS[gs.paint])
 		"xr_resolution", "xr_foveation":

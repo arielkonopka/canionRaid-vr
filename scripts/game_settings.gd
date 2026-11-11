@@ -24,7 +24,7 @@ var abs_enabled: bool = true
 var tcs_enabled: bool = true
 var esp_enabled: bool = true
 ## Ograniczenie skrętu z prędkością (StuntCar.steer_assist) - jawna pomoc.
-var steer_assist: bool = true
+var steer_assist: Variant = true   # true / false / "grip" (wg przyczepności)
 var engine_type: String = "petrol"
 var engine_power: int = 180          # kW
 ## Układ napędu: "rwd" tył, "fwd" przód, "awd" 4x4 (StuntCar.drive_layout).
@@ -387,9 +387,10 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "steer_assist", "group": "assist", "label": "Ograniczenie skrętu",
-		"values": [true, false], "names": ["Wł.", "Wył."],
+		"values": [true, "grip", false], "names": ["Wł.", "Wg przyczepności", "Wył."],
 		"hints": [
 			"Im szybciej, tym mniejszy skręt kół - drążek to nie kierownica.",
+			"Pełny drążek to tyle skrętu, ile opony przeniosą (z zapasem na poślizg) - przy 300 km/h drobne korekty naprawdę drobne.",
 			"Pełny skręt przy każdej prędkości - jak prawdziwa kierownica.",
 		],
 	},
@@ -637,6 +638,14 @@ func save_settings() -> void:
 	cfg.save(PATH)
 
 
+## Ograniczenie skrętu na aucie: Wł. / Wg przyczepności / Wył.
+## (użytkownik 2026-11-11: przy 300 km/h oscylacje - 10% drążka zużywało
+## już całą przyczepność, tests/esp_highspeed_test.gd).
+func apply_steer(car: StuntCar) -> void:
+	car.steer_assist = steer_assist is String or bool(steer_assist)
+	car.steer_grip = steer_assist is String and steer_assist == "grip"
+
+
 ## Ustawia samochód zgodnie z wyborem gracza.
 ## Moc, jaką auto naprawdę dostanie: próg HUB_ONLY_KW tylko dla elektryka
 ## z silnikami w kołach, inne napędy w jego miejsce MAX_KW_OTHERS.
@@ -703,7 +712,7 @@ func apply_to_car(car: StuntCar) -> void:
 	car.abs_enabled = abs_enabled
 	car.tcs_enabled = tcs_enabled
 	car.esp_enabled = esp_enabled
-	car.steer_assist = steer_assist
+	apply_steer(car)
 	car.set_paint(PAINTS[paint])
 
 
