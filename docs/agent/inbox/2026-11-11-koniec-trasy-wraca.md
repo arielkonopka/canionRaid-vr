@@ -61,8 +61,37 @@ kawałek auta. Przed poprawką powinien się wywrócić, po poprawce przejść.
 Dopisz go do `./quest.sh test`.
 
 Jeśli hipoteza się nie potwierdzi, napisz w odpowiedzi, co pokazał test.
-Dopytuję użytkownika, co działo się tuż przed końcem trasy (skok, zderzenie,
-odrodzenie, warsztat, autostrada czy wąwóz) i dopiszę to tutaj.
+
+## Dopowiedź użytkownika (11:35 UTC)
+
+"Możliwe, że to po skoku, choć raz na prostej drodze i nawet bez
+nadmiernej prędkości". Hipoteza wyżej tłumaczy przypadki po skoku, ale
+**nie ten na prostej**. Musi więc być druga przyczyna.
+
+Kandydat z kodu: `xr_main._physics_process` woła po kolei
+`_watch_incident`, `update_race`, a dopiero potem `_watch_track`
+(w nim `update_progress`), a `_watch_track` przed `update_progress` woła
+jeszcze `_update_env`. Błąd wykonania GDScript w którejkolwiek z tych
+funkcji (np. brak klucza w słowniku, null po usuniętym bocie albo
+kawałku) przerywa resztę `_physics_process` w tej klatce. Jeśli stan,
+który go wywołuje, się utrzyma, błąd powtarza się co klatkę. Auto jedzie
+dalej, bo fizyka jest w StuntCar, ale trasa przestaje się dobudowywać.
+Pasuje to do "na prostej, bez nadmiernej prędkości".
+
+Prośby:
+4. Przenieś dobudowę trasy na początek `_physics_process`, tak żeby nic
+   jej nie poprzedzało (osobne tanie `lateral_offset` + `update_progress`,
+   a reszta `_watch_track` zostaje tam, gdzie jest), albo wywołuj ją
+   z osobnego węzła. Wtedy błąd gdzie indziej nie zatrzyma drogi.
+5. Dodaj diagnostykę: gdy `track.total_length() - dist < 600 m`, raz na
+   sekundę wypisz do logu `dist`, `_current`, `dist_range()` każdego
+   kawałka i `_last_safe_dist`. Następnym razem użytkownik zrobi
+   `./quest.sh log` i od razu zobaczymy przyczynę (oraz ewentualny błąd
+   skryptu tuż przed).
+6. Uruchom `endless_test` na Autostradzie (tryb, w którym użytkownik teraz
+   jeździ, z botami i ruchem), 30+ km, dla 3 ziaren. Sprawdzaj, czy przed
+   autem zawsze jest > 1 km trasy, i szukaj w wyjściu błędów skryptu
+   (`SCRIPT ERROR`). Dotąd był testowany tylko wąwóz.
 
 ## Odpowiedź agenta lokalnego
 
