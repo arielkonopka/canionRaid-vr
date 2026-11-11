@@ -381,11 +381,11 @@ func _update_rail(delta: float) -> bool:
 			return false
 		on_rail = true
 		_rail_v = maxf(car.speed, 5.0)
-		var smp: Array = track.samples_from(dist, 1.0)
+		var smp: Dictionary = track.sample_at(dist, 1.0)
 		if smp.is_empty():
 			on_rail = false
 			return false
-		_lane_off = (car.global_position - track.to_global(smp[0]["pos"])).dot(smp[0]["right"])
+		_lane_off = (car.global_position - track.to_global(smp["pos"])).dot(smp["right"])
 		car.freeze = true
 	elif want_phys or (rage > 0.0 and has_token):
 		# Z powrotem fizyka, z prędkością, jaką miał na szynie.
@@ -404,17 +404,17 @@ func _update_rail(delta: float) -> bool:
 	delta = _rail_acc
 	_rail_acc = 0.0
 	# Prędkość przepisowa w tym miejscu, płynnie.
-	var smp2: Array = track.samples_from(dist, 1.0)
+	var smp2: Dictionary = track.sample_at(dist, 1.0)
 	if smp2.is_empty():
 		return true
-	var v_goal := float(smp2[0]["limit"]) / 3.6
+	var v_goal := float(smp2["limit"]) / 3.6
 	if rage > 0.05 and player and not _foe_valid():
 		# Szał bez żetonu: pościg poza wzrokiem - dogania gracza od tyłu.
 		v_goal = clampf(player.speed + (12.0 if dist < float(main._last_safe_dist) else -5.0), 10.0, 70.0)
 	_rail_v = move_toward(_rail_v, v_goal, 5.0 * delta)
 	dist += _rail_v * delta
 	var xf: Transform3D = track.transform_at_distance(dist)
-	var lane := clampf(_lane_off, -float(smp2[0]["width"]) * 0.5 + 1.0, float(smp2[0]["width"]) * 0.5 - 1.0)
+	var lane := clampf(_lane_off, -float(smp2["width"]) * 0.5 + 1.0, float(smp2["width"]) * 0.5 - 1.0)
 	car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.62)
 	return true
 

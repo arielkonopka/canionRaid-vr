@@ -1144,11 +1144,11 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	if track.is_gap_at(d) or d > track.total_length() - 20.0:
 		return
 	var xf: Transform3D = track.transform_at_distance(d)
-	var smp: Array = track.samples_from(d, 2.0)
+	var smp: Dictionary = track.sample_at(d)
 	if smp.is_empty():
 		return
-	var lane_w := StuntTrack.lane_width(float(smp[0]["width"]))
-	var lim := float(smp[0]["limit"])
+	var lane_w := StuntTrack.lane_width(float(smp["width"]))
+	var lim := float(smp["limit"])
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
 	_bot_style(bot, _pick_style())
@@ -2189,8 +2189,8 @@ func _safe_pose(d: float) -> Transform3D:
 		if track.is_gap_at(dd):
 			continue
 		xf = track.transform_at_distance(dd)
-		var smp: Array = track.samples_from(dd, 2.0)
-		var w: float = smp[0]["width"] if not smp.is_empty() else 9.0
+		var smp: Dictionary = track.sample_at(dd)
+		var w: float = smp["width"] if not smp.is_empty() else 9.0
 		var lane := StuntTrack.lane_width(w)
 		if _endless and track.autostrada:
 			lane = hwy_lane_off(0)          # prawy pas autostrady, nie pas awaryjny
@@ -2638,8 +2638,8 @@ func _update_skirmish(delta: float) -> void:
 		var d := _last_safe_dist + 900.0
 		# Cała scenka na zwykłej jezdni (bez pasa stacji, nie w mieście).
 		for k in [0.0, 300.0, 600.0]:
-			var smp: Array = track.samples_from(d - k, 1.0)
-			if smp.is_empty() or absf(float(smp[0]["width"]) - HighwayGenerator.WIDTH) > 0.1 \
+			var smp: Dictionary = track.sample_at(d - k, 1.0)
+			if smp.is_empty() or absf(float(smp["width"]) - HighwayGenerator.WIDTH) > 0.1 \
 					or not track.plan.city_at(d - k).is_empty():
 				_osk_next_d = _last_safe_dist + 200.0
 				return
@@ -2840,8 +2840,8 @@ func _is_highway_at(d: float) -> bool:
 ## + pas rozdziału), pas `lane` licząc od pasa rozdziału, przodem do gracza.
 func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var xf: Transform3D = track.transform_at_distance(d)
-	var smp: Array = track.samples_from(d, 2.0)
-	var w := 14.8 if smp.is_empty() else float(smp[0]["width"])
+	var smp: Dictionary = track.sample_at(d)
+	var w := 14.8 if smp.is_empty() else float(smp["width"])
 	var lane_w := StuntTrack.lane_width(w)
 	var x := -(w + TrackGenerator.HIGHWAY_MEDIAN) - lane * lane_w
 	if _endless and track.autostrada:

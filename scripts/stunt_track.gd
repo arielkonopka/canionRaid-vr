@@ -1766,6 +1766,16 @@ func samples_from(dist: float, length: float, stride := 1) -> Array:
 	return out
 
 
+## Pierwsza próbka na dystansie >= `dist`, nie dalej niż `within` (pusty
+## słownik, gdy brak) - jak `samples_from(dist, within)[0]`, ale jedno
+## bsearch bez wycinka (przegląd chmury D1).
+func sample_at(dist: float, within := 2.0) -> Dictionary:
+	var i := _dists.bsearch(dist, true)
+	if i >= _samples.size() or _dists[i] > dist + within:
+		return {}
+	return _samples[i]
+
+
 ## Indeksy próbek ze znacznikami (meta niepuste) - liczone raz na kawałek.
 var _meta_cache := PackedInt32Array()
 var _meta_cached_n := -1
