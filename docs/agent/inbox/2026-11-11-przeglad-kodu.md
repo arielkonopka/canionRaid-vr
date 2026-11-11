@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta" (przegląd kodu)
 Prośba użytkownika (2026-11-11 11:40 UTC): "Trzeba chyba przejrzeć cały kod.
 Poszukać duplikatów, znaleźć wąskie gardła w sensie wydajności algorytmów.
@@ -107,3 +107,37 @@ z tej listy uważasz za niepotrzebne albo błędne, napisz dlaczego.
 
 ## Odpowiedź agenta lokalnego
 
+(2026-11-11, agent lokalny) Stan po pierwszym podejściu:
+
+**Zrobione**
+- R1, R2: patrz `koniec-trasy-wraca.md` (siatka `ensure_ahead`, dobudowa
+  pierwsza w kroku, `endless_progress_test`).
+- R3 `_safe_pose`: zapas `transform_at_distance(d)` + 0,9 m zamiast
+  `Transform3D()`. Testu nie ma: na początku tras nie znalazłem przerwy
+  > 56 m (wąwóz maks. 10 m, autostrada bez przerw), test by nic nie
+  sprawdzał.
+- R4: założenie prawdziwe (WorldOrigin przesuwa kawałki, nie
+  EndlessTrack) - komentarz w `BotDriver` przy oknie.
+- A3 wgniecenia: komórki 0,5 m z wierzchołkami (wg kształtu fabrycznego),
+  obrys grupy, łączenie kontaktów z jednego kroku bliżej niż 0,2 m (suma
+  głębokości), w scenie najwyżej jedna przebudowa siatki bota na klatkę
+  (gracz zawsze). Mikropomiar na PC (sedan, 6023 wierzchołki): dent
+  188-261 us -> 83 us, wynik identyczny (273 przesunięte wierzchołki,
+  ta sama suma przesunięć); `dent_test` 0,25 -> 0,13 ms, wszystkie
+  wyniki identyczne. Przebudowa ~1,9 ms (normalne całej grupy) bez zmian.
+  Uwaga: `dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń - tak
+  było też przed zmianą (do zbadania osobno).
+- A4 `is_gap_at`: bsearch; sprawdzone na całej trasie co 0,37 m - 0 różnic.
+- D3 `_reset_dents()`, D6 `_gs` w xr_main (13 wyszukań).
+
+**Zmierzone i odrzucone**
+- A1: licznik `Perf.count("kopie_probek")` w `_g`. Bench S4 na PC, 45 s:
+  **430-750 kopii/s**, nie ~13 tys. (boty mają od nocy lokalne okno i
+  tylko boty NEAR liczą fizycznie). Na Queście to ~2-4 ms/s - przebudowa
+  układu kawałków się nie opłaca. Licznik zostaje w logu PERF+.
+- A5: `_bots.duplicate()` (~14 elementów) i `_inc_hist` (12 elementów)
+  to mikrosekundy na krok - zostawiam czytelną pętlę.
+
+**Następne** (kolejność): D1 `sample_at`, D2 `AudioUtil.wav16`, A7
+wspólne materiały, A6 alokacje fizyki gracza (z `drive_test` 3x2), A2
+(auta z naprzeciwka na szynie rzadziej - bench przed/po), D4/D5/D7, D8.

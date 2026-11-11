@@ -135,6 +135,10 @@ func _drive_step(delta: float) -> void:
 	_window_timer -= delta
 	if _window_timer <= 0.0:
 		_window_timer = 0.15
+		# Próbki są w układzie trasy (EndlessTrack), a porównujemy je
+		# z car.global_position - zakłada, że trasa stoi w zerze świata bez
+		# obrotu (tak jest: przesunięcie świata przesuwa kawałki, nie
+		# EndlessTrack; przegląd chmury R4). Gdyby to się zmieniło - to_global.
 		_window = track.samples_from(dist - 15.0, WINDOW_AHEAD + 15.0)
 		_build_profile()
 		_win_hint = mini(15, _window.size() - 1)
