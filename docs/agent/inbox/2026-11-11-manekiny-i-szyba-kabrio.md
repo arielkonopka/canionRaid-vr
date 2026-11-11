@@ -1,8 +1,10 @@
 Status: nowe
 Od: wątek w chmurze "Znajdź darmowe modele manekinów"
 Decyzje użytkownika: użytkownik chce posadzić manekiny crash-test w autach
-(zwłaszcza w kabriolecie). Wybór modelu i zgoda na pobranie: OTWARTE,
-nic nie pobieraj, dopóki użytkownik nie wskaże modelu.
+(zwłaszcza w kabriolecie). 2026-11-11 18:42 UTC użytkownik wybrał
+"Crash Test Dummy mark1" (blendswap.com/blend/19677, CC0) - to jest zgoda
+na pobranie tego jednego modelu do repo (models/, wpis w CREDITS.md).
+Jeden model wszędzie, bez drugiego modelu CC-BY dla dalekich botów.
 
 Prośba użytkownika (2026-11-11 18:34 UTC): "poszukaj darmowych modeli crash
 test dummies... powsadzam je do samochodów, zwłaszcza w kabrio będzie to
