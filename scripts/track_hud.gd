@@ -10,6 +10,8 @@ class_name TrackHud
 ## Bez testu głębi: zawsze na wierzchu, także przez prześwitującą kabinę.
 
 const RANGE := 1500.0
+## Krok próbek mapki [m] (plus wszystkie próbki ze znacznikami).
+const STRIDE := 8
 const SIZE := Vector2(0.16, 0.13)
 const REFRESH := 0.25
 
@@ -200,7 +202,7 @@ func refresh(delta: float, car_xf: Transform3D, sampler: Callable, here: float) 
 		var d := float(s["dist"])
 		if d < here - 5.0 or d > here + RANGE:
 			continue
-		if d - last_d < 8.0 and not (s["meta"] as Dictionary).size() > 0:
+		if d - last_d < float(STRIDE) and not (s["meta"] as Dictionary).size() > 0:
 			continue
 		last_d = d
 		var rel: Vector3 = inv * (s["pos"] as Vector3)

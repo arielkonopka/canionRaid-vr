@@ -129,6 +129,7 @@ do_test() {
 	run_test feud_play_test ""          "feud_play_test|SOJUSZ"
 	run_test oncoming_play_test ""      "oncoming_play_test|Scenka"
 	run_test oncoming_skirmish_test ""  "oncoming_skirmish_test"
+	run_test oncoming_loose_test ""     "oncoming_loose_test"
 	run_test city_graph_test ""         "city_graph_test|jazda:"
 	run_test gauges_test ""             "gauges_test"
 	run_test offroad_test ""            "offroad_test"

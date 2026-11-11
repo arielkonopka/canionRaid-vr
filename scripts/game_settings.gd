@@ -202,11 +202,19 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "body_model", "group": "body", "label": "Model auta",
-		"values": ["sedan", "concept"],
-		"names": ["Sedan z lat 70.", "Concept"],
+		"values": ["sedan", "concept", "kombi", "hatchback", "klin", "kabriolet", "muscle", "terenowka", "furgon"],
+		"names": ["Sedan z lat 70.", "Concept", "Kombi", "Hatchback z lat 80.", "Klin z lat 80.",
+				"Kabriolet", "Muscle z lat 70.", "Terenówka", "Furgon"],
 		"hints": [
 			"Własny sedan z epoki: winylowy dach, chrom, wgniecenia, spojlery.",
 			"Futurystyczny concept car, fotel kierowcy na środku. Bez wgnieceń.",
+			"Długie kombi: dłuższy rozstaw osi, spokojne w łukach. Kokpit z sedana.",
+			"Krótki i lekki: zwrotny, ale nerwowy przy dużej prędkości. Kokpit z sedana.",
+			"Niski klin: nisko środek masy, sztywno, mały opór. Kokpit z sedana.",
+			"Bez dachu: nisko, ale dachowanie kończy się gorzej. Kokpit z sedana.",
+			"Długi i ciężki przód: stabilny na prostej, w łukach trzeba uważać. Kokpit z sedana.",
+			"Wysoki środek masy: w ostrym manewrze unosi koła. Kokpit z sedana.",
+			"Wysoki i szeroki: duży opór powietrza, łatwo go przechylić. Kokpit z sedana.",
 		],
 	},
 	{
@@ -640,7 +648,14 @@ func apply_game_speed() -> void:
 
 
 func apply_to_car(car: StuntCar) -> void:
-	car.set_body_model(body_model)
+	# Modele z epoki (CarStyles): bryła, rozstawy, rozkład masy, zawieszenie,
+	# hamulce, opór. Silnik, napęd i masa dalej z menu.
+	if body_model != "concept" and CarStyles.STYLES.has(body_model):
+		car.set_body_model("sedan")
+		car.apply_style(body_model)
+	else:
+		car.apply_style("sedan")
+		car.set_body_model(body_model)
 	car.drive_layout = drive_layout
 	car.tires = tires
 	car.hub_motors = motor_layout == "hub"

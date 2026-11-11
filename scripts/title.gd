@@ -333,8 +333,11 @@ func _hint_for(e: Dictionary) -> String:
 					if GameSettings.engine_type == "electric" and GameSettings.motor_layout == "hub":
 						h = "Silniki w kołach to zawsze 4x4 - ta opcja nie ma znaczenia."
 				"spoiler":
-					if GameSettings.body_model == "concept" and GameSettings.spoiler != "none":
-						h = "Tylko sedan - concept car nie ma spojlera (bez docisku i oporu)."
+					if GameSettings.body_model != "sedan" and GameSettings.spoiler != "none":
+						h = "Tylko sedan - inne modele nie mają spojlera (bez docisku i oporu)."
+				"aero":
+					if GameSettings.body_model not in ["sedan", "concept"]:
+						h = "Tylko sedan i concept - model z epoki ma opór swojej bryły."
 				"engine_type", "engine_power":
 					# Moment liczony z prawdziwej krzywej silnika, na aucie z tła.
 					var kw: int = GameSettings.effective_power(GameSettings.engine_type,

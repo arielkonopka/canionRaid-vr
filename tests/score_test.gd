@@ -19,6 +19,8 @@ func _initialize() -> void:
 	_test_wallet()
 	_test_styles_balanced()
 	_test_damage_and_ambush()
+	_test_section_speed()
+	_test_sheriff()
 	print("score_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails > 0 else 0)
 
@@ -147,3 +149,55 @@ func _test_damage_and_ambush() -> void:
 	var p: Array = plain.end_attack(3, false, 0.8, 100.0, 1.0)
 	_check(a[0]["kind"] == "ambush_dodge" and int(a[0]["points"]) > int(p[0]["points"]),
 			"unik zasadzki wart więcej niż zwykły unik")
+
+
+## Premia za odcinek (użytkownik 2026-11-11): 100 km/h = 100, 200 = 1000,
+## 300 = 10 000, bez mnożnika serii.
+func _test_section_speed() -> void:
+	_check(SK.section_points(100.0) == 100 and SK.section_points(200.0) == 1000 \
+			and SK.section_points(300.0) == 10000, "100/200/300 km/h = 100/1000/10000 (%d/%d/%d)" % [
+			SK.section_points(100.0), SK.section_points(200.0), SK.section_points(300.0)])
+	_check(SK.section_points(150.0) == 316, "płynnie pomiędzy (150 km/h = %d)" % SK.section_points(150.0))
+	var sk := SK.new()
+	sk.award_free("pit", 100, 0.0)
+	var p0: int = sk.points
+	var r: Array = sk.section_done(200.0)
+	_check(r.size() == 1 and sk.points - p0 == 1000, "odcinek bez mnożnika serii (%d)" % (sk.points - p0))
+
+
+## Wzorowy szeryf i zatrzymanie bota (użytkownik 2026-11-11).
+func _test_sheriff() -> void:
+	var sk := SK.new()
+	sk.open_chase(1, "overtake", 0.0)
+	var got := 0
+	var t := 0.0
+	# 4 min za graczem, potem bot wyprzedza - licznik od nowa.
+	while t < 240.0:
+		got += _sum(sk.chase_tick(1, 30.0, 0.5, 120.0, 125.0, 0.1, t))
+		t += 0.1
+	sk.chase_tick(1, -5.0, 2.0, 130.0, 120.0, 0.1, t)
+	while t < 480.0:
+		got += _sum(sk.chase_tick(1, 30.0, 0.5, 120.0, 125.0, 0.1, t))
+		t += 0.1
+	_check(got == 0, "bez szeryfa, gdy bot wyprzedził przed 5 min (%d)" % got)
+	while t < 600.0:
+		got += _sum(sk.chase_tick(1, 30.0, 0.5, 120.0, 125.0, 0.1, t))
+		t += 0.1
+	_check(got == SK.BASE["sheriff"], "szeryf po 5 min bez wyprzedzenia (%d)" % got)
+	# Bot daleko (> 200 m) - czas nie leci, ale też nie zeruje.
+	var sk2 := SK.new()
+	sk2.open_chase(2, "overtake", 0.0)
+	var g2 := 0
+	for i in range(4000):
+		g2 += _sum(sk2.chase_tick(2, 500.0, 0.5, 120.0, 125.0, 0.1, i * 0.1))
+	_check(g2 == 0, "bot daleko - bez szeryfa")
+	# Zatrzymanie: bot rozpędzony, potem oba stoją, bot tuż za graczem.
+	var sk3 := SK.new()
+	sk3.open_chase(3, "overtake", 0.0)
+	sk3.chase_tick(3, 20.0, 0.5, 110.0, 100.0, 0.1, 1.0)
+	var g3 := _sum(sk3.chase_tick(3, 8.0, 0.4, 2.0, 1.0, 0.1, 20.0))
+	g3 += _sum(sk3.chase_tick(3, 8.0, 0.4, 1.0, 0.5, 0.1, 21.0))
+	_check(g3 == SK.BASE["stopped"], "zatrzymanie bota - premia raz (%d)" % g3)
+	var sk4 := SK.new()
+	sk4.open_chase(4, "overtake", 0.0)
+	_check(_sum(sk4.chase_tick(4, 8.0, 0.4, 2.0, 1.0, 0.1, 1.0)) == 0, "bez premii, gdy bot nie był rozpędzony")

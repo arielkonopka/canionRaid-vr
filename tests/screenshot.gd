@@ -5,6 +5,8 @@ extends SceneTree
 ## Z "esp_off" świeci kontrolka ESP (wyłączony system).
 ## Z "rain" pada ulewa (krople, wycieraczki, smugi).
 ## Z "dent" auto dostaje kilka wgnieceń (przód z lewej, dach, prawy bok) przed zdjęciami.
+## Z "style=<model>" auto gracza w modelu z epoki (CarStyles), ujęcia
+## z kokpitu przesunięte do fotela modelu.
 ## Zapisuje car_<ujęcie>.png. Ujęcia w układzie auta (przód = -Z).
 
 var shots := [
@@ -29,6 +31,11 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]
+	for a in args:
+		if a.begins_with("style="):
+			var gs = root.get_node("GameSettings")
+			gs.persist = false
+			gs.body_model = a.substr(6)
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	car = main.get_node("Car")
@@ -72,8 +79,11 @@ func _process(_d: float) -> bool:
 	# Z kokpitu kabina prześwituje (domyślne 40%), z zewnątrz auto pełne.
 	car.set_cockpit_transparency(0.4 if s[0] == "cockpit" else 0.0)
 	cam.fov = 40.0 if s[0] == "gauges" else 60.0
-	cam.global_position = xf * s[1]
-	cam.look_at(xf * s[2], xf.basis.y)
+	# Z kokpitu bez bryły modelu z epoki (jak kamera gry - StuntCar.STYLE_BODY_LAYER).
+	cam.set_cull_mask_value(10, not s[0] in ["cockpit", "gauges", "wheel", "interior"])
+	var off: Vector3 = car.cockpit_offset if s[0] in ["cockpit", "gauges", "wheel", "interior"] else Vector3.ZERO
+	cam.global_position = xf * (s[1] + off)
+	cam.look_at(xf * (s[2] + off), xf.basis.y)
 	if (f - 60) % 10 == 9:
 		root.get_viewport().get_texture().get_image().save_png("%s/car_%s.png" % [out, s[0]])
 	return false

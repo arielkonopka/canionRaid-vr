@@ -1732,12 +1732,45 @@ func _build_workshop(stop_dist: float) -> void:
 
 
 ## Próbki od `dist` na długości `length` (HUD trasy, autopilot).
-func samples_from(dist: float, length: float) -> Array:
+## stride > 1: co stride-ta próbka plus każda ze znacznikiem (meta) - mapka
+## na desce i ostrzeżenia nie potrzebują próbki co 1 m (było ~1500 kopii
+## słowników 4 razy na sekundę, skoki do 20 ms na Queście).
+func samples_from(dist: float, length: float, stride := 1) -> Array:
 	var i0 := _dists.bsearch(dist, true)
 	var i1 := _dists.bsearch(dist + length, false)
 	if i1 <= i0:
 		return []
-	return _samples.slice(i0, i1)
+	if stride <= 1:
+		return _samples.slice(i0, i1)
+	var out := []
+	var mi := _meta_idx().bsearch(i0)
+	var meta := _meta_idx()
+	var i := i0
+	while i < i1:
+		while mi < meta.size() and meta[mi] < i:
+			out.append(_samples[meta[mi]])
+			mi += 1
+		if mi < meta.size() and meta[mi] == i:
+			mi += 1
+		out.append(_samples[i])
+		i += stride
+	while mi < meta.size() and meta[mi] < i1:
+		out.append(_samples[meta[mi]])
+		mi += 1
+	return out
+
+
+## Indeksy próbek ze znacznikami (meta niepuste) - liczone raz na kawałek.
+var _meta_cache := PackedInt32Array()
+var _meta_cached_n := -1
+func _meta_idx() -> PackedInt32Array:
+	if _meta_cached_n != _samples.size():
+		_meta_cache = PackedInt32Array()
+		for i in range(_samples.size()):
+			if not (_samples[i]["meta"] as Dictionary).is_empty():
+				_meta_cache.append(i)
+		_meta_cached_n = _samples.size()
+	return _meta_cache
 
 
 ## Dystans pierwszej i ostatniej próbki (zakres kawałka trasy).
@@ -1897,15 +1930,23 @@ func _station_green() -> Material:
 
 ## Zjazdy danego rodzaju: [{"start", "end" - strefa, "lane_x" - od tej
 ## odległości od osi w prawo to pas zjazdu, "tier" - próg mocy warsztatu}].
+## Wynik zapamiętany na kawałek (scena pyta co 0,2 s; było przejście po
+## wszystkich próbkach) - tylko próbki ze znacznikami (_meta_idx).
+var _svc_cache := {}
 func services(kind: String) -> Array:
+	var key := "%s|%d" % [kind, _samples.size()]
+	if _svc_cache.has(key):
+		return _svc_cache[key]
 	var out := []
-	for smp in _samples:
+	for mi in _meta_idx():
+		var smp: Dictionary = _samples[mi]
 		if smp["meta"].has("service") and smp["meta"]["service"]["kind"] == kind:
 			var st: Dictionary = smp["meta"]["service"]
 			var d := float(smp["dist"])
 			out.append({"start": d + 10.0, "end": d + float(st["len"]) - 10.0,
 					"lane_x": float(st["road_w"]) * 0.5 + 1.1, "tier": st["tier"],
 					"stop": d + float(st["len"]) - 10.0})
+	_svc_cache[key] = out
 	return out
 
 
