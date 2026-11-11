@@ -41,6 +41,14 @@ zmian (zgodne z zasadą "boty mogą oszukiwać napęd, nie opony").
   ograniczeniem skrętu co auto). Człon kursu (`head_err * 2.5`) bez zmian,
   więc łuki drogi nadal są brane jak dotąd.
 
+- Pierwsza taktyka po świeżym szale zależy od położenia gracza
+  (użytkownik 2026-11-11: "Musi też wiedzieć, czy gracz jest przed, czy
+  za botem"): gracz za botem → block / zigzag / ambush (bot zostaje przed
+  nim), gracz przed botem → ram / pit / pincer (pościg). Dotąd taktyka była
+  losowa, więc bot przed graczem mógł dostać "ram" i z rozpędu ostro
+  hamować ze zjazdem na drugi pas. Tylko przy strategii "mixed"; potem
+  zmiany taktyki co 8-14 s jak dotąd. `_pick_opening_tactic()` w `enrage()`.
+
 ## Test
 
 Nowy `tests/horn_control_test.gd` (wąwóz, z `-- autostrada` autostrada):

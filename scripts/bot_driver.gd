@@ -575,6 +575,7 @@ func enrage(origin := "self") -> void:
 	var fresh := rage < 0.5
 	if fresh:
 		_onset_t = 0.0                    # reakcja i narastanie (RAGE_REACT)
+		_pick_opening_tactic()
 	if fresh and main and main.has_method("score_chase_open"):
 		main.score_chase_open(car, origin)
 	rage = 1.0
@@ -587,6 +588,25 @@ func enrage(origin := "self") -> void:
 		var cheat := maxf(350.0, player.engine_power_kw if player else 0.0)
 		if car.engine_power_kw < cheat:
 			car.apply_engine("petrol", cheat)
+
+
+## Pierwsza taktyka szału zależy od tego, gdzie jest gracz (użytkownik
+## 2026-11-11: bot "musi też wiedzieć, czy gracz jest przed, czy za nim").
+## Gracz za botem (trąbi z tyłu): bot zostaje przed nim - blokuje,
+## zygzakuje albo zjeżdża na pobocze na zasadzkę. Gracz przed botem: bot
+## goni - taran, PIT albo kleszcze. Bez tego taktyka była losowa i bot
+## przed graczem potrafił z miejsca ostro hamować i zjeżdżać mu za plecy
+## (ram), a to z rozpędzonym autem kończyło się poślizgiem. Tylko przy
+## strategii "mixed"; stała strategia z menu zostaje.
+const OPEN_BEHIND := ["block", "zigzag", "ambush"]   # gracz za botem
+const OPEN_AHEAD := ["ram", "pit", "pincer"]         # gracz przed botem
+func _pick_opening_tactic() -> void:
+	if strategy != "mixed" or player == null:
+		return
+	var player_ahead := (player.global_position - car.global_position).dot(-car.global_basis.z) > 0.0
+	var pool: Array = OPEN_AHEAD if player_ahead else OPEN_BEHIND
+	_tactic = pool[randi() % pool.size()]
+	_tactic_t = randf_range(8.0, 14.0)
 
 
 ## Klakson: dwa tony (~420 i ~500 Hz, jak typowy samochodowy), 0,4 s,
