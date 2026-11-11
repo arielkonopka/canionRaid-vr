@@ -17,3 +17,12 @@ Pozostałe pytania z sekcji 9 (auta z epoki, ABS/ESP w trakcie jazdy,
 trudność a moc auta, styl low-poly) nadal czekają na użytkownika.
 Odpowiedź na stabilność > 200 km/h jest w
 `inbox/2026-11-11-stabilnosc-200-odpowiedz.md`.
+
+## Trudność trasy (sekcja 9, pytanie "zależna od mocy auta czy stała")
+
+Użytkownik (2026-11-11 11:27 UTC, dosłownie): "Trudność zależy
+niezmiennie od odległości przejechanej i trudności początkowej".
+
+Ustalenie: trudność = f(przejechany dystans, trudność początkowa z menu).
+Moc ani wybór auta jej nie zmieniają. Przenieś do sekcji 2 / decyzji
+projektowych i usuń pytanie z sekcji 9.
