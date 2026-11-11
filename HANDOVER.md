@@ -55,6 +55,12 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   drążek dochodzi do granicy (4°, ESP krótko). Fizyka bez zmian.
   Ocena użytkownika w goglach (2026-11-11): "jest nieźle, sam styl jest
   świetny i dynamiczny, podoba mi się też gradacja napędu".
+  Po wersji z zapasem 0,5° (chmura): "nieźle, chociaż z tą blokadą
+  skrętu czasem przeszkadza, ale w sumie nie trzeba jechać tak szybko".
+  Log (`build/logs/jazda_skret2_2026-11-11.log`): przy 210-235 km/h
+  skręt 0,5-0,7 drążka, przednie koła na granicy (poślizg 85-113%) -
+  limit nie trzyma auta poniżej przyczepności, tylko przód dochodzi do
+  granicy (podsterowność). Zostaje jako jest; wybór należy do gracza.
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
