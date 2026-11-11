@@ -2169,6 +2169,11 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    max_distance 80 m), potem cel: 120-130% przy 72 kl./s; dźwięk (tablica sinusa), fizyka gracza bez
    alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
+000. **Pomysły użytkownika 2026-11-11 (wysłane chmurze do specyfikacji,
+   outbox `kierownica-wibracje-dzwieki`)**: (1) sterowanie "kierownicą
+   w powietrzu" (obie ręce), (2) wibracje kontrolerów (zderzenia,
+   nawierzchnia, ABS/TCS), (3) dźwięki innych aut z efektem Dopplera
+   i szumem mijania. Czekać na odpowiedź chmury z kolejnością.
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
