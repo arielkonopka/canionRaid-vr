@@ -74,6 +74,9 @@ var _max_dist := 0.0
 var _horizon: Node3D
 
 # --- warsztat (trasa bez końca) ---
+## GameSettings (autoload; w testach headless może go nie być) - jedno
+## wyszukanie zamiast 14 (przegląd chmury D6).
+@onready var _gs: Node = get_node_or_null("/root/GameSettings")
 var _tier := 0                      # próg mocy (GameSettings.POWER_TIERS)
 var _next_ws := {}                  # najbliższy warsztat przed autem
 var _ws_xf: Transform3D
@@ -184,7 +187,7 @@ func _ready() -> void:
 	origin.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 
 	# GameSettings to autoload; w testach headless może go nie być.
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	Bench.load_config()
 	if gs:
 		if Bench.resolution > 0:
@@ -330,7 +333,7 @@ func toggle_assist(which: String) -> void:
 	var key: String = {"abs": "abs_enabled", "tcs": "tcs_enabled", "esp": "esp_enabled",
 			"steer": "steer_assist"}[which]
 	car.set(key, not car.get(key))
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs:
 		gs.set(key, car.get(key))
 		gs.save_settings()
@@ -444,7 +447,7 @@ func _stick_curve(x: float) -> float:
 	a = (a - STICK_DEADZONE) / (1.0 - STICK_DEADZONE)
 	var sens := 1.0
 	var expo := STICK_EXPO
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs:
 		sens = gs.stick_sensitivity / 100.0
 		expo = gs.stick_expo
@@ -458,7 +461,7 @@ func _read_drive_input() -> void:
 	var hb := 0.0
 	if _xr_ready:
 		# Układ z ustawień: ręka gazu, drążek kierownicy, grip ręcznego.
-		var gs := get_node_or_null("/root/GameSettings")
+		var gs := _gs
 		var gas_right: bool = gs == null or gs.gas_hand == "right"
 		var gas_c := right_hand if gas_right else left_hand
 		var brake_c := left_hand if gas_right else right_hand
@@ -1149,7 +1152,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	Perf.mark("bot_spawn")
 	var bot := _take_bot()
 	_bot_style(bot, _pick_style())
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs:
 		# Gang bota (FeudDirector): kolor gangu, żeby było widać, kto z kim.
 		var g := _bot_rng.randi() % GANGS
@@ -1259,7 +1262,7 @@ func _check_finish() -> void:
 
 func _finish() -> void:
 	race_state = Race.FINISHED
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	_new_record = false
 	var best := 0.0
 	if gs:
@@ -1284,7 +1287,7 @@ func _finish() -> void:
 ## Koniec jazdy na trasie bez końca: skończyły się dźwigi.
 func _game_over() -> void:
 	race_state = Race.FINISHED
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	_new_record = false
 	var best := 0.0
 	if gs:
@@ -1314,7 +1317,7 @@ func restart_race() -> void:
 	if _endless and race_state == Race.FINISHED:
 		get_tree().reload_current_scene()
 		return
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	cranes_left = (gs.cranes if gs and gs.cranes > 0 else -1) if _endless else -1
 	_max_dist = 0.0
 	# Trasa bez końca: start z mocą wybraną w menu (decyzja użytkownika
@@ -1418,7 +1421,7 @@ func _enter_workshop(tier: int, kind := "workshop") -> void:
 ## Lista pozycji sklepu (po każdym zakupie od nowa - ceny napraw maleją).
 func _ws_build() -> void:
 	_ws_options.clear()
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	var tiers: Array = gs.POWER_TIERS if gs else [90, 130, 180, 250, 350]
 	var spec := WorkshopShop.car_spec(car)
 	if _ws_kind == "workshop" and _ws_new_tier < tiers.size():
@@ -1654,7 +1657,7 @@ func _build_radio() -> void:
 		_radio_label.no_depth_test = true
 		_hud_panel.add_child(_radio_label)
 	_radio.now_playing.connect(_on_radio_text)
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs:
 		_radio.set_online(gs.radio_online)
 		_radio.set_station(gs.radio_station)
@@ -1676,7 +1679,7 @@ func _build_radio() -> void:
 
 ## Zmiana ustawienia w menu pauzy, która działa od razu (bez nowej jazdy).
 func _on_setting_changed(key: String) -> void:
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs == null:
 		return
 	match key:
@@ -1879,7 +1882,7 @@ func _update_cockpit_transparency() -> void:
 	# Bryła modelu z epoki niewidoczna z kokpitu (StuntCar.STYLE_BODY_LAYER).
 	camera.set_cull_mask_value(10, not inside)
 	if inside:
-		var gs := get_node_or_null("/root/GameSettings")
+		var gs := _gs
 		t = (gs.cockpit_alpha if gs else 40) / 100.0
 	car.set_cockpit_transparency(t)
 
@@ -2124,7 +2127,11 @@ func _safe_pose(d: float) -> Transform3D:
 	q.shape = shape
 	q.exclude = [car.get_rid()]
 	var space := get_world_3d().direct_space_state
-	var xf := Transform3D()
+	# Zapas, gdy wszystkie 8 prób to przerwa (przegląd chmury R3): było
+	# Transform3D() - auto w zerze świata, po przesunięciach WorldOrigin
+	# daleko od drogi. transform_at_distance sam cofa się przed przerwę.
+	var xf: Transform3D = track.transform_at_distance(d)
+	xf.origin += xf.basis.y * 0.9
 	for i in range(8):
 		var dd := d + 8.0 * i
 		if track.is_gap_at(dd):
@@ -2806,7 +2813,7 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	c.apply_style(_pick_style())
 	for w in c.wheels:
 		w.spring_len = c.rest_length - 0.04
-	var gs := get_node_or_null("/root/GameSettings")
+	var gs := _gs
 	if gs:
 		var keys: Array = gs.PAINTS.keys()
 		c.set_paint(gs.PAINTS[keys[_bot_rng.randi() % keys.size()]])
@@ -3018,7 +3025,7 @@ func _bench_step(delta: float) -> void:
 			for v in fps:
 				fsum += v
 			print("BENCH END %s wyłączone=[%s] rozdzielczość %d%%: śr. %.0f kl./s, klatek %d, >13,9 ms %.0f%%, >33 ms %d, najdłuższa %.1f ms, GPU śr. %.1f ms" % [
-					Bench.scenario, ",".join(Bench.off), int(get_node("/root/GameSettings").xr_resolution) if get_node_or_null("/root/GameSettings") else 0,
+					Bench.scenario, ",".join(Bench.off), int(_gs.xr_resolution) if _gs else 0,
 					fsum / maxf(fps.size(), 1), _bench_sum["frames"],
 					100.0 * _bench_sum["over"] / maxf(_bench_sum["frames"], 1), _bench_sum["over33"],
 					_bench_sum["worst"], gsum / maxf(g.size(), 1)])

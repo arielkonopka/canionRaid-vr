@@ -2012,10 +2012,10 @@ func runup_start_before(dist: float) -> float:
 
 ## Czy `dist` leży w przerwie.
 func is_gap_at(dist: float) -> bool:
-	for s in _samples:
-		if float(s["dist"]) >= dist:
-			return s["gap"]
-	return false
+	# Pierwsza próbka z dist >= `dist` - bsearch zamiast przejścia od początku
+	# kawałka (przegląd chmury A4).
+	var i := _dists.bsearch(dist, true)
+	return _samples[i]["gap"] if i < _samples.size() else false
 
 
 ## Globalny układ współrzędnych na osi toru w odległości `dist` od startu.

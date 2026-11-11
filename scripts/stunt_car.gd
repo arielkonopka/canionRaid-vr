@@ -692,7 +692,20 @@ func _physics_step(delta: float) -> void:
 		_settle_t -= delta
 		angular_velocity = Vector3.ZERO
 		linear_velocity *= 0.5
+	# Kontakty z jednego kroku bliżej niż 0,2 m od siebie (szuranie o barierę:
+	# kilka punktów naraz) - jedno wgniecenie o sumie głębokości.
+	var merged: Array = []
 	for d in _dent_queue:
+		var joined := false
+		for m in merged:
+			if (m[0] as Vector3).distance_squared_to(d[0]) < 0.04:
+				m[2] += d[2]
+				m[1] += d[1]
+				joined = true
+				break
+		if not joined:
+			merged.append([d[0], d[1], d[2]])
+	for d in merged:
 		dent(d[0], d[1], d[2])
 	_dent_queue.clear()
 	for imp in _impact_queue:
@@ -1582,12 +1595,26 @@ func _process(delta: float) -> void:
 
 func _visual_step(delta: float) -> void:
 	_update_wipers(delta)
-	# Przebudowa wgniecionych siatek - najwyżej raz na klatkę obrazu.
+	# Przebudowa wgniecionych siatek - najwyżej raz na klatkę obrazu, a w całej
+	# scenie najwyżej jedno auto bota na klatkę (przebudowa ~2 ms na PC);
+	# auto gracza zawsze od razu. Reszta czeka na następną klatkę.
+	var frame := Engine.get_process_frames()
+	if frame != _dent_frame:
+		_dent_frame = frame
+		_dent_bots_this_frame = 0
+	var any_dirty := false
 	for k in _dent_groups:
-		var g: Dictionary = _dent_groups[k]
-		if g.get("dirty", false) and g.has("mi"):
-			_recompute_normals(g)
-			_dent_rebuild(g)
+		if _dent_groups[k].get("dirty", false):
+			any_dirty = true
+			break
+	if any_dirty and (not is_bot or _dent_bots_this_frame == 0):
+		if is_bot:
+			_dent_bots_this_frame += 1
+		for k in _dent_groups:
+			var g: Dictionary = _dent_groups[k]
+			if g.get("dirty", false) and g.has("mi"):
+				_recompute_normals(g)
+				_dent_rebuild(g)
 	for w in wheels:
 		w.spin = wrapf(w.spin + w.omega * delta, -PI, PI)
 		w.node.position = w.mount - Vector3.UP * w.spring_len
@@ -2271,6 +2298,9 @@ const DENT_MAX := 0.22           # największe przesunięcie wierzchołka [m]
 @export var dent_per_impulse: float = 4.5e-5
 
 var _dent_groups := {}           # nazwa -> {mat, verts, orig, normals, uvs, indices, mi, dirty}
+const DENT_GRID := 0.5          # komórki wyszukiwania wierzchołków przy wgnieceniu [m]
+static var _dent_frame := -1
+static var _dent_bots_this_frame := 0
 var _dent_queue: Array = []      # [punkt lokalny, kierunek lokalny, głębokość] z kroku fizyki
 var _impact_queue: Array = []    # [punkt lokalny, powaga 0..] - do uszkodzeń
 var dent_count := 0              # liczba wgnieceń od ostatniej naprawy
@@ -2407,6 +2437,24 @@ func _dent_finish() -> void:
 			continue
 		g["orig"] = g["verts"].duplicate()
 		g["orig_normals"] = g["normals"].duplicate()
+		# Obrys grupy (z zapasem na wgniecenia) - dent() pomija grupy daleko
+		# od punktu uderzenia (przegląd chmury A3: każde wgniecenie szło po
+		# ~6000 wierzchołków, 261 us na PC).
+		var bb := AABB(g["orig"][0], Vector3.ZERO)
+		for v in g["orig"]:
+			bb = bb.expand(v)
+		g["aabb"] = bb.grow(DENT_MAX + 0.05)
+		# Wierzchołki w komórkach DENT_GRID (wg kształtu fabrycznego; wgniecenie
+		# przesuwa najwyżej o DENT_MAX, więc szukamy z takim zapasem).
+		var cells := {}
+		var ov: PackedVector3Array = g["orig"]
+		for i in range(ov.size()):
+			var c := Vector3i((ov[i] / DENT_GRID).floor())
+			# PackedInt32Array to wartość - append na kopii z cells[c] by przepadł.
+			var arr: PackedInt32Array = cells.get(c, PackedInt32Array())
+			arr.append(i)
+			cells[c] = arr
+		g["cells"] = cells
 		var mi := MeshInstance3D.new()
 		mi.name = "Body_" + k
 		mi.mesh = ArrayMesh.new()
@@ -2441,10 +2489,22 @@ func dent(local_point: Vector3, local_dir: Vector3, depth: float) -> void:
 		var g: Dictionary = _dent_groups[k]
 		if not g.has("orig"):
 			continue
+		if not (g["aabb"] as AABB).grow(radius).has_point(local_point):
+			continue
 		var verts: PackedVector3Array = g["verts"]
 		var orig: PackedVector3Array = g["orig"]
 		var changed := false
-		for i in range(verts.size()):
+		var cells: Dictionary = g["cells"]
+		var lo := Vector3i(((local_point - Vector3.ONE * (radius + DENT_MAX)) / DENT_GRID).floor())
+		var hi := Vector3i(((local_point + Vector3.ONE * (radius + DENT_MAX)) / DENT_GRID).floor())
+		var near := PackedInt32Array()
+		for cx in range(lo.x, hi.x + 1):
+			for cy in range(lo.y, hi.y + 1):
+				for cz in range(lo.z, hi.z + 1):
+					var key := Vector3i(cx, cy, cz)
+					if cells.has(key):
+						near.append_array(cells[key])
+		for i in near:
 			var dist := verts[i].distance_to(local_point)
 			if dist >= radius:
 				continue
@@ -2515,6 +2575,11 @@ func damage_total() -> float:
 func repair_body() -> void:
 	damage["structure"] = 0.0
 	is_wrecked = false
+	_reset_dents()
+
+
+## Fabryczny kształt karoserii (repair_body i repair - jedna pętla, DRY).
+func _reset_dents() -> void:
 	for k in _dent_groups:
 		var g: Dictionary = _dent_groups[k]
 		if g.has("orig"):
@@ -2531,13 +2596,7 @@ func repair() -> void:
 		"brakes": [0.0, 0.0, 0.0, 0.0], "suspension": [0.0, 0.0, 0.0, 0.0],
 	}
 	is_wrecked = false
-	for k in _dent_groups:
-		var g: Dictionary = _dent_groups[k]
-		if g.has("orig"):
-			g["verts"] = g["orig"].duplicate()
-			g["normals"] = g["orig_normals"].duplicate()
-			g["dirty"] = true
-	dent_count = 0
+	_reset_dents()
 
 
 ## Normalne po wgnieceniu - z trójkątów, uśrednione na wierzchołek.

@@ -679,6 +679,14 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
+- **Dopisywanie do tablicy spakowanej w słowniku nic nie zmienia**
+  (wgniecenia: 0 przesuniętych wierzchołków, bez błędu) →
+  `PackedInt32Array`/`PackedVector3Array` to wartości: `(d[k] as
+  PackedInt32Array).append(i)` dopisuje do kopii. Pobierz do zmiennej,
+  zmień, zapisz z powrotem `d[k] = arr`.
+- **Pętla `until ! pgrep -f "nazwa_testu"` nigdy się nie kończy** → sama
+  pętla ma tę nazwę w swojej linii poleceń. Szukać procesu godot
+  (`pgrep -f "godot.*nazwa"`) albo czekać na `wait`.
 - **Bench / start gry przez adb nic nie loguje, VrApi pokazuje ~1 ms
   GPU**: logcat ma "Launch is blocked because: a Guardian dialog is
   currently showing" - gogle leżą (ciemno, bez śledzenia) i system prosi
@@ -2058,7 +2066,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   `endless_test` używa nowego autopilota tylko na autostradzie; w wąwozie
   stary (porównanie niejednoznaczne: ziarno 777 nowy 4,95 km + upadek,
   stary 6,95 km; ziarno 31 nowy 5,11 km, stary 3,36 km).
-- Testy końcowe: pełny `./quest.sh test` OK (z `endless_progress_test`),
+- Przegląd kodu z chmury (inbox `przeglad-kodu`, prośba użytkownika):
+  zrobione R3 (`_safe_pose` bez zera świata), R4 (komentarz), A3
+  (wgniecenia: komórki 0,5 m, łączenie kontaktów, limit przebudów botów
+  na klatkę; dent 2,5-3x szybciej, wynik identyczny), A4 (`is_gap_at`
+  bsearch), D3 `_reset_dents`, D6 `_gs`. Zmierzone i odrzucone: A1
+  (430-750 kopii próbek/s, nie 13 tys.; `Perf.count` w logu PERF+), A5.
+  Dalej wg odpowiedzi w inbox. **Pułapka GDScript**: `PackedInt32Array`
+  w słowniku to wartość - `(d[k] as PackedInt32Array).append(i)` dopisuje
+  do kopii (komórki wgnieceń były puste, 0 przesuniętych wierzchołków).
+- Testy końcowe (także po przeglądzie kodu): pełny `./quest.sh test` OK (z `endless_progress_test`),
   `drive_test` soft 24.12/24.19, sport 24.22/24.23, stiff 24.22/24.29
   (auto/manual) - bez zmian.
 - Ustalenie: pytania i decyzje najpierw przez chmurę (sekcja 2);

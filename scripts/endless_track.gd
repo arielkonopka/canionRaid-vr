@@ -126,6 +126,7 @@ func _add_highway_chunk() -> void:
 func _g(c: StuntTrack, s: Dictionary) -> Dictionary:
 	if s.is_empty() or c.position == Vector3.ZERO:
 		return s
+	Perf.count("kopie_probek")
 	var o := s.duplicate()
 	o["pos"] = (s["pos"] as Vector3) + c.position
 	return o
