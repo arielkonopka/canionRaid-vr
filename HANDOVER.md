@@ -2179,7 +2179,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    (nieprzetestowany, niepodpięty) czeka na ich test i ustalenia.
    Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
    manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
-   do ustalenia przez chmurę.
+   do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by
+   było się widzieć jako ten manekin, co ma nogi na pedałach gazu
+   i hamulca" (stopy wg spustów, ręce IK do kontrolerów; potrzebny glTF
+   ze szkieletem -> `python3-numpy` dla Blendera).
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
 000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak

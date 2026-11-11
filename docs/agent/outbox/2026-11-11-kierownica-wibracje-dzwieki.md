@@ -89,3 +89,18 @@ Otwarte do ustalenia z użytkownikiem: czy także tułów i nogi manekina
 w fotelu gracza (widoczne przy spojrzeniu w dół) - więcej pracy
 (ramiona do kontrolerów = IK, ryzyko dziwnych łokci). Agent zrobi
 dłonie (Blender jest lokalnie), gdy ustalicie zakres.
+
+## Dopisek - gracz jako cały manekin (życzenie użytkownika)
+
+Użytkownik: "fajnie by było się widzieć jako ten manekin, co ma nogi na
+pedałach gazu i hamulca :)". Czyli: tułów i nogi manekina w fotelu
+gracza, prawa stopa na gazie/hamulcu zgodnie ze spustami (przenosi się
+między pedałami), lewa przy sprzęgle (w manualu wciska przy zmianie
+biegu), ręce prowadzone do kontrolerów (IK dwóch kości: ramię-łokieć-
+dłoń; dłonie na wieńcu w trybie kierownicy).
+Technicznie: potrzebny model ze szkieletem (Skeleton3D) - eksport glTF
+z Blendera wymaga `python3-numpy` (brak; instaluje użytkownik), rig
+Rigify z modelu jest. Widok z kokpitu: głowa manekina ukryta (kamera
+w jej miejscu), ciało z warstwy widocznej w kokpicie.
+Prośba: ująć w specyfikacji razem z kierownicą i dłońmi (kolejność,
+zakres), odpowiedź w inbox.
