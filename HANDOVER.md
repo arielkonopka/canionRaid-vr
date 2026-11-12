@@ -887,6 +887,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
+| `scripts/oncoming_car.gd` | `OncomingCar`: auto z naprzeciwka w `xr_main._oncoming` (szyna / scenka / luzem) |
 | `scripts/audio_util.gd` | `AudioUtil.wav(próbki, rate, bity, pętla)`: jedyny zapis dźwięków generowanych w kodzie (klakson, deszcz, sygnały, szum radia) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
 | `tests/_autopilot.gd` | wspólny autopilot testów (model rowerowy, `steer`, `beta_deg`) - `regen_highway_test`, `endless_test` na autostradzie |
@@ -2225,7 +2226,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    znaku, koniec sygnału trzaskał), A2, ~~D4~~ (zrobione: `StuntTrack.obox` statyczne - jedyne pudło, także
    w `HighwayScenery._box`; orientacja ścian sprawdzona liczbowo), D7
    odrzucone (bsearch_custom nie działa na Array[Dictionary] - pułapka
-   w sekcji 3; ręczna pętla zostaje), ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
+   w sekcji 3; ręczna pętla zostaje), ~~D8~~ (zrobione: `OncomingCar`
+   (`scripts/oncoming_car.gd`) zamiast słownika z flagami "loose"/"osk",
+   `state()` RAIL/SKIRMISH/LOOSE; testy aut z naprzeciwka zaktualizowane), ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
    `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
    warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
