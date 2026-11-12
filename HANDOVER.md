@@ -2203,6 +2203,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    (stan 100%); **wąwóz: realne uderzenia po skokach (np. 112->37 km/h,
    24 g) zostawiają teraz szkody** - autopilot testu kończy z uszkodzonym
    autem. Zmiana odczucia gry - do oceny przez użytkownika.
+   Przegląd chmury: auto wracające do fizyki bez `place()` (pula aut
+   z naprzeciwka, bot z szyny) porównywało prędkość z poprzedniego życia
+   -> fałszywe uderzenie; poprawka: `_iv_frame` (przerwa w krokach =
+   bez porównania), test `ccd_pool_test` (bez poprawki 19% szkód, z nią 0).
 000. **Zgłoszenie 2026-11-11: "zderzyłem się z górą na drodze, jechałem
    szybko, ale góra nie wyglądała na aż tak stromą, na trasie w kanionie"**.
    Nie zbadane (brak logu z tej jazdy). Kolizja ścian kanionu = te same

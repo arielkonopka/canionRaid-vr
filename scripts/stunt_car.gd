@@ -2763,12 +2763,20 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 const CCD_DV := 1.5                    # [m/s] na krok fizyki
 var _iv_prev := Vector3.ZERO
 var _iv_valid := false
+var _iv_frame := -1
+var _body_shape: CollisionShape3D
 func _ccd_impact(state: PhysicsDirectBodyState3D, inv: Transform3D) -> void:
 	var v := state.linear_velocity
-	if freeze or not _iv_valid:
+	# Przerwa w fizyce (auto z puli, bot z szyny, odmrożenie - bez place())
+	# = zapamiętana prędkość z poprzedniego życia auta: bez porównania
+	# (przegląd chmury: fałszywe uderzenie po _loosen_oncoming z inną prędkością).
+	var f := Engine.get_physics_frames()
+	if freeze or not _iv_valid or f != _iv_frame + 1:
 		_iv_prev = v
-		_iv_valid = not freeze
+		_iv_valid = true
+		_iv_frame = f
 		return
+	_iv_frame = f
 	var vp := _iv_prev
 	_iv_prev = v
 	# Uderzenie = auto traci prędkość: całkowitą (rozbieg skoczni tylko obraca
@@ -2793,10 +2801,12 @@ func _ccd_impact(state: PhysicsDirectBodyState3D, inv: Transform3D) -> void:
 		return
 	# Przeszkoda po stronie przeciwnej do Δv: punkt na obrysie nadwozia.
 	var d_in := inv.basis * dv_h.normalized()          # w głąb auta
-	var half := ((get_node("BodyShape") as CollisionShape3D).shape as BoxShape3D).size * 0.5
+	if _body_shape == null:
+		_body_shape = get_node("BodyShape") as CollisionShape3D
+	var half := (_body_shape.shape as BoxShape3D).size * 0.5
 	var out := -d_in
 	var k := maxf(maxf(absf(out.x) / half.x, absf(out.y) / maxf(half.y, 0.01)), absf(out.z) / half.z)
-	var p := out / maxf(k, 1e-3) + (get_node("BodyShape") as Node3D).position
+	var p := out / maxf(k, 1e-3) + _body_shape.position
 	last_hit = {"j": j, "ms": Time.get_ticks_msec(), "what": "CCD", "at": p}
 	_dent_queue.append([p, d_in, (j - dent_threshold) * dent_per_impulse])
 	# Jedno uderzenie liczy się do pułapu powagi 1,5 (_damage_impact) -
