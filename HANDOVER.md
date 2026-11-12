@@ -2108,6 +2108,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
   **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
   8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
+- **Boty nie znikają na widoku, więcej ruchu w naszą stronę (2026-11-12,
+  inbox boty-znikanie)**: `xr_main._can_vanish` przed każdym oddaniem auta
+  do puli (poza wybuchem/odrodzeniem); `TrafficZone`: nadmiar tylko za
+  graczem, widoczność przed autem 2000 m, wolni na prawym pasie (60%,
+  0,5-0,7 limitu), doganiający od tyłu (40%, lewy pas, 1,15-1,35 limitu),
+  mnożnik w mieście 1,5. Spotkania (w naszą stronę : z naprzeciwka): przy
+  140 km/h 1 : 25 -> 1 : 6, przy 180 km/h 1 : 4,2 -> 1 : 2,9 (1 : 2 przy
+  140 wymagałoby 2x więcej botów). Testy `vanish_test`, `_meetings`
+  w `highway_plan_test`. `feud_play_test` ("potyczka w ciągu 40 s") bywa BŁĄD
+  ok. 1/3 przebiegów - tak samo przed zmianą (losowość potyczek).
 - Poprawka chmury (PR #62) "boty tracą panowanie po klaksonie" - czas
   reakcji 0,5 s, narastanie szału 1,5 s, płynny cel toru, skręt toru
   ograniczony przyczepnością (`bot_driver.gd`). `horn_control_test` (oba

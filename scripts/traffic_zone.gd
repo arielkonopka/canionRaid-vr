@@ -45,6 +45,17 @@ const SAME_DIR_MULT := 2.5
 
 ## Widoczność (VR: głowa się obraca, są lusterka) - zgrubnie i z zapasem.
 const VIEW_DIST := 900.0
+## Przed autem gracza (na prostej autostradzie) auto 1-2 km dalej to wciąż
+## widoczna kropka z reflektorami - tam widoczność do zasięgu rysowania
+## (zlecenie boty-znikanie, 2026-11-12). 900 m zostaje dla głowy obróconej.
+const FAR_VIEW_DIST := 2000.0
+## Mnożnik ruchu w naszą stronę w strefie miasta (było 1 - przy miastach
+## wracała przewaga aut z naprzeciwka).
+const SAME_DIR_MULT_CITY := 1.5
+## Ruch w naszą stronę (zlecenie boty-znikanie): część prawego pasa jedzie
+## wolno (gracz ich dogania), część aut dogania gracza od tyłu lewym pasem.
+const SLOW_SHARE := 0.6
+const CHASER_SHARE := 0.4
 const VIEW_HALF_ANGLE := deg_to_rad(70.0)
 const MIRROR_DIST := 200.0
 const MIRROR_HALF_ANGLE := deg_to_rad(25.0)
@@ -62,7 +73,9 @@ func wanted(player_dist: float, same_dir := false) -> int:
 	var sum := 0.0
 	var d := player_dist - BEHIND
 	while d < player_dist + AHEAD:
-		var k := SAME_DIR_MULT if same_dir and not plan.in_city_zone(d + 50.0) else 1.0
+		var k := 1.0
+		if same_dir:
+			k = SAME_DIR_MULT_CITY if plan.in_city_zone(d + 50.0) else SAME_DIR_MULT
 		sum += plan.traffic_density(d + 50.0) * 0.1 * k
 		d += 100.0
 	return int(round(sum))
@@ -88,7 +101,9 @@ func step(player_dist: float, cars: Array, rng: RandomNumberGenerator) -> Dictio
 		elif d >= player_dist - BEHIND and d <= player_dist + AHEAD and not c.get("raging", false):
 			var side := bool(c.get("oncoming", false))
 			count[side] += 1
-			if calm_hidden:
+			# Nadmiar tylko za graczem - przed nim sam się rozładuje, a znikanie
+			# przed nosem było widać (zlecenie boty-znikanie).
+			if calm_hidden and d < player_dist:
 				removable[side].append(c)
 	var spawn := []
 	var want := {false: wanted(player_dist, true), true: wanted(player_dist)}   # klucz: oncoming
@@ -115,10 +130,15 @@ func _candidate(player_dist: float, cars: Array, planned: Array, oncoming: bool,
 		rng: RandomNumberGenerator) -> Dictionary:
 	for _try in range(6):
 		var d := rng.randf_range(player_dist + SPAWN_MIN_AHEAD, player_dist + AHEAD)
+		# Doganiający: w naszą stronę część aut pojawia się 300-600 m za graczem
+		# (poza lusterkiem) i jedzie szybciej lewym pasem.
+		var chaser := not oncoming and rng.randf() < CHASER_SHARE
+		if chaser:
+			d = player_dist - rng.randf_range(BEHIND, BEHIND + 300.0)
 		if plan.traffic_density(d) <= 0.0:
 			continue
 		# Prawy pas częściej (jak na prawdziwej autostradzie).
-		var lane := 0 if rng.randf() < 0.7 else 1
+		var lane := 1 if chaser else (0 if rng.randf() < 0.7 else 1)
 		var free := true
 		for c in cars + planned:
 			if bool(c.get("oncoming", false)) == oncoming and int(c.get("lane", 0)) == lane \
@@ -128,8 +148,13 @@ func _candidate(player_dist: float, cars: Array, planned: Array, oncoming: bool,
 		if not free:
 			continue
 		var limit := plan.limit_at(d)
-		return {"dist": d, "lane": lane, "oncoming": oncoming,
-				"speed_kmh": limit * rng.randf_range(0.8, 1.0) if lane == 0 else limit * rng.randf_range(0.95, 1.1)}
+		var k := rng.randf_range(0.95, 1.1)
+		if chaser:
+			k = rng.randf_range(1.15, 1.35)
+		elif lane == 0:
+			# Wolni (ciężarówki, ostrożni) - gracz ich dogania.
+			k = rng.randf_range(0.5, 0.7) if (not oncoming and rng.randf() < SLOW_SHARE) else rng.randf_range(0.8, 1.0)
+		return {"dist": d, "lane": lane, "oncoming": oncoming, "speed_kmh": limit * k}
 	return {}
 
 
@@ -142,7 +167,9 @@ static func visible(head_pos: Vector3, head_fwd: Vector3, car_fwd: Vector3, p: V
 	if dist < 1.0:
 		return true
 	var dir := to / dist
-	if dist < VIEW_DIST and dir.dot(head_fwd.normalized()) > cos(VIEW_HALF_ANGLE):
+	# Przed autem gracza zasięg rysowania, w innych kierunkach 900 m.
+	var reach := FAR_VIEW_DIST if dir.dot(car_fwd.normalized()) > 0.3 else VIEW_DIST
+	if dist < reach and dir.dot(head_fwd.normalized()) > cos(VIEW_HALF_ANGLE):
 		return true
 	if dist < MIRROR_DIST and dir.dot(-car_fwd.normalized()) > cos(MIRROR_HALF_ANGLE):
 		return true

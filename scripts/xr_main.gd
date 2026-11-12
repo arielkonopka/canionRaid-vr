@@ -951,6 +951,15 @@ func _free_tokens() -> int:
 	return CHASE_TOKENS - held
 
 
+## Czy auto może zniknąć - gracz go nie widzi (głowa, lusterko). Wołane
+## przed każdym oddaniem auta do puli poza wybuchem (zlecenie boty-znikanie:
+## "nie powinny znikać tak na widoku"); widoczne zostaje i próbujemy
+## w następnym kroku.
+func _can_vanish(pos: Vector3) -> bool:
+	return not TrafficZone.visible(camera.global_position, -camera.global_basis.z,
+			-car.global_basis.z, pos)
+
+
 ## Bot w zasięgu potyczki: z fizyką, bliżej niż `r` (domyślnie NEAR_R
 ## 120 m) i w stożku widzenia gracza.
 func _in_sight(b: StuntCar, r := BotLod.NEAR_R) -> bool:
@@ -1134,7 +1143,8 @@ func _update_bots(delta: float) -> void:
 		var behind_max := 700.0 if drv.rage > 0.05 else 250.0
 		# Autostrada: spokojny ruch usuwa TrafficZone (poza wzrokiem); bot
 		# w szale zgubiony daleko za graczem znika jak w wąwozie ("lost").
-		var gone: bool = (not hwy or drv.rage > 0.05) and (drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0)
+		var gone: bool = (not hwy or drv.rage > 0.05) and (drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0) \
+				and _can_vanish(b.global_position)
 		var dead: bool = b.is_wrecked or drv.flipped_time > 3.0 or b.global_position.y < -50.0
 		if gone or dead:
 			if drv.rage > 0.05:
@@ -2656,8 +2666,9 @@ func _update_oncoming(delta: float) -> void:
 			# Swobodne auto (po zbliżeniu gracza): sama fizyka, do puli daleko
 			# za graczem albo po LOOSE_TIME.
 			o.loose_t = o.loose_t + delta
-			if not is_instance_valid(c) or o.loose_t > LOOSE_TIME \
-					or (c.global_position - car.global_position).length() > 400.0:
+			if not is_instance_valid(c) or ((o.loose_t > LOOSE_TIME \
+					or (c.global_position - car.global_position).length() > 400.0)
+					and _can_vanish(c.global_position)):
 				if is_instance_valid(c):
 					c.repair()
 				_pool_oncoming(o)
@@ -2666,9 +2677,20 @@ func _update_oncoming(delta: float) -> void:
 			continue                           # scenka: _update_skirmish
 		o.dist = o.dist - o.v * delta
 		var d2: float = o.dist
-		var rail: Array = [] if d2 < _last_safe_dist - 150.0 else track.rail_at(d2)
-		if rail.is_empty() or not is_instance_valid(c):
+		# Za graczem jedzie do TrafficZone.BEHIND (300 m, było 150) i znika
+		# dopiero poza wzrokiem (lusterko, obejrzenie się); bez toru (kawałek
+		# zdjęty) stoi ukryty w ostatnim miejscu, aż zniknie z oczu.
+		if not is_instance_valid(c):
 			_pool_oncoming(o)
+			continue
+		var past: bool = d2 < _last_safe_dist - TrafficZone.BEHIND
+		if past and _can_vanish(c.global_position):
+			_pool_oncoming(o)
+			continue
+		var rail: Array = track.rail_at(d2)
+		if rail.is_empty():
+			if _can_vanish(c.global_position):
+				_pool_oncoming(o)
 			continue
 		c.global_transform = _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
 		for w in c.wheels:
@@ -2744,7 +2766,8 @@ func _update_skirmish(delta: float) -> void:
 		var v := _osk_v * float(stt["v"])
 		for w in c.wheels:
 			w.omega = v / c.wheel_radius
-	if _osk.done or float(oa.dist) < _last_safe_dist - 150.0:
+	if (_osk.done or float(oa.dist) < _last_safe_dist - TrafficZone.BEHIND) \
+			and _can_vanish(oa.car.global_position) and _can_vanish(ob.car.global_position):
 		_osk_end()
 
 
