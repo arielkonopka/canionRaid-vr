@@ -38,9 +38,15 @@ func _report(label: String) -> void:
 	print("   uszkodzenia: stan %d%%, silnik %d%%, skrzynia %d%%, hamulce %s, zawieszenie %s" % [
 		roundi(d["structure"] * 100), roundi(d["engine"] * 100), roundi(d["gearbox"] * 100),
 		d["brakes"].map(func(x): return roundi(x * 100)), d["suspension"].map(func(x): return roundi(x * 100))])
+	# Uderzenie przodem w ścianę musi zostawić ślad - przy 60 km/h przez
+	# ciągłe wykrywanie kolizji (CCD) nie zostawiało nic (2026-11-11).
+	if label.begins_with("przodem") and (car.dent_count == 0 or d["structure"] <= 0.0):
+		fails += 1
+		print("   BŁĄD: uderzenie bez wgnieceń albo uszkodzeń")
 
 
 var wall: StaticBody3D
+var fails := 0
 
 
 ## Auto jedzie na wprost w betonową ścianę z prędkością kmh.
@@ -55,6 +61,9 @@ func _wall_hit(kmh: float) -> void:
 		root.add_child(wall)
 	wall.global_position = Vector3(-300, 1.5, 280)
 	car.place(Transform3D(Basis(), Vector3(-300, 0.75, 292)))
+	# place() włącza stabilizację (prędkość x0,5 co krok) - auto stawało
+	# przed ścianą i test pokazywał 0 wgnieceń "przodem w ścianę".
+	car._settle_t = 0.0
 	car.repair()
 	var v := kmh / 3.6
 	car.linear_velocity = Vector3(0, 0, -v)
@@ -82,5 +91,6 @@ func _physics_process(_d: float) -> bool:
 		for i in range(10):
 			car.dent(Vector3(0, 0.1, -1.4), Vector3.DOWN, 0.05)
 		print("czas jednego wgniecenia: %.2f ms" % ((Time.get_ticks_usec() - t0) / 10000.0))
+		print("dent_test: ", "OK" if fails == 0 else "BŁĄD (%d)" % fails)
 		return true
 	return false

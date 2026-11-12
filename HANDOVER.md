@@ -2186,10 +2186,27 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    glTF ze szkieletem z Blendera działa, sprawdzone).
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
-000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
-   było też przed zmianami wgnieceń 2026-11-11; dach i bok działają).
-   Podejrzenie chmury: próg `dent_threshold` (700) albo kontakt ze
-   ścianą testu. Nie blokuje.
+000. **Szybkie uderzenia nie robiły szkód (naprawione 2026-11-12, noc)**:
+   przy `continuous_cd` silnik fizyki zatrzymywał auto na ścianie bez
+   impulsu kontaktu (~400 N·s zamiast ~19 000) - `dent_test` przodem
+   w ścianę 60 km/h: 0 wgnieceń, 0 uszkodzeń (45 km/h - były). Najpierw
+   test był źle napisany (`place()` włącza stabilizację, auto stawało przed
+   ścianą - `_settle_t = 0`), potem `StuntCar._ccd_impact`: spadek
+   prędkości całkowitej i poziomej > 1,5 m/s w kroku przy zgłoszonym
+   impulsie < 25% masa·Δv -> brakujące uderzenie (wgniecenie + szkody
+   w częściach po pułapie 1,5). Pierwsza wersja (wektor Δv w poziomie)
+   brała wjazd na rampę za wypadek (autostrada: silnik 81% bez kolizji).
+   Teraz: 30 km/h 26%, 60 km/h 30% konstrukcji; autostrada 222 jak przed
+   (stan 100%); **wąwóz: realne uderzenia po skokach (np. 112->37 km/h,
+   24 g) zostawiają teraz szkody** - autopilot testu kończy z uszkodzonym
+   autem. Zmiana odczucia gry - do oceny przez użytkownika.
+000. **Zgłoszenie 2026-11-11: "zderzyłem się z górą na drodze, jechałem
+   szybko, ale góra nie wyglądała na aż tak stromą, na trasie w kanionie"**.
+   Nie zbadane (brak logu z tej jazdy). Kolizja ścian kanionu = te same
+   trójkąty co widoczne skały (`_build_canyon`, do ~18 m nad jezdnią).
+   Podejrzenie: przód nadwozia uderza w nagłą zmianę nachylenia (garb,
+   rozbieg) przy dużej prędkości. Następnym razem: `./quest.sh log`
+   i linia INCYDENT (ostatni kontakt: `what`, `at`) + numer odcinka.
 000. **Przegląd kodu - dalsze paczki** (inbox `przeglad-kodu`,
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
    8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
