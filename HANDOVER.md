@@ -887,6 +887,8 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
+| `scripts/air_wheel.gd` | `AirWheel`: kierownica w powietrzu (kąt z rąk, przyrostowo), test `air_wheel_test` / `air_wheel_scene_test` |
+| `tools/prepare_dummy_hands.py` | dłonie manekina na kontrolery (Blender) -> `models/dummy/dummy_hand_L/R.obj` |
 | `scripts/oncoming_car.gd` | `OncomingCar`: auto z naprzeciwka w `xr_main._oncoming` (szyna / scenka / luzem) |
 | `scripts/audio_util.gd` | `AudioUtil.wav(próbki, rate, bity, pętla)`: jedyny zapis dźwięków generowanych w kodzie (klakson, deszcz, sygnały, szum radia) |
 | `tests/*.gd` | testy headless i zrzuty ekranu, sekcja 6 |
@@ -2196,7 +2198,18 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    alternatywne sterowanie"** - wpinamy kierownicę w powietrzu z dłońmi
    manekina na kontrolerach; szczegóły na proponowanych wartościach
    (±180°, grip trzyma, ręczny lewy drążek w dół, wsteczny automatycznie)
-   do oceny w goglach.
+   do oceny w goglach. **Wpięte 2026-11-12**: Sterowanie -> Kierownica
+   "w powietrzu (dłonie)" + opcja "Obrót kierownicy" (±90/180/270/450°,
+   domyślnie 180); `xr_main._air_wheel_steer` (AirWheel z pozycji
+   kontrolerów i gripów, środek i płaszczyzna z `StuntCar.steering_frame()`:
+   w prawo = X kolumny, w górę = -Z kolumny), wieniec w kokpicie 1:1
+   (`StuntCar.steering_wheel_deg`), reset przy odrodzeniu. Ręczny: lewy
+   drążek w dół; wsteczny: hamulec na postoju; biegi: prawy drążek.
+   Dłonie manekina na kontrolerach w VR (`_attach_dummy_hands`, siatki
+   z `tools/prepare_dummy_hands.py`: palce zgięte w chwyt, -Z = do kłykci,
+   +Y = kciuk). Test `air_wheel_scene_test` (osie, znak, wieniec 1:1).
+   **Niesprawdzone w goglach** (użytkownik z migreną): ułożenie dłoni,
+   czy kierunek obrotu się zgadza, czułość.
    Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
    manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
    do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by

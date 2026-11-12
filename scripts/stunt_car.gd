@@ -410,6 +410,21 @@ var seat: Marker3D
 var chase_point: Marker3D
 var gauges: Gauges
 var _steering_wheel: Node3D
+## Kąt wieńca kierownicy [°] w trybie "kierownica w powietrzu" (AirWheel,
+## dodatni = w prawo); NAN = z kąta kół x14 jak dotąd.
+var steering_wheel_deg := NAN
+
+
+## Środek wieńca i kierunki "w prawo"/"w górę" w jego płaszczyźnie (świat),
+## bez obrotu samej kierownicy - dla AirWheel. Wieniec obraca się wokół
+## lokalnego Y kolumny, więc jego płaszczyzna to lokalne X-Z kolumny;
+## "w górę" (12:00) to -Z kolumny (kolumna pochylona o 65° w X).
+func steering_frame() -> Array:
+	if _steering_wheel == null:
+		return []
+	var col := _steering_wheel.get_parent() as Node3D
+	var b := col.global_basis
+	return [_steering_wheel.global_position, b.x.normalized(), -b.z.normalized()]
 var _tail_mat: StandardMaterial3D
 var _paint_mat: StandardMaterial3D
 ## Materiały kabiny i karoserii, które prześwitują w widoku z kokpitu.
@@ -1722,6 +1737,9 @@ func _visual_step(delta: float) -> void:
 	if _steering_wheel:
 		# Przełożenie kierownicy ~14:1, jak w aucie bez wspomagania z epoki.
 		var wheel_angle := (wheels[0].steer_angle + wheels[1].steer_angle) * 0.5 * 14.0
+		# Kierownica w powietrzu: wieniec obraca się 1:1 z rękami gracza.
+		if not is_nan(steering_wheel_deg):
+			wheel_angle = deg_to_rad(steering_wheel_deg)
 		_steering_wheel.rotation = Vector3(0.0, -wheel_angle, 0.0)
 	if _concept_steer:
 		var wa := (wheels[0].steer_angle + wheels[1].steer_angle) * 0.5 * 14.0
