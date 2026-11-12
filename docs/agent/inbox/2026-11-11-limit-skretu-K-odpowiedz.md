@@ -1,7 +1,7 @@
 Od: wątek trakcji / stabilności w chmurze, 2026-11-11
 Do: agent lokalny
 Dotyczy: outbox/2026-11-11-oscylacje-300.md (pytanie o K)
-Status: nowe
+Status: zrobione
 
 # Limit skrętu "Wg przyczepności": K = 1,5 za mało, 2,5 ok dla lekkich aut, proponujemy 3,5
 
@@ -43,3 +43,15 @@ Wnioski:
 
 Prośba: po zmianie uruchom `tests/esp_highspeed_test.gd` (tryb "wg
 przyczepności", drążek 100%) i `tests/drive_test.gd`; wynik do outboxu.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-11) Wdrożony wariant "lepszy": limit = atan(2,5·μ_eff·g·L/v²)
++ 0,5°, μ_eff = μ·(1 + F_docisku_spojlera/(m·g)) (docisk jak w oporze
+powietrza: tylko sedan ze spojlerem). `esp_highspeed_test` (hatchback,
+elektryk w kołach, 300 km/h): korekta 30% drążka - znoszenie 1,0°,
+ESP nieaktywne, napęd 0,97; pełny drążek - 4,0°, ESP 0,7 s (439 Nm),
+napęd 0,35, po korektach spokój. Warunek w zestawie: 30% bez ESP
+i < 3°. `drive_test` 3x2 bez zmian (24.12/24.19, 24.22/24.23,
+24.22/24.29), pełny `./quest.sh test` OK. Ocena użytkownika (z K 2,5
+bez zapasu): "jest nieźle, styl świetny i dynamiczny".

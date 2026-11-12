@@ -306,10 +306,15 @@ const ABS_MAX := 1.15
 ## tego nie robi, ale gałka czy klawisz to nie kierownica z 900° obrotu.
 @export var steer_assist: bool = true
 ## Ograniczenie skrętu wg przyczepności (jawna pomoc, opcja "Wg
-## przyczepności"): pełny drążek = STEER_GRIP_K razy tyle skrętu, ile
-## opony przeniosą bocznie (model rowerowy: a = v²·tan δ / L).
+## przyczepności"): pełny drążek = STEER_GRIP_K razy kąt kinematyczny na
+## granicy przyczepności (model rowerowy: a = v²·tan δ / L) plus zapas
+## na kąt znoszenia przedniej osi. Chmura (car_sim.py, 2026-11-11): sam
+## kąt kinematyczny z K 1,5-2,5 nie pozwalał ciężkiemu podsterownemu 4x4
+## dojść do granicy (78% przy 300 km/h) - ukryte utrudnienie; z zapasem
+## 0,5° każde auto dochodzi do ~93-97%. μ z dociskiem spojlera.
 var steer_grip := false
 const STEER_GRIP_K := 2.5
+const STEER_GRIP_SLIP := 0.5        # [°] zapas na znoszenie przedniej osi
 @export var high_speed_steer_deg: float = 6.0
 @export var steer_assist_speed: float = 45.0
 ## Jak szybko koła nadążają za wejściem [pełne wychylenia na sekundę].
@@ -1441,7 +1446,11 @@ func _update_steering(delta: float) -> void:
 		var t := clampf(absf(speed) / steer_assist_speed, 0.0, 1.0)
 		max_angle = deg_to_rad(lerpf(max_steer_deg, high_speed_steer_deg, t))
 		if steer_grip and absf(speed) > 1.0:
-			max_angle = minf(max_angle, atan(STEER_GRIP_K * tire_mu * 9.81 * _wheelbase / (speed * speed)))
+			var v2 := speed * speed
+			var sp: Dictionary = SPOILERS[spoiler if body_model != "concept" and style == "sedan" else "none"]
+			var mu_eff := tire_mu * (1.0 + 0.5 * AIR_RHO * float(sp["cla"]) * v2 / (car_mass * 9.81))
+			max_angle = minf(max_angle, atan(STEER_GRIP_K * mu_eff * 9.81 * _wheelbase / v2)
+					+ deg_to_rad(STEER_GRIP_SLIP))
 	var delta_ang := _steer_input_smoothed * max_angle
 	# Geometria Ackermanna: koło wewnętrzne skręca mocniej.
 	if absf(delta_ang) < 1e-4:
@@ -1743,6 +1752,7 @@ func place(xf: Transform3D) -> void:
 	global_transform = xf
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
+	_iv_valid = false                 # bez fałszywego "uderzenia" od zerowania prędkości
 	for w in wheels:
 		w.omega = 0.0
 		w.kappa = 0.0
@@ -2738,6 +2748,75 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		var p := state.get_contact_local_position(i)
 		_dent_queue.append([inv * p, inv.basis * (imp / j), (j - dent_threshold) * dent_per_impulse])
 		_impact_queue.append([inv * p, (j - dent_threshold) / damage_impulse_scale])
+	_ccd_impact(state, inv)
+
+
+## Uderzenie, którego silnik fizyki nie zgłosił impulsem kontaktu: przy
+## ciągłym wykrywaniu kolizji (continuous_cd) szybkie auto zatrzymane na
+## ścianie dostawało ~400 N·s zamiast ~19 000 (dent_test: 45 km/h w ścianę
+## - wgniecenia i uszkodzenia, 60 km/h - nic; użytkownik 2026-11-11:
+## "zderzyłem się z górą, jechałem szybko"). Z nagłej zmiany prędkości
+## w poziomie (świata; pion to lądowania - osobno) w jednym kroku:
+## > CCD_DV (~18 g, siły opon to najwyżej ~2 g) i zgłoszone impulsy poniżej
+## 25% masa·Δv -> brakujące uderzenie od strony przeszkody. Tylko
+## uszkodzenia i wgniecenia, ruch auta bez zmian.
+const CCD_DV := 1.5                    # [m/s] na krok fizyki
+var _iv_prev := Vector3.ZERO
+var _iv_valid := false
+var _iv_frame := -1
+var _body_shape: CollisionShape3D
+func _ccd_impact(state: PhysicsDirectBodyState3D, inv: Transform3D) -> void:
+	var v := state.linear_velocity
+	# Przerwa w fizyce (auto z puli, bot z szyny, odmrożenie - bez place())
+	# = zapamiętana prędkość z poprzedniego życia auta: bez porównania
+	# (przegląd chmury: fałszywe uderzenie po _loosen_oncoming z inną prędkością).
+	var f := Engine.get_physics_frames()
+	if freeze or not _iv_valid or f != _iv_frame + 1:
+		_iv_prev = v
+		_iv_valid = true
+		_iv_frame = f
+		return
+	_iv_frame = f
+	var vp := _iv_prev
+	_iv_prev = v
+	# Uderzenie = auto traci prędkość: całkowitą (rozbieg skoczni tylko obraca
+	# wektor - pozioma maleje, całkowita nie) i poziomą (lądowanie odbiera
+	# tylko pionową). Pierwsza wersja liczyła wektor Δv w poziomie i każdy
+	# wjazd na rampę był "wypadkiem": autostrada 222 - silnik 81% bez kolizji.
+	var drop := vp.length() - v.length()
+	var drop_h := Vector2(vp.x, vp.z).length() - Vector2(v.x, v.z).length()
+	if drop < CCD_DV or drop_h < CCD_DV:
+		return
+	var dv_h := Vector3(v.x - vp.x, 0.0, v.z - vp.z)
+	var j_need := car_mass * minf(drop, drop_h)
+	var j_got := 0.0
+	for i in range(state.get_contact_count()):
+		j_got += state.get_contact_impulse(i).length()
+	# Zwykły kontakt zgłasza impuls - wtedy nic (bez podwójnego liczenia,
+	# 45 km/h: kontakty + dodatek > 60 km/h). CCD daje ~2% potrzebnego.
+	if j_got > 0.25 * j_need:
+		return
+	var j := j_need - j_got
+	if j < dent_threshold:
+		return
+	# Przeszkoda po stronie przeciwnej do Δv: punkt na obrysie nadwozia.
+	var d_in := inv.basis * dv_h.normalized()          # w głąb auta
+	if _body_shape == null:
+		_body_shape = get_node("BodyShape") as CollisionShape3D
+	var half := (_body_shape.shape as BoxShape3D).size * 0.5
+	var out := -d_in
+	var k := maxf(maxf(absf(out.x) / half.x, absf(out.y) / maxf(half.y, 0.01)), absf(out.z) / half.z)
+	var p := out / maxf(k, 1e-3) + _body_shape.position
+	last_hit = {"j": j, "ms": Time.get_ticks_msec(), "what": "CCD", "at": p}
+	_dent_queue.append([p, d_in, (j - dent_threshold) * dent_per_impulse])
+	# Jedno uderzenie liczy się do pułapu powagi 1,5 (_damage_impact) -
+	# całe Δv naraz to jedno wielkie uderzenie, więc dzielimy je na części,
+	# żeby szybsze zderzenie robiło więcej szkód (60 km/h w beton ~35%
+	# konstrukcji, 100 km/h - silnik zniszczony, ~200 km/h - rozbite).
+	var sev := (j - dent_threshold) / damage_impulse_scale
+	while sev > 0.0:
+		_impact_queue.append([p, minf(sev, 1.5)])
+		sev -= 1.5
 
 
 ## Płyta rozpięta między dwoma punktami w płaszczyźnie YZ (szyby, słupki).

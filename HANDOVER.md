@@ -45,13 +45,22 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   powodowała przepychanie z kontrolą trakcji"; zgoda "ok")**: trzecia
   wartość opcji `steer_assist` (true / "grip" / false; `GameSettings.
   apply_steer`, `StuntCar.steer_grip`): maks. skręt = min(dotychczasowy,
-  atan(2,5·μ·g·L/v²)). Przyczyna z `tests/esp_highspeed_test.gd`
+  atan(2,5·μ_eff·g·L/v²) + 0,5°) - zapas 0,5° na znoszenie przedniej osi
+  i μ z dociskiem spojlera wg chmury (car_sim: sam kąt kinematyczny
+  dawał ciężkiemu 4x4 tylko 78% przyczepności przy 300 km/h). Przyczyna z `tests/esp_highspeed_test.gd`
   (hatchback, elektryk w kołach): przy 6° limitu 10% drążka przy
   300 km/h to już cała przyczepność, 30% - ESP hamuje 3 s, napęd 5%,
   znoszenie 9,5° (pętla z kierowcą); auto i ESP bez kierowcy stabilne.
-  "Wg przyczepności": pełny drążek 1,7°, ESP nie działa. Fizyka bez zmian.
+  "Wg przyczepności": korekta 30% drążka 1,0°, ESP nie działa; pełny
+  drążek dochodzi do granicy (4°, ESP krótko). Fizyka bez zmian.
   Ocena użytkownika w goglach (2026-11-11): "jest nieźle, sam styl jest
   świetny i dynamiczny, podoba mi się też gradacja napędu".
+  Po wersji z zapasem 0,5° (chmura): "nieźle, chociaż z tą blokadą
+  skrętu czasem przeszkadza, ale w sumie nie trzeba jechać tak szybko".
+  Log (`build/logs/jazda_skret2_2026-11-11.log`): przy 210-235 km/h
+  skręt 0,5-0,7 drążka, przednie koła na granicy (poślizg 85-113%) -
+  limit nie trzyma auta poniżej przyczepności, tylko przód dochodzi do
+  granicy (podsterowność). Zostaje jako jest; wybór należy do gracza.
 - **Cena wymiany silnika w warsztacie (użytkownik 2026-11-11): "w końcowej
   wersji cena za upgrade silnika musi być o rząd większa"** - x10
   (`WorkshopShop.ENGINE_PER_KW`). Na razie zostaje niska do testów;
@@ -2160,17 +2169,56 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    max_distance 80 m), potem cel: 120-130% przy 72 kl./s; dźwięk (tablica sinusa), fizyka gracza bez
    alokacji, pomiar kroków budowy kawałka, powielenia (DRY) z listy.
 
+000. **Pomysły użytkownika 2026-11-11 (wysłane chmurze do specyfikacji,
+   outbox `kierownica-wibracje-dzwieki`)**: (1) sterowanie "kierownicą
+   w powietrzu" (obie ręce), (2) wibracje kontrolerów (zderzenia,
+   nawierzchnia, ABS/TCS), (3) dźwięki innych aut z efektem Dopplera
+   i szumem mijania. Czekać na odpowiedź chmury z kolejnością.
+   Kierownica: użytkownik potwierdził ("jako opcja sterowania zamiast
+   manetką") i poprosił o przekazanie chmurze - szkic `scripts/air_wheel.gd`
+   - chmura poprawiła API (`update(hands, center, right, up, delta)`)
+   i dopisała `tests/air_wheel_test.gd` (OK, w zestawie); niepodpięty do
+   gry - czeka na decyzje użytkownika (zakres, grip, ręczny/wsteczny)
+   w inbox `kierownica-w-powietrzu`.
+   Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
+   manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
+   do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by
+   było się widzieć jako ten manekin, co ma nogi na pedałach gazu
+   i hamulca" (stopy wg spustów, ręce IK do kontrolerów; potrzebny glTF
+   ze szkieletem - `python3-numpy` zainstalowany 2026-11-11, eksport
+   glTF ze szkieletem z Blendera działa, sprawdzone).
 000. **Przed wydaniem: cena silnika w warsztacie x10** (użytkownik
    2026-11-11, sekcja 2) - `WorkshopShop.ENGINE_PER_KW`, testy sklepu.
-000. **`dent_test` "przodem w ścianę 30/60 km/h" daje 0 wgnieceń** (tak
-   było też przed zmianami wgnieceń 2026-11-11; dach i bok działają).
-   Podejrzenie chmury: próg `dent_threshold` (700) albo kontakt ze
-   ścianą testu. Nie blokuje.
+000. **Szybkie uderzenia nie robiły szkód (naprawione 2026-11-12, noc)**:
+   przy `continuous_cd` silnik fizyki zatrzymywał auto na ścianie bez
+   impulsu kontaktu (~400 N·s zamiast ~19 000) - `dent_test` przodem
+   w ścianę 60 km/h: 0 wgnieceń, 0 uszkodzeń (45 km/h - były). Najpierw
+   test był źle napisany (`place()` włącza stabilizację, auto stawało przed
+   ścianą - `_settle_t = 0`), potem `StuntCar._ccd_impact`: spadek
+   prędkości całkowitej i poziomej > 1,5 m/s w kroku przy zgłoszonym
+   impulsie < 25% masa·Δv -> brakujące uderzenie (wgniecenie + szkody
+   w częściach po pułapie 1,5). Pierwsza wersja (wektor Δv w poziomie)
+   brała wjazd na rampę za wypadek (autostrada: silnik 81% bez kolizji).
+   Teraz: 30 km/h 26%, 60 km/h 30% konstrukcji; autostrada 222 jak przed
+   (stan 100%); **wąwóz: realne uderzenia po skokach (np. 112->37 km/h,
+   24 g) zostawiają teraz szkody** - autopilot testu kończy z uszkodzonym
+   autem. Zmiana odczucia gry - do oceny przez użytkownika.
+   Przegląd chmury: auto wracające do fizyki bez `place()` (pula aut
+   z naprzeciwka, bot z szyny) porównywało prędkość z poprzedniego życia
+   -> fałszywe uderzenie; poprawka: `_iv_frame` (przerwa w krokach =
+   bez porównania), test `ccd_pool_test` (bez poprawki 19% szkód, z nią 0).
+000. **Zgłoszenie 2026-11-11: "zderzyłem się z górą na drodze, jechałem
+   szybko, ale góra nie wyglądała na aż tak stromą, na trasie w kanionie"**.
+   Nie zbadane (brak logu z tej jazdy). Kolizja ścian kanionu = te same
+   trójkąty co widoczne skały (`_build_canyon`, do ~18 m nad jezdnią).
+   Podejrzenie: przód nadwozia uderza w nagłą zmianę nachylenia (garb,
+   rozbieg) przy dużej prędkości. Następnym razem: `./quest.sh log`
+   i linia INCYDENT (ostatni kontakt: `what`, `at`) + numer odcinka.
 000. **Przegląd kodu - dalsze paczki** (inbox `przeglad-kodu`,
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
    8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
    w bit jak przedtem, `_make_beep` naprawiony - zapisywał 8 bitów bez
-   znaku, koniec sygnału trzaskał), A2, ~~A7~~ (zrobione:
+   znaku, koniec sygnału trzaskał), A2, ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
    `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
    warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
