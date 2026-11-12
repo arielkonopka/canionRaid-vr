@@ -2109,6 +2109,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
   **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
   8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
+- **Warstwa pogody (2026-11-12, inbox warstwa-pogody; użytkownik: "przy
+  deszczu niebo ciemnoszare", "rozważmy warstwę pogody")**: `WeatherPlan`
+  (chmura, fronty co ~12 km, `weather_plan_test`); mokra jezdnia
+  w generatorze autostrady (`HighwayGenerator.weather`, podział odcinków,
+  skocznia zawsze sucha, `weather_track_test`); deszcz i wygląd nieba,
+  słońca, mgły i otoczenia z pogody (`xr_main._update_weather_look`, co
+  1,5 s, niebo przeliczane przyrostowo, Perf "niebo"); spokojny ruch x0,9
+  w deszczu; opcja Trasa -> Pogoda (Zmienna / Zawsze sucho). Zrzuty
+  `docs/renders/pogoda_*.png`. Do oceny w goglach: czy niebo ciemnieje
+  wyraźnie przed deszczem, czytelność mokrej jezdni, koszt nieba.
 - **Wibracje kontrolerów (2026-11-12; użytkownik: "niech wibruje
   w dłoniach, co trzymają")**: `scripts/haptics.gd` (`Haptics.step` -
   czysta logika, `haptics_test`), `xr_main._update_haptics` wysyła

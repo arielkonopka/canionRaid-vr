@@ -63,6 +63,10 @@ const MIRROR_HALF_ANGLE := deg_to_rad(25.0)
 var plan: HighwayPlan
 
 
+## Pogoda (WeatherPlan, ustawia scena) - wolniejszy ruch w deszczu.
+var weather: WeatherPlan
+
+
 func _init(p: HighwayPlan) -> void:
 	plan = p
 
@@ -155,6 +159,10 @@ func _candidate(player_dist: float, cars: Array, planned: Array, oncoming: bool,
 		elif lane == 0:
 			# Wolni (ciężarówki, ostrożni) - gracz ich dogania.
 			k = rng.randf_range(0.5, 0.7) if (not oncoming and rng.randf() < SLOW_SHARE) else rng.randf_range(0.8, 1.0)
+		# Deszcz: spokojne auta wolniej (furiaci bez zmian - deszcz robi ich
+		# groźniejszymi; boty jadą po tej samej fizyce, same się ślizgają).
+		if weather and float(weather.weather(d)["rain"]) >= 0.5:
+			k *= 0.9
 		return {"dist": d, "lane": lane, "oncoming": oncoming, "speed_kmh": limit * k}
 	return {}
 

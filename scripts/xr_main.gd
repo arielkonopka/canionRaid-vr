@@ -1925,6 +1925,7 @@ func _process(delta: float) -> void:
 	_update_popups(delta)
 	var t0 := Time.get_ticks_usec()
 	_update_rain(delta)
+	_update_weather_look(delta)
 	Perf.add("deszcz", t0)
 	_log_perf(delta)
 	_ws_arm_t = maxf(_ws_arm_t - delta, 0.0)
@@ -2101,6 +2102,10 @@ func _watch_track(delta: float) -> void:
 	current_limit = s.get("limit", 100.0)
 	_lateral = info.get("offset", 0.0)
 	_rain_target = float(s.get("rain", 0))
+	# Autostrada: opad z warstwy pogody (WeatherPlan), pod dachem nic.
+	if _endless and track.get("weather") != null:
+		_weather_now = track.weather.weather(_last_safe_dist)
+		_rain_target = 0.0 if bool(s.get("roof", false)) else float(_weather_now["rain"])
 	_update_env(s)
 	if _endless:
 		# Dobudowa trasy przed autem, sprzątanie za nim. Bez cofania: auto
@@ -2525,6 +2530,47 @@ func _build_rain() -> void:
 	add_child(_rain_sound)
 
 
+## Niebo, słońce, mgła i światło otoczenia z pogody (zlecenie
+## warstwa-pogody; użytkownik: "w przypadku deszczu niebo powinno się
+## robić ciemnoszare"). Pogoda wygładzona w czasie (stała ~3 s), wygląd
+## przepisywany co 1,5 s - zmiana nieba przelicza mapę odbić (Quest), więc
+## rzadko i z Sky.PROCESS_MODE_INCREMENTAL. Perf "niebo".
+var _weather_now := {}
+var _wx_smooth := {"cloud": 0.0, "fog": 0.0}
+var _wx_kind := ""
+var _wx_t := 0.0
+func _update_weather_look(delta: float) -> void:
+	if _weather_now.is_empty():
+		return
+	var k := 1.0 - exp(-delta / 3.0)
+	for key in ["cloud", "fog"]:
+		_wx_smooth[key] = lerpf(float(_wx_smooth[key]), float(_weather_now.get(key, 0.0)), k)
+	_wx_kind = String(_weather_now.get("kind", ""))
+	_wx_t -= delta
+	if _wx_t > 0.0:
+		return
+	_wx_t = 1.5
+	var t0 := Time.get_ticks_usec()
+	var lk := WeatherPlan.look({"cloud": _wx_smooth["cloud"], "fog": _wx_smooth["fog"], "kind": _wx_kind})
+	var we := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we and we.environment:
+		var env := we.environment
+		var sky_mat := env.sky.sky_material as ProceduralSkyMaterial if env.sky else null
+		if sky_mat:
+			if env.sky.process_mode != Sky.PROCESS_MODE_INCREMENTAL:
+				env.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+			sky_mat.sky_top_color = lk["sky_top"]
+			sky_mat.sky_horizon_color = lk["sky_horizon"]
+			sky_mat.ground_horizon_color = lk["sky_horizon"]
+		env.fog_density = lk["fog_density"]
+		env.fog_light_color = lk["fog_color"]
+		env.ambient_light_color = lk["ambient"]
+	var sun := get_node_or_null("Sun") as DirectionalLight3D
+	if sun:
+		sun.light_energy = lk["sun_energy"]
+	Perf.add("niebo", t0)
+
+
 func _update_rain(delta: float) -> void:
 	if _rain == null or car == null:
 		return
@@ -2915,6 +2961,7 @@ func _update_traffic(delta: float) -> void:
 	_traffic_t = 0.5
 	if _traffic == null:
 		_traffic = TrafficZone.new(track.plan)
+		_traffic.weather = track.weather
 	var head := camera.global_position
 	var hf := -camera.global_basis.z
 	var cf := -car.global_basis.z

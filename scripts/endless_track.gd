@@ -30,6 +30,7 @@ const KEEP_BEHIND := 1
 ## kawałka + lokalna), więc boty, HUD i scena jazdy działają bez zmian.
 @export var autostrada: bool = false
 var plan: HighwayPlan
+var weather: WeatherPlan          # null = zawsze sucho (opcja) albo wąwóz
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""
@@ -52,6 +53,11 @@ func _ready() -> void:
 		if first_biome != "":
 			plan._kinds[0] = first_biome
 		_hgen = HighwayGenerator.new(plan, sv)
+		# Warstwa pogody (to samo ziarno); opcja "Pogoda: zawsze sucho" ją wyłącza.
+		var gs := get_node_or_null("/root/GameSettings")
+		if gs == null or gs.get("weather") != "dry":
+			weather = WeatherPlan.new(sv, plan)
+			_hgen.weather = weather
 	for i in range(1 + AHEAD):
 		_add_section()
 

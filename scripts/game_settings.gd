@@ -84,6 +84,7 @@ var xr_resolution: int = 110
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
 var wheel_range: int = 180          # [°] obrót kierownicy w powietrzu na pełny skręt
+var weather: String = "variable"    # pogoda na autostradzie (WeatherPlan) / "dry"
 var vibration: float = 0.5          # siła wibracji kontrolerów (0 = wył.)
 var road_texture: bool = false      # lekka faktura drogi w drążkach
 var shadows: String = "full"
@@ -154,6 +155,15 @@ var OPTIONS: Array[Dictionary] = [
 		"hints": [
 			"Autostrada 2+2 pasy przez setki km: łąki, pola, pustynia, góry, morze, miasta co 25 km.",
 			"Wąwóz bez końca: skocznie, tunele, rozwidlenia, autostrada co kilka odcinków.",
+		],
+	},
+	{
+		"key": "weather", "group": "track", "label": "Pogoda",
+		"values": ["variable", "dry"],
+		"names": ["Zmienna", "Zawsze sucho"],
+		"hints": [
+			"Fronty deszczu, ciemne niebo przed ulewą, mokra jezdnia (autostrada).",
+			"Bez deszczu i mokrej jezdni - jak dotąd.",
 		],
 	},
 	{

@@ -48,6 +48,9 @@ const EASE := 60.0               # wejście / wyjście z przechyłki [m]
 const MIN_MODULE := 120.0
 
 var plan: HighwayPlan
+## Pogoda (WeatherPlan): mokra jezdnia w strefach opadu - odcinki dzielone
+## w punktach zmiany nawierzchni (zlecenie warstwa-pogody). null = sucho.
+var weather: WeatherPlan
 var rng := RandomNumberGenerator.new()
 var chunks := 0
 
@@ -133,6 +136,8 @@ func _module(out: Array, state: Dictionary, meta: Dictionary) -> void:
 			# Na razie wielka skocznia (do 400 km/h, użytkownik 2026-11-09) na
 			# jezdni głównej; objazd z równoległym pasem - etap 4 spec.
 			meta["detour"] = j
+			# Skocznia (rozbieg, rampa, stół) zawsze sucha - także w deszczu
+			# (pogoda dzieli tylko odcinki z _seg).
 			TrackGenerator._big_jump(out, state, meta.duplicate())
 			meta.clear()
 			_seg(out, state, float(j["end"]) - float(state["dist"]), 0.0, 0.0, meta)
@@ -213,8 +218,18 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 	if length < 0.5:
 		return
 	var d: float = state["dist"]
+	# Zmiana nawierzchni w środku odcinka: dzielimy (krzywizna i przechył są
+	# na metr / stałe, więc geometria się nie zmienia).
+	if weather:
+		for ch in weather.surface_changes(d + 0.5, d + length - 0.5):
+			var cut: float = float(ch["d"]) - d
+			if cut > 0.5 and cut < length - 0.5:
+				_seg(out, state, cut, curve, bank, meta, width, limit)
+				_seg(out, state, length - cut, curve, bank, {}, width, limit)
+				return
+	var surf := weather.surface(d + 0.25) if weather else "dry"
 	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
-			"width": width, "surface": "dry", "limit": limit if limit > 0.0 else plan.limit_at(d + 0.25)}
+			"width": width, "surface": surf, "limit": limit if limit > 0.0 else plan.limit_at(d + 0.25)}
 	if not meta.is_empty():
 		seg["meta"] = meta.duplicate()
 		meta.clear()
