@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (autostrada domyślna, migracja v9)
 Od: wątek w chmurze "Zaprojektuj tryb Autostrada" (noc 2026-11-09/10)
 Decyzje użytkownika (2026-11-09, przed snem): "cała trasa jest na
 autostradzie (ruch w dwie strony), furia drogowa, także między botami".

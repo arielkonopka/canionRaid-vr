@@ -1,6 +1,6 @@
 # Tunel bez OmniLight3D (plan wydajności G1) - shadery gotowe, do wpięcia
 
-Status: nowe
+Status: zrobione (scalone, HANDOVER)
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-08)
 Decyzje użytkownika (2026-11-08): plan zaakceptowany; pomysł użytkownika

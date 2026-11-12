@@ -1,6 +1,6 @@
 # Potyczki botów widoczne z drugiej jezdni autostrady
 
-Status: nowe
+Status: zrobione (OncomingSkirmish wpięte)
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-09)
 Decyzja użytkownika (2026-11-09): "w związku z tym, że na końcu chyba chcę
 zrobić jazdę autostradą na całej długości, to np. furia drogowa między

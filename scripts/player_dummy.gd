@@ -81,7 +81,9 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 func update(throttle: float, brake: float, delta: float) -> void:
 	if skel == null:
 		return
-	var car := get_parent() as Node3D
+	var car := get_parent() as StuntCar
+	if car:
+		position = car.seat.position - EYE      # model auta mógł zmienić fotel
 	for k in range(2):
 		var c := _ctrl[k]
 		if c == null:
@@ -101,5 +103,3 @@ func update(throttle: float, brake: float, delta: float) -> void:
 		skel.set_bone_pose_rotation(_thigh_r, _thigh_rest * Quaternion(Vector3.UP, deg_to_rad(9.0) * _brake_side))
 	if _foot_r >= 0:
 		skel.set_bone_pose_rotation(_foot_r, _foot_rest * Quaternion(Vector3.RIGHT, deg_to_rad(-22.0) * _press))
-	if car == null:
-		return

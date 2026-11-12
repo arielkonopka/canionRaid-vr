@@ -1,4 +1,4 @@
-Status: w toku
+Status: zrobione / nieaktualne (kolejka w HANDOVER sekcja 8)
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzje użytkownika (2026-11-09): "Ok, kontynuuj pracę z agentem lokalnym" - chmura dalej przegląda i scala Twoją pracę, gdy jakość jest w porządku.
 

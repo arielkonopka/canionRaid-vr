@@ -887,6 +887,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
+| `scripts/player_dummy.gd` | `PlayerDummy`: gracz jako manekin (szkielet, IK ramion, stopa na pedałach) |
 | `scripts/air_wheel.gd` | `AirWheel`: kierownica w powietrzu (kąt z rąk, przyrostowo), test `air_wheel_test` / `air_wheel_scene_test` |
 | `tools/prepare_dummy_hands.py` | dłonie manekina na kontrolery (Blender) -> `models/dummy/dummy_hand_L/R.obj` |
 | `scripts/oncoming_car.gd` | `OncomingCar`: auto z naprzeciwka w `xr_main._oncoming` (szyna / scenka / luzem) |
@@ -2210,6 +2211,15 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    +Y = kciuk). Test `air_wheel_scene_test` (osie, znak, wieniec 1:1).
    **Niesprawdzone w goglach** (użytkownik z migreną): ułożenie dłoni,
    czy kierunek obrotu się zgadza, czułość.
+   **Cały manekin gracza (2026-11-12, "rendery super!")**: `PlayerDummy`
+   (`scripts/player_dummy.gd`), model `models/dummy/player_dummy.glb`
+   (`prepare_dummy.py ... .glb`: poza siedząca = spoczynkowa, zero
+   w biodrach, przód +Z -> obrót 180°), TwoBoneIK3D (Godot 4.6) ramion do
+   nadgarstków kontrolerów (biegun łokcia w dół i na zewnątrz), głowa
+   i dłonie tułowia schowane (skala kości), prawa stopa między gazem
+   a hamulcem; w VR od startu sceny jazdy. Zrzuty `tests/player_dummy_shot.gd`.
+   Concept car: kierownica w powietrzu na jego wieńcu; jego wieniec kręcił
+   się odwrotnie od zawsze - poprawione.
    Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
    manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
    do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by

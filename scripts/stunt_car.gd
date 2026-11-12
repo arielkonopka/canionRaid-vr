@@ -420,6 +420,14 @@ var steering_wheel_deg := NAN
 ## lokalnego Y kolumny, więc jego płaszczyzna to lokalne X-Z kolumny;
 ## "w górę" (12:00) to -Z kolumny (kolumna pochylona o 65° w X).
 func steering_frame() -> Array:
+	# Concept car: własna kierownica (sedanowa jest ukryta) - środek wieńca
+	# i oś kolumny z modelu (przegląd PR #73).
+	if _concept_steer and _concept_rim and _concept_rim.is_visible_in_tree():
+		var ax := (_concept_steer.get_parent() as Node3D).global_basis * _concept_steer_axis
+		ax = ax.normalized()                    # od kolumny do wieńca = do kierowcy
+		var r := global_basis.x - ax * global_basis.x.dot(ax)
+		r = r.normalized()
+		return [_concept_rim.global_position, r, ax.cross(r).normalized()]
 	if _steering_wheel == null:
 		return []
 	var col := _steering_wheel.get_parent() as Node3D
@@ -1743,7 +1751,13 @@ func _visual_step(delta: float) -> void:
 		_steering_wheel.rotation = Vector3(0.0, -wheel_angle, 0.0)
 	if _concept_steer:
 		var wa := (wheels[0].steer_angle + wheels[1].steer_angle) * 0.5 * 14.0
-		_concept_steer.basis = Basis(_concept_steer_axis, wa)
+		# Kierownica w powietrzu: 1:1 z rękami także w concepcie (przegląd #73).
+		if not is_nan(steering_wheel_deg):
+			wa = deg_to_rad(steering_wheel_deg)
+		# Oś kolumny wskazuje kierowcę - skręt w prawo (wa > 0) to obrót
+		# zgodny z zegarem z jego widoku, czyli ujemny wokół tej osi (było +wa:
+		# wieniec conceptu kręcił się odwrotnie; air_wheel_scene_test).
+		_concept_steer.basis = Basis(_concept_steer_axis, -wa)
 	if _tail_mat:
 		# Światła pozycyjne słabo, stop mocno.
 		var stop := maxf(brake if not (gear < 0 and automatic) else throttle, handbrake)
@@ -2997,6 +3011,7 @@ const MIRROR_GLASS_SIZE := Vector3(0.205, 0.048, 0.003)
 static var _concept_scene: PackedScene
 var _concept_steer: Node3D
 var _concept_steer_axis := Vector3.FORWARD
+var _concept_rim: Node3D
 var _concept_paint_mats: Array[BaseMaterial3D] = []
 var _concept_cockpit_mats: Array[BaseMaterial3D] = []
 var _paint_color := Color(0.8, 0.6, 0.18)
@@ -3115,6 +3130,7 @@ func _build_concept() -> void:
 		pivot.add_child(col)
 		col.global_transform = keep
 		_concept_steer = pivot
+		_concept_rim = rim
 	# Materiały: lakier (Paint 1/2) i przezroczystość kabiny dla wszystkiego
 	# oprócz szyb i świateł.
 	_concept_paint_mats.clear()

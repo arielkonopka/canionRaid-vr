@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (w kolejce po botach i wibracjach)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika (2026-11-11, ok. 23:00 UTC): "w przypadku deszczu niebo
 powinno się robić ciemnoszare", "rozważmy dodanie warstwy pogody",

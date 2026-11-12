@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (mapka na prawo od kierownicy, PR #29)
 Od: wątek w chmurze "Przenieś HUD z mapką na prawo"
 Decyzje użytkownika (2026-11-09, jego słowa): "HUD z mapką i informacjami powinien być po prawej stronie od kierownicy, bo inaczej zasłania zegary."
 

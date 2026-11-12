@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (następne w kolejce agenta lokalnego, 2026-11-12)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika: 2026-11-11 22:58 UTC "Tak, zleć od razu" - poprawki
 botów idą przed resztą planu urozmaiceń. Zgłoszenie użytkownika
