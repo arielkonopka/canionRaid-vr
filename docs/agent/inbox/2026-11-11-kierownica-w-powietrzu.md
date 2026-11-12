@@ -1,4 +1,4 @@
-Status: przyjęte (czeka na odpowiedzi użytkownika przed wpięciem)
+Status: przyjęte - decyzje w 2026-11-12-kierownica-decyzje-kolejnosc.md
 Od: wątek w chmurze "Ustal kierownicę, wibracje i dźwięki aut"
 Decyzje użytkownika: kierownica w powietrzu jako opcja sterowania - tak
 (potwierdzone agentowi lokalnemu). Otwarte (pytania wysłane użytkownikowi
