@@ -2192,6 +2192,11 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    i dopisała `tests/air_wheel_test.gd` (OK, w zestawie); niepodpięty do
    gry - czeka na decyzje użytkownika (zakres, grip, ręczny/wsteczny)
    w inbox `kierownica-w-powietrzu`.
+   **Decyzja użytkownika 2026-11-12: "chciałbym dłonie w powietrzu, jako
+   alternatywne sterowanie"** - wpinamy kierownicę w powietrzu z dłońmi
+   manekina na kontrolerach; szczegóły na proponowanych wartościach
+   (±180°, grip trzyma, ręczny lewy drążek w dół, wsteczny automatycznie)
+   do oceny w goglach.
    Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
    manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
    do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by
