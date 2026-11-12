@@ -1,6 +1,6 @@
 # Waśnie między botami: gangi, potyczki w zasięgu wzroku, sojusz po ataku gracza
 
-Status: nowe
+Status: zrobione (FeudDirector)
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-09)
 Decyzje użytkownika (2026-11-09):
 - "Więcej botów, które tworzą grupy, które potrafią wzajemnie być w stanie

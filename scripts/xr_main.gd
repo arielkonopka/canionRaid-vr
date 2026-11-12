@@ -197,6 +197,11 @@ func _ready() -> void:
 		_xr_ready = gs.enable_xr(get_viewport())
 	if _xr_ready:
 		_attach_dummy_hands()
+		# Gracz jako cały manekin (użytkownik 2026-11-12) - tułów, nogi na
+		# pedałach, ramiona do kontrolerów.
+		if PlayerDummy.available():
+			_player_dummy = PlayerDummy.new()
+			_player_dummy.setup(car, left_hand, right_hand)
 	if _xr_ready:
 		right_hand.button_pressed.connect(_on_xr_button.bind(true))
 		left_hand.button_pressed.connect(_on_xr_button.bind(false))
@@ -464,6 +469,9 @@ func _stick_curve(x: float) -> float:
 ## użytkownik 2026-11-12). Siatki z tools/prepare_dummy_hands.py: -Z od
 ## nadgarstka do kłykci, +Y kciuk, zero w środku dłoni - jak póza "grip"
 ## kontrolera. Ułożenie do oceny w goglach (bez cieni, lekkie).
+var _player_dummy: PlayerDummy
+
+
 func _attach_dummy_hands() -> void:
 	for pair in [[left_hand, "L"], [right_hand, "R"]]:
 		var path := "res://models/dummy/dummy_hand_%s.obj" % pair[1]
@@ -483,7 +491,10 @@ var _air := AirWheel.new()
 func _air_wheel_steer(gs: Node) -> float:
 	var fr: Array = car.steering_frame()
 	if fr.is_empty():
-		return 0.0
+		# Auto bez kierownicy w kokpicie (nie powinno się zdarzyć) - drążek
+		# zamiast cichego "nie skręca" (przegląd PR #73).
+		car.steering_wheel_deg = NAN
+		return _stick_curve(right_hand.get_vector2("primary").x)
 	_air.half_range = float(gs.wheel_range)
 	var hands := [[left_hand.global_position, left_hand.get_float("grip") > 0.5],
 			[right_hand.global_position, right_hand.get_float("grip") > 0.5]]
@@ -580,6 +591,8 @@ func _physics_process(delta: float) -> void:
 		car.steer = 0.0
 		car.handbrake = 1.0
 	_grace_t = maxf(_grace_t - delta, 0.0)
+	if _player_dummy:
+		_player_dummy.update(car.throttle, car.brake, delta)
 	_watch_incident(delta)
 	update_race(delta)
 	var t0 := Time.get_ticks_usec()

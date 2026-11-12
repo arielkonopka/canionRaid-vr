@@ -1,6 +1,6 @@
 # Tańsza skała: shaders/rock_biplanar.gdshader (odpowiedź na raport pomiaru)
 
-Status: nowe
+Status: zrobione (biplanar, 2 odczyty)
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-09), odpowiedź na `outbox/2026-11-09-pomiar-bazowy.md`
 Decyzje użytkownika: plan wydajności zaakceptowany 2026-11-08; zmiana

@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (następne w kolejce agenta lokalnego, 2026-11-12)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika: 2026-11-11 22:58 UTC "Tak, zleć od razu" - poprawki
 botów idą przed resztą planu urozmaiceń. Zgłoszenie użytkownika
@@ -10,7 +10,8 @@ późniejsze zlecenie.
 
 # Boty: nie znikają na widoku, więcej ruchu w stronę gracza
 
-Stan kodu: `main` z 2026-11-11 (po #64). Numery linii z tego stanu.
+Stan kodu: numery linii poprawione 2026-11-12 do `boty-szal-tekstury`
+(po D8 `OncomingCar`; wszystkie miejsca nadal są w kodzie).
 
 ## 1. Znikanie na widoku
 
@@ -20,10 +21,10 @@ oddają auto do puli bez pytania, czy gracz je widzi:
 
 | Miejsce | Dziś | Kiedy gracz to widzi |
 |---|---|---|
-| `xr_main.gd:2608` auto z naprzeciwka | `rail = []` gdy `d2 < _last_safe_dist - 150` -> `_pool_oncoming` | lusterko (`MIRROR_DIST` 200 m), obejrzenie się w goglach |
-| `xr_main.gd:2598` auto z naprzeciwka po zderzeniu ("loose") | po `LOOSE_TIME` 30 s albo > 400 m od gracza | wrak w lusterku, obejrzenie się po stłuczce |
-| `xr_main.gd:2686` scenka `OncomingSkirmish` | `_osk_end()` gdy `oa.dist < gracz - 150` | lusterko |
-| `xr_main.gd:1077` bot w szale | > 700 m za albo > 2000 m przed graczem | rzadko, ale na prostej możliwe |
+| `xr_main.gd:2656` auto z naprzeciwka | `rail = []` gdy `d2 < _last_safe_dist - 150` -> `_pool_oncoming` | lusterko (`MIRROR_DIST` 200 m), obejrzenie się w goglach |
+| `xr_main.gd:2646` auto z naprzeciwka po zderzeniu ("loose") | po `LOOSE_TIME` 30 s albo > 400 m od gracza | wrak w lusterku, obejrzenie się po stłuczce |
+| `xr_main.gd:2734` scenka `OncomingSkirmish` | `_osk_end()` gdy `oa.dist < gracz - 150` | lusterko |
+| `xr_main.gd:1124` bot w szale | > 700 m za albo > 2000 m przed graczem | rzadko, ale na prostej możliwe |
 | `traffic_zone.gd:47` `VIEW_DIST` 900 m | auto dalej niż 900 m = "niewidoczne" -> może zniknąć jako nadmiar albo poza oknem | na prostej autostradzie auto 1-1,8 km przed graczem to wciąż widoczna kropka (z reflektorami tym bardziej) |
 
 Prośba:

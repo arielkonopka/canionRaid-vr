@@ -1,6 +1,6 @@
 # Furia między botami na autostradzie przez całą trasę: wpięcie FeudDirector + OncomingSkirmish
 
-Status: nowe
+Status: zrobione
 Od: wątek w chmurze "Zaprojektuj nowe strategie botów road rage" (2026-11-10, noc)
 Cel nocy użytkownika (2026-11-09, 23:17, cały punkt w `2026-11-10-plan-nocy.md`):
 "cała trasa jest na autostradzie (ruch w dwie strony), furia drogowa, także

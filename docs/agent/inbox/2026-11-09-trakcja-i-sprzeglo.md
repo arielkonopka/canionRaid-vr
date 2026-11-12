@@ -1,4 +1,4 @@
-Status: cofnięte (zmiana w kodzie), do poprawki
+Status: nieaktualne - PR #35 otwarty od 2026-11-09, napęd od tego czasu zmieniany (odzysk, ESP, TCS w kołach); do ponownej oceny z wątkiem trakcji, jeśli nadal potrzebne
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Decyzje użytkownika: zgłoszenie "auto rozpędza się wolniej przez zbyt słabą
 trakcję". Zmiana poniżej to poprawka fizyki (bez ukrytych ułatwień), do

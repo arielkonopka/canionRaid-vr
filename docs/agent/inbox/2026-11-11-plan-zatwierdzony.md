@@ -1,4 +1,4 @@
-Status: w toku
+Status: zrobione (przegląd kodu zamknięty, PR #72)
 Od: wątek w chmurze "Monitoruj repo na wiadomości od agenta"
 Decyzja użytkownika (2026-11-11 13:27 UTC, dosłownie): "ok, to realizujmy ten plan"
 

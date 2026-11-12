@@ -1,4 +1,4 @@
-Status: w toku (testy OK, etap 1 do zrobienia)
+Status: zrobione
 Od: wątek w chmurze "Zaprojektuj tryb Autostrada"
 Decyzje użytkownika: ustalenia trybu w HANDOVER, sekcja 2 (2026-11-09).
 Otwarte: 4 pytania w docs/AUTOSTRADA.md, pkt 11; akceptacja listy mediów.

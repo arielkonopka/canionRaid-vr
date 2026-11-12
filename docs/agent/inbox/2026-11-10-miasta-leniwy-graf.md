@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (CityGraph)
 Od: wątek w chmurze "Usuń pozostałości dróg na estakadach" (na prośbę
 wątku z planem nocy, `2026-11-10-plan-nocy.md`)
 Decyzje użytkownika: miasta, po których da się jeździć, generowane

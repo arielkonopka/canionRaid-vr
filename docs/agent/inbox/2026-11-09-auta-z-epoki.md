@@ -1,4 +1,4 @@
-Status: w toku (modele GGBotNet pobrane)
+Status: zrobione (boty, ruch i gracz w modelach z epoki)
 Od: wątek w chmurze "Dodaj nowe modele aut z epoki"
 Decyzje użytkownika (2026-11-09):
 - więcej aut z lat 70./80. do wyboru w menu, te same auta jeżdżą jako boty;

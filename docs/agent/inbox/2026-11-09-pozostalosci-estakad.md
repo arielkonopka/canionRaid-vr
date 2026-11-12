@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (estakady jako opcja, autostrada domyślna)
 Od: wątek w chmurze "Usuń pozostałości dróg na estakadach"
 Decyzje użytkownika (2026-11-09): zrobić **wszystkie 4 etapy** (0-3);
 spadnięcie z estakady = **jazda dalej po dnie wąwozu** (z uszkodzeniami),

@@ -24,10 +24,16 @@ func _check(ok: bool, what: String) -> void:
 		fails += 1
 
 
+var concept_pass := false
+
+
 func _process(_d: float) -> bool:
 	f += 1
 	if f < 5:
 		return false
+	if concept_pass and f < 10:
+		return false
+	print("== ", "concept" if concept_pass else "sedan")
 	var fr: Array = car.steering_frame()
 	_check(not fr.is_empty(), "auto ma kierownicę")
 	if fr.is_empty():
@@ -50,12 +56,21 @@ func _process(_d: float) -> bool:
 		s = aw.update([[lp, true], [rp, true]], c, r, u, 1.0 / 72.0)
 	_check(s > 0.0 and absf(aw.angle - 60.0) < 1.0, "obrót o 60° zgodnie z zegarem = skręt w prawo (%.2f, %.0f°)" % [s, aw.angle])
 	# Wizualnie: wieniec obrócony o kąt rąk, punkt z 3:00 w dół.
-	car.steering_wheel_deg = aw.angle
-	var sw: Node3D = car._steering_wheel
-	var before := (sw.global_transform * Vector3.RIGHT).y
+	var sw: Node3D = car._concept_steer if concept_pass else car._steering_wheel
+	car.steering_wheel_deg = 0.0
 	car._visual_step(0.0)
-	var after := (sw.global_transform * Vector3.RIGHT).y
-	_check(after < before - 0.01, "wieniec w kokpicie kręci się z rękami (3:00 w dół: %.3f -> %.3f)" % [before, after])
+	var p3: Vector3 = c + r * 0.19                  # punkt wieńca na 3:00 (świat)
+	var local3 := sw.global_transform.affine_inverse() * p3
+	car.steering_wheel_deg = aw.angle
+	car._visual_step(0.0)
+	var after := (sw.global_transform * local3 - p3).dot(u)
+	_check(after < -0.01, "wieniec w kokpicie kręci się z rękami (3:00 w dół o %.3f m)" % -after)
+	if not concept_pass:
+		concept_pass = true
+		car.steering_wheel_deg = NAN
+		car.set_body_model("concept")
+		f = 5
+		return false
 	return _end()
 
 

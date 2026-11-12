@@ -1,6 +1,6 @@
 # Zlecenie: pomiar bazowy wydajności na Queście (etap 0 planu)
 
-Status: w toku
+Status: zrobione (przegląd wydajności 2026-11-11, docs/PERF_PRZEGLAD_2026-11-11.md)
 Od: wątek w chmurze "Zaplanuj refaktoring gorących punktów wydajności"
 (2026-11-08), na prośbę użytkownika ("trzeba zaplanować refaktoring, by
 zidentyfikować wszystkie wydajnościowe gorące punkty")

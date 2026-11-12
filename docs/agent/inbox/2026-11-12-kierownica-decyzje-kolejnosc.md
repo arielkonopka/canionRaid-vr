@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku
 Od: wątek w chmurze "Ustal kierownicę, wibracje i dźwięki aut"
 Decyzje użytkownika (2026-11-12 19:23, dosłownie): "tak, niech wibruje
 w dłoniach, co trzymają, tak cały manekin, co do kolejności, zdam się
@@ -41,3 +41,17 @@ Dotyczy outbox `2026-11-11-kierownica-wibracje-dzwieki` i inbox
    Uwaga na koszt: skinning manekina gracza na Queście zmierz benchem.
 
 Po każdym kroku wynik testów i pomiar do HANDOVER, krótko w outbox.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12) Kolejność przyjęta z jednym wyjątkiem: użytkownik w terminalu
+poprosił wprost o całego manekina ("fajnie by było, gdyby gracz był tym
+manekinem ... a nie tylko dłonie"), a `python3-numpy` był już
+zainstalowany - zrobione od razu: `models/dummy/player_dummy.glb` (szkielet,
+poza siedząca jako spoczynkowa), `PlayerDummy` (TwoBoneIK3D ramion do
+kontrolerów, głowa i własne dłonie tułowia schowane - dłonie zostają
+z kontrolerów, prawa stopa gaz/hamulec), w VR od startu sceny. Lewa noga
+przy sprzęgle w manualu - jeszcze nie. Rendery
+`docs/renders/manekin_gracza_*.png` ("rendery super!" - użytkownik).
+Bench skinningu na Queście - przy podłączonych goglach. Dalej: boty
+(znikanie) -> wibracje -> pogoda -> dźwięki.
