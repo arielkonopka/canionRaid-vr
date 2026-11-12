@@ -705,11 +705,7 @@ func finish_distance() -> float:
 
 ## Szachownica w poprzek jezdni (2 rzędy) i - dla mety - brama z banerem.
 func _build_line(node_name: String, dist: float, gate: bool, text := "META") -> void:
-	var root := Node3D.new()
-	root.name = node_name
-	_adopt(root)
-	# transform_at_distance zwraca układ globalny; tu potrzebny lokalny toru.
-	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
+	var root := _node_at(node_name, dist)
 	var s := _sample_near(dist)
 	var width: float = s["width"]
 	var white := _flat_mat("line_white", Color(0.95, 0.95, 0.95))
@@ -1012,11 +1008,19 @@ func _rock_material(kind := "cavern") -> Material:
 ## Ostrzegawcze: trójkąt z czerwonym obrzeżem i żółtym polem. Opcjonalna
 ## tabliczka z tekstem pod znakiem. `lift` podnosi znak (np. gdy dwa stoją
 ## w tym samym miejscu).
-func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0) -> void:
+## Węzeł dziecko toru na osi w dystansie `dist` (znaki, bramy, stacje...).
+## transform_at_distance daje układ globalny - tu lokalny toru. Jedno
+## miejsce zamiast 8 kopii (przegląd chmury D5).
+func _node_at(node_name: String, dist: float) -> Node3D:
 	var root := Node3D.new()
-	root.name = "RoadSign"
+	root.name = node_name
 	_adopt(root)
 	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
+	return root
+
+
+func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0) -> void:
+	var root := _node_at("RoadSign", dist)
 	# Znak stoi pionowo, także przy przechylonej i pochylonej jezdni:
 	# zostaje tylko kierunek w poziomie, a słupek zaczyna się na krawędzi
 	# jezdni (na jej wysokości).
@@ -1552,10 +1556,7 @@ func _collision_body(n: String, faces: PackedVector3Array, surface: String, grip
 ## Zielony znak jak przy wjeździe do miejscowości (E-17a): biały napis,
 ## biała ramka, na dwóch słupkach przy prawej krawędzi.
 func _town_sign(dist: float, text: String, crossed := false) -> void:
-	var root := Node3D.new()
-	root.name = "TownSign"
-	_adopt(root)
-	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
+	var root := _node_at("TownSign", dist)
 	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
 	var origin := root.position
 	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
@@ -1592,10 +1593,7 @@ func _town_sign(dist: float, text: String, crossed := false) -> void:
 ## U-3 tablica kierująca: czerwona z białą strzałką w stronę zakrętu,
 ## po zewnętrznej stronie łuku (dir > 0 = zakręt w prawo).
 func _chevron(dist: float, dir: int) -> void:
-	var root := Node3D.new()
-	root.name = "Chevron"
-	_adopt(root)
-	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
+	var root := _node_at("Chevron", dist)
 	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
 	var origin := root.position
 	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
@@ -1612,10 +1610,7 @@ func _chevron(dist: float, dir: int) -> void:
 ## Znak drogowy przy prawej krawędzi: tablica na słupku, z tekstem
 ## (np. prędkość potrzebna do skoku), czytelny z nadjeżdżającego auta.
 func _build_sign(dist: float, text: String, board_color := Color(0.95, 0.75, 0.1)) -> void:
-	var root := Node3D.new()
-	root.name = "Sign"
-	_adopt(root)
-	root.transform = global_transform.affine_inverse() * transform_at_distance(dist)
+	var root := _node_at("Sign", dist)
 	var s := _sample_near(dist)
 	var x: float = s["width"] * 0.5 + 0.6
 	var post_mat := _flat_mat("town_post", Color(0.6, 0.6, 0.62))
@@ -1647,10 +1642,7 @@ func _build_sign(dist: float, text: String, board_color := Color(0.95, 0.75, 0.1
 ## Warsztat przy prawej krawędzi: hala z dachem, otwarte wrota, szyld
 ## "WARSZTAT" i żółta linia postoju w poprzek jezdni na `stop_dist`.
 func _build_workshop(stop_dist: float) -> void:
-	var root := Node3D.new()
-	root.name = "Workshop"
-	_adopt(root)
-	root.transform = global_transform.affine_inverse() * transform_at_distance(stop_dist)
+	var root := _node_at("Workshop", stop_dist)
 	var s := _sample_near(stop_dist)
 	var hw: float = s["width"] * 0.5
 	var wall := _flat_mat("ws_wall", Color(0.78, 0.74, 0.66))
@@ -1837,11 +1829,8 @@ func _build_separator(d0: float, length: float, x: float) -> void:
 ## Warsztat w zatoce zjazdu: hala z otwartym frontem i napisem.
 func _build_workshop_bay(d0: float, st: Dictionary) -> void:
 	var w0: float = st["road_w"]
-	var root := Node3D.new()
-	root.name = "WorkshopBay"
-	_adopt(root)
 	var mid := d0 + float(st["len"]) * 0.5
-	root.transform = global_transform.affine_inverse() * transform_at_distance(mid)
+	var root := _node_at("WorkshopBay", mid)
 	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
 	var pos0 := root.position
 	root.basis = Basis.looking_at(fwd_h, Vector3.UP)
@@ -1867,11 +1856,8 @@ func _build_workshop_bay(d0: float, st: Dictionary) -> void:
 func _build_station(d0: float, st: Dictionary) -> void:
 	var w0: float = st["road_w"]
 	var length: float = st["len"]
-	var root := Node3D.new()
-	root.name = "Station"
-	_adopt(root)
 	var mid := d0 + length * 0.5
-	root.transform = global_transform.affine_inverse() * transform_at_distance(mid)
+	var root := _node_at("Station", mid)
 	var fwd_h := (-root.basis.z * Vector3(1, 0, 1)).normalized()
 	var pos0 := root.position
 	root.basis = Basis.looking_at(fwd_h, Vector3.UP)

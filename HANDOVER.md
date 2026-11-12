@@ -2214,7 +2214,7 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
    8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
    w bit jak przedtem, `_make_beep` naprawiony - zapisywał 8 bitów bez
-   znaku, koniec sygnału trzaskał), A2, ~~A7~~ (zrobione:
+   znaku, koniec sygnału trzaskał), A2, ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
    `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
    warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
