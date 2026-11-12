@@ -84,6 +84,8 @@ var xr_resolution: int = 110
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
 var wheel_range: int = 180          # [°] obrót kierownicy w powietrzu na pełny skręt
+var vibration: float = 0.5          # siła wibracji kontrolerów (0 = wył.)
+var road_texture: bool = false      # lekka faktura drogi w drążkach
 var shadows: String = "full"
 ## Rodzaj trasy (menu "Trasa"): "canyon" wąwóz bez końca albo "autostrada"
 ## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
@@ -413,6 +415,21 @@ var OPTIONS: Array[Dictionary] = [
 			"Skręcasz lewym drążkiem. Prawy drążek w górę/w dół: bieg wyżej/niżej.",
 			"Złap kierownicę gripami i kręć jak prawdziwą (jedną albo dwiema rękami); puszczona wraca do środka. Biegi: prawy drążek, ręczny: lewy drążek w dół, wsteczny: hamulec na postoju.",
 		],
+	},
+	{
+		"key": "vibration", "group": "controls", "label": "Wibracje", "live": true,
+		"values": [0.0, 0.5, 1.0],
+		"names": ["Wył.", "Słabe", "Mocne"],
+		"hints": [
+			"Kontrolery nie wibrują.",
+			"Uderzenia, lądowania, pobocze, ABS w ręce hamulca, buksowanie w ręce gazu (domyślnie).",
+			"To samo, mocniej.",
+		],
+	},
+	{
+		"key": "road_texture", "group": "controls", "label": "Faktura drogi w drążkach", "live": true,
+		"values": [false, true], "names": ["Wył.", "Wł."],
+		"hints": ["Bez drżenia od zwykłej jezdni.", "Lekkie drżenie rosnące z prędkością - przy długiej jeździe może męczyć."],
 	},
 	{
 		"key": "wheel_range", "group": "controls", "label": "Obrót kierownicy",

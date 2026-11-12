@@ -887,6 +887,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
+| `scripts/haptics.gd` | `Haptics`: wibracje kontrolerów (logika impulsów; wysyłka w xr_main) |
 | `scripts/player_dummy.gd` | `PlayerDummy`: gracz jako manekin (szkielet, IK ramion, stopa na pedałach) |
 | `scripts/air_wheel.gd` | `AirWheel`: kierownica w powietrzu (kąt z rąk, przyrostowo), test `air_wheel_test` / `air_wheel_scene_test` |
 | `tools/prepare_dummy_hands.py` | dłonie manekina na kontrolery (Blender) -> `models/dummy/dummy_hand_L/R.obj` |
@@ -2108,6 +2109,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
   **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
   8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
+- **Wibracje kontrolerów (2026-11-12; użytkownik: "niech wibruje
+  w dłoniach, co trzymają")**: `scripts/haptics.gd` (`Haptics.step` -
+  czysta logika, `haptics_test`), `xr_main._update_haptics` wysyła
+  `trigger_haptic_pulse("haptic", ...)`. Zderzenie (z `last_hit`, raz na
+  kontakt) i lądowanie - obie ręce; pobocze (trawa, skała, tarka, szuter)
+  z prędkością; ABS - ręka hamulca, buksowanie/TCS - ręka gazu; faktura
+  drogi osobnym przełącznikiem (domyślnie wył.). Kierownica w powietrzu:
+  tylko ręce z wciśniętym gripem. Opcje Sterowanie: Wibracje (Wył./Słabe/
+  Mocne, domyślnie Słabe), Faktura drogi w drążkach. Niesprawdzone
+  w goglach - siła i częstotliwość do oceny.
 - **Boty nie znikają na widoku, więcej ruchu w naszą stronę (2026-11-12,
   inbox boty-znikanie)**: `xr_main._can_vanish` przed każdym oddaniem auta
   do puli (poza wybuchem/odrodzeniem); `TrafficZone`: nadmiar tylko za

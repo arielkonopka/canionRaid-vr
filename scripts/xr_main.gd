@@ -471,6 +471,36 @@ func _stick_curve(x: float) -> float:
 ## kontrolera. Ułożenie do oceny w goglach (bez cieni, lekkie).
 var _player_dummy: PlayerDummy
 
+## Wibracje kontrolerów (Haptics - logika, tu tylko dane auta i wysyłka).
+var _haptics := Haptics.new()
+func _update_haptics(delta: float) -> void:
+	var gs := _gs
+	_haptics.strength = float(gs.vibration) if gs else 0.5
+	_haptics.road_texture = bool(gs.road_texture) if gs else false
+	var gas_right: bool = gs == null or gs.gas_hand == "right"
+	var hold := []
+	if gs and gs.steer_stick == "wheel":
+		hold = [left_hand.get_float("grip") > 0.5, right_hand.get_float("grip") > 0.5]
+	var slip := 0.0
+	var rough := 0
+	var on := 0
+	for w in car.wheels:
+		if not w.contact:
+			continue
+		on += 1
+		if Haptics.ROUGH.has(w.surface):
+			rough += 1
+		slip = maxf(slip, w.slip)
+	var s := {"speed": car.speed, "hit_j": float(car.last_hit.get("j", 0.0)),
+			"hit_ms": int(car.last_hit.get("ms", 0)), "abs": car.abs_active,
+			"tcs": car.tcs_active, "slip": slip if car.throttle > 0.3 else 0.0,
+			"rough": float(rough) / maxf(on, 1.0),
+			"brake_hand": 0 if gas_right else 1, "gas_hand": 1 if gas_right else 0, "holding": hold}
+	for p in _haptics.step(delta, s):
+		var c: XRController3D = left_hand if int(p[0]) == 0 else right_hand
+		c.trigger_haptic_pulse("haptic", 0.0, float(p[1]), float(p[2]), 0.0)
+
+
 
 func _attach_dummy_hands() -> void:
 	for pair in [[left_hand, "L"], [right_hand, "R"]]:
@@ -591,6 +621,8 @@ func _physics_process(delta: float) -> void:
 		car.steer = 0.0
 		car.handbrake = 1.0
 	_grace_t = maxf(_grace_t - delta, 0.0)
+	if _xr_ready:
+		_update_haptics(delta)
 	if _player_dummy:
 		_player_dummy.update(car.throttle, car.brake, delta)
 	_watch_incident(delta)
@@ -2450,6 +2482,7 @@ func _respawn() -> void:
 
 
 func _on_car_landed(impact_speed: float) -> void:
+	_haptics.on_landed(impact_speed)
 	# Na razie tylko log. W etapie 4 tu podepniemy licznik uszkodzeń.
 	if impact_speed > 6.0:
 		print("Twarde lądowanie: %.1f m/s" % impact_speed)
