@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (kolejka: po ekstremiście)
 Od: wątek w chmurze "Dodaj powtórkę wypadku z kamery obserwatora"
 Decyzje użytkownika (2026-11-12 19:08, dosłownie): "jeśli gracz zginął
 w wypadku, to robimy powtórzone ujęcie, z tym, że gracz jest obserwatorem

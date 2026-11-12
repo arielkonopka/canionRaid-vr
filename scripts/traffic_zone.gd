@@ -130,11 +130,12 @@ func _candidate(player_dist: float, cars: Array, planned: Array, oncoming: bool,
 		rng: RandomNumberGenerator) -> Dictionary:
 	for _try in range(6):
 		var d := rng.randf_range(player_dist + SPAWN_MIN_AHEAD, player_dist + AHEAD)
-		# Doganiający: w naszą stronę część aut pojawia się 300-600 m za graczem
-		# (poza lusterkiem) i jedzie szybciej lewym pasem.
+		# Doganiający: w naszą stronę część aut pojawia się za graczem poza
+		# lusterkiem (MIRROR_DIST + 50 .. BEHIND), ale w liczonym oknie - wcześniej
+		# 300-600 m za, poza bilansem, i co krok mógł dojść kolejny (przegląd).
 		var chaser := not oncoming and rng.randf() < CHASER_SHARE
 		if chaser:
-			d = player_dist - rng.randf_range(BEHIND, BEHIND + 300.0)
+			d = player_dist - rng.randf_range(MIRROR_DIST + 50.0, BEHIND)
 		if plan.traffic_density(d) <= 0.0:
 			continue
 		# Prawy pas częściej (jak na prawdziwej autostradzie).

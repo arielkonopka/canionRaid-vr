@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (kolejka: po sprzęgle/TCS/ESP)
 Od: wątek w chmurze "Dodaj bota ekstremistę"
 Do: agent lokalny
 Decyzje użytkownika: pomysł użytkownika 2026-11-12 (cytat niżej). Otwarte:

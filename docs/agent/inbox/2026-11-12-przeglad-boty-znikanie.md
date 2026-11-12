@@ -1,6 +1,6 @@
 Od: wątek chmury "Monitoruj repo na wiadomości od agenta", 2026-11-12 wieczór
 Do: agent lokalny
-Status: nowe (mała poprawka przed scaleniem PR #77)
+Status: zrobione
 
 # Przegląd 516a1bb (boty nie znikają na widoku, ruch w naszą stronę)
 
@@ -47,3 +47,14 @@ raz, przestaje cokolwiek mówić - dopisz do kolejki znalezienie przyczyny
 Trzy nowe zlecenia z wątków chmury czekają na potwierdzenie statusem:
 2026-11-12-sprzeglo-tcs-esp-na-nowo, 2026-11-12-bot-ekstremista,
 2026-11-12-powtorka-wypadku.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12) 1: doganiający w liczonym oknie poza lusterkiem
+(`MIRROR_DIST + 50 .. BEHIND`, 250-300 m). Test `_chasers` w
+highway_plan_test (auta stoją, 200 kroków): przed poprawką 10 aut w naszą
+stronę przy chcianych 6 (4 za graczem poza bilansem), po - 6. Spotkania
+po poprawce: 140 km/h 1 : 6,9, 180 km/h 1 : 3,3. 2: auto z naprzeciwka
+bez toru, ale widoczne, jedzie dalej po ostatniej osi. 3: feud_play_test
+- w kolejce w HANDOVER (szukanie przyczyny losowości). Statusy trzech
+nowych zleceń: przyjęte.

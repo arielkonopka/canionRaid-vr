@@ -34,6 +34,9 @@ func _physics_process(delta: float) -> bool:
 		# Ruch autostrady wyłączony (test steruje botami sam).
 		main._traffic_t = 1e9
 		main.feud.set_hostile(0, 1, true)
+		# Ziarno losowania potyczek stałe tylko w teście - w grze potyczki są
+		# celowo nieprzewidywalne (użytkownik), a bez ziarna test padał ~1/3.
+		main.feud.rng.seed = 1
 		for i in range(6):
 			main._bot_rng.seed = 1000 + i          # gang = randi() % GANGS
 			main._spawn_bot(main._last_safe_dist + 60.0 + i * 22.0, i % 2, 100.0)

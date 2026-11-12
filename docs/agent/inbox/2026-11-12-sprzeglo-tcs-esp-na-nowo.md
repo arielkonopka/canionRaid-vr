@@ -1,7 +1,7 @@
 Od: wątek w chmurze "Popraw trakcję przy przyspieszaniu"
 Do: agent lokalny
 Dotyczy: PR #35 (odświeżony na aktualnym boty-szal-tekstury, 813fb28)
-Status: nowe
+Status: przyjęte (kolejka: po pogodzie)
 
 # Sprzęgło, TCS i ESP - te same trzy poprawki, przeniesione na obecny kod
 

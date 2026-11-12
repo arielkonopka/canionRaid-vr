@@ -2724,6 +2724,10 @@ func _update_oncoming(delta: float) -> void:
 		if rail.is_empty():
 			if _can_vanish(c.global_position):
 				_pool_oncoming(o)
+			else:
+				# Bez toru (kawałek zdjęty), a widać: jedzie dalej prosto po
+				# ostatniej osi, nie staje na pasie (przegląd 516a1bb).
+				c.global_position += -c.global_basis.z * o.v * delta
 			continue
 		c.global_transform = _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
 		for w in c.wheels:

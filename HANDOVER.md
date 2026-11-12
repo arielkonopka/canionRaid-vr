@@ -2125,10 +2125,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   graczem, widoczność przed autem 2000 m, wolni na prawym pasie (60%,
   0,5-0,7 limitu), doganiający od tyłu (40%, lewy pas, 1,15-1,35 limitu),
   mnożnik w mieście 1,5. Spotkania (w naszą stronę : z naprzeciwka): przy
-  140 km/h 1 : 25 -> 1 : 6, przy 180 km/h 1 : 4,2 -> 1 : 2,9 (1 : 2 przy
+  140 km/h 1 : 25 -> 1 : 6,9, przy 180 km/h 1 : 4,2 -> 1 : 3,3 (doganiający
+  250-300 m za graczem, w liczonym oknie - przegląd; 1 : 2 przy
   140 wymagałoby 2x więcej botów). Testy `vanish_test`, `_meetings`
-  w `highway_plan_test`. `feud_play_test` ("potyczka w ciągu 40 s") bywa BŁĄD
-  ok. 1/3 przebiegów - tak samo przed zmianą (losowość potyczek).
+  w `highway_plan_test`. `feud_play_test` padał ~1/3 przebiegów: `FeudDirector.rng`
+  bez ziarna - test ustawia `feud.rng.seed = 1` (w grze dalej losowo,
+  zgodnie z życzeniem użytkownika); ziarno 4242 dawało zawsze brak
+  potyczki w 40 s, 1/2/3/7/99 - OK.
 - Poprawka chmury (PR #62) "boty tracą panowanie po klaksonie" - czas
   reakcji 0,5 s, narastanie szału 1,5 s, płynny cel toru, skręt toru
   ograniczony przyczepnością (`bot_driver.gd`). `horn_control_test` (oba
