@@ -37,6 +37,12 @@ SOURCES = {
 }
 # Kabriolet: ściany ze środkiem powyżej linii okien (y siatki) usuwane.
 CUT_ROOF = {"kabriolet": 0.80}
+# Nad progiem cięcia zostają ściany przedniej szyby i słupków A (środek
+# ściany z > z_min - przód kabiny, bo przód siatki to +Z; y < y_max - bez
+# ramy dachu): niska szyba roadstera. Wcześniej cięcie zabierało szybę
+# (inbox 2026-11-11 manekiny-i-szyba-kabrio, użytkownik: "kabriolet
+# wygląda dziwnie, nie ma nawet przedniej szyby").
+CUT_ROOF_KEEP = {"kabriolet": (0.24, 1.04)}
 
 
 def read_obj(path):
@@ -251,7 +257,14 @@ def export(name, front_x, static_spring_len):
     if name in CUT_ROOF:
         cut = CUT_ROOF[name]
         V = obj["V"]
-        body = [f for f in body if sum(V[v[0]][1] for v in f["v"]) / len(f["v"]) <= cut]
+        z_min, y_max = CUT_ROOF_KEEP.get(name, (1e9, -1e9))
+
+        def keep(f):
+            n = len(f["v"])
+            cy = sum(V[v[0]][1] for v in f["v"]) / n
+            cz = sum(V[v[0]][2] for v in f["v"]) / n
+            return cy <= cut or (cz > z_min and cy < y_max)
+        body = [f for f in body if keep(f)]
 
     def xf_v(p):
         return (-p[0] * s, (p[1] - yc) * s - static_spring_len, -(p[2] - zf) * s - front_x)

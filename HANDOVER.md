@@ -2098,6 +2098,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   postawiło auto od razu. W logu 25x błąd silnika "global_shader_uniforms
   ... has(p_name)" + "should never be used outside the editor" (ktoś
   czyta parametr globalny shadera w grze) - do sprawdzenia.
+- Kabriolet ma przednią szybę (2026-11-12 noc; inbox manekiny-i-szyba-kabrio):
+  `CUT_ROOF_KEEP` w `tools/prepare_period_cars.py` zostawia szybę i słupki
+  A nad progiem cięcia dachu; eksport tylko kabrioletu przez `to_sim`
+  z `car_styles_tuned.json` (bez `car_styles_tune.py` - ten przestraja
+  i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
+  **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
+  8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
 - Poprawka chmury (PR #62) "boty tracą panowanie po klaksonie" - czas
   reakcji 0,5 s, narastanie szału 1,5 s, płynny cel toru, skręt toru
   ograniczony przyczepnością (`bot_driver.gd`). `horn_control_test` (oba

@@ -44,10 +44,14 @@ func _process(_d: float) -> bool:
 		# Styl dopiero po _ready aut (w _initialize węzły jeszcze nie są gotowe).
 		for k in cars.size():
 			cars[k].apply_style(STYLES[k])
-	var i := f / 6 - 2
-	if f % 6 == 0 and i >= 0 and i < shots.size():
+	# 12 klatek na ujęcie: kamera ustawiona, kilka klatek, potem zdjęcie.
+	if f < 60:
+		return false                  # jak screenshot.gd: renderer się rozgrzewa
+	var i := (f - 60) / 12
+	if (f - 60) % 12 == 0 and i < shots.size():
 		var s = shots[i]
 		cam.look_at_from_position(s[1], s[2])
-	if f % 6 == 4 and i >= 0 and i < shots.size():
+	cam.current = true                 # auta mają własne kamery - nie dać się przejąć
+	if (f - 60) % 12 == 10 and i < shots.size():
 		root.get_viewport().get_texture().get_image().save_png(out + "/bot_" + shots[i][0] + ".png")
 	return i >= shots.size()
