@@ -537,17 +537,17 @@ func _build_mesh(road_faces: Dictionary) -> ArrayMesh:
 		var right_h := fwd_h.cross(Vector3.UP).normalized()
 		var base := Vector3(pos.x, 0.0, pos.z)
 		var cap_h := 0.7
-		_obox(ps, Vector3(pos.x, cap_top - cap_h * 0.5, pos.z), right_h, fwd_h,
+		obox(ps, Vector3(pos.x, cap_top - cap_h * 0.5, pos.z), right_h, fwd_h,
 				Vector3(hw * 1.55, cap_h, 1.3))
 		# Słup jak w prawdziwym wiadukcie: ~2,4 x 1,6 m, u góry węższy
 		# (dwa człony), na stopie fundamentowej.
 		var col_h := cap_top - cap_h - 0.6
 		var low_h := col_h * 0.55
-		_obox(ps, base + Vector3.UP * (0.6 + low_h * 0.5), right_h, fwd_h,
+		obox(ps, base + Vector3.UP * (0.6 + low_h * 0.5), right_h, fwd_h,
 				Vector3(2.4, low_h, 1.7))
-		_obox(ps, base + Vector3.UP * (0.6 + low_h + (col_h - low_h) * 0.5), right_h, fwd_h,
+		obox(ps, base + Vector3.UP * (0.6 + low_h + (col_h - low_h) * 0.5), right_h, fwd_h,
 				Vector3(2.0, col_h - low_h, 1.4))
-		_obox(ps, base + Vector3.UP * 0.3, right_h, fwd_h, Vector3(4.2, 0.6, 3.2))
+		obox(ps, base + Vector3.UP * 0.3, right_h, fwd_h, Vector3(4.2, 0.6, 3.2))
 		any_pillar = true
 	if any_pillar:
 		ps.generate_normals()
@@ -557,8 +557,9 @@ func _build_mesh(road_faces: Dictionary) -> ArrayMesh:
 
 
 ## Prostopadłościan o dowolnej orientacji poziomej: oś X = right, Z = fwd,
-## Y w górę. size = pełne wymiary.
-func _obox(st: SurfaceTool, c: Vector3, right: Vector3, fwd: Vector3, size: Vector3) -> void:
+## Y w górę. size = pełne wymiary. Jedyna implementacja pudła z 6 ścian
+## (StuntTrack._box, HighwayScenery._box - przegląd chmury D4).
+static func obox(st: SurfaceTool, c: Vector3, right: Vector3, fwd: Vector3, size: Vector3) -> void:
 	var x := right * size.x * 0.5
 	var y := Vector3.UP * size.y * 0.5
 	var z := fwd * size.z * 0.5
@@ -649,7 +650,7 @@ func _cfg(d: Dictionary, key: String, fallback: Variant) -> Variant:
 ## Tak Godot definiuje przednią ścianę - zarówno przy renderowaniu
 ## (tylne ściany są odrzucane), jak i w kolizji ConcavePolygonShape3D
 ## (tylne ściany są dla fizyki przezroczyste).
-func _quad(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3) -> void:
+static func _quad(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3) -> void:
 	st.add_vertex(p0); st.add_vertex(p1); st.add_vertex(p2)
 	st.add_vertex(p0); st.add_vertex(p2); st.add_vertex(p3)
 
@@ -659,19 +660,7 @@ func _quad_faces(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3) -> PackedVe
 
 
 func _box(st: SurfaceTool, center: Vector3, size: Vector3) -> void:
-	var h := size * 0.5
-	var v := [
-		center + Vector3(-h.x, -h.y, -h.z), center + Vector3(h.x, -h.y, -h.z),
-		center + Vector3(h.x, -h.y, h.z),   center + Vector3(-h.x, -h.y, h.z),
-		center + Vector3(-h.x, h.y, -h.z),  center + Vector3(h.x, h.y, -h.z),
-		center + Vector3(h.x, h.y, h.z),    center + Vector3(-h.x, h.y, h.z),
-	]
-	_quad(st, v[4], v[5], v[6], v[7])   # góra
-	_quad(st, v[3], v[2], v[1], v[0])   # dół
-	_quad(st, v[0], v[1], v[5], v[4])
-	_quad(st, v[1], v[2], v[6], v[5])
-	_quad(st, v[2], v[3], v[7], v[6])
-	_quad(st, v[3], v[0], v[4], v[7])
+	obox(st, center, Vector3.RIGHT, Vector3.BACK, size)
 
 
 func _clear_children() -> void:

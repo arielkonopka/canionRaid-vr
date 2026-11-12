@@ -709,6 +709,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 
 ### Pułapki środowiska i silnika (objaw → przyczyna)
 
+- **Masa błędów "_internal_validate ... bsearch_custom" w teście** →
+  `Array.bsearch_custom(wartość, ...)` na tablicy typowanej
+  (`Array[Dictionary]`) wymaga wartości tego typu; float jest odrzucany.
+  Test równoważności na zwykłej tablicy tego nie łapie.
 - **Dopisywanie do tablicy spakowanej w słowniku nic nie zmienia**
   (wgniecenia: 0 przesuniętych wierzchołków, bez błędu) →
   `PackedInt32Array`/`PackedVector3Array` to wartości: `(d[k] as
@@ -2218,7 +2222,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    `plan-zatwierdzony`): ~~D1~~ (zrobione: `StuntTrack/EndlessTrack.sample_at`,
    8 miejsc), ~~D2~~ (zrobione: `AudioUtil.wav`; klakson i deszcz bit
    w bit jak przedtem, `_make_beep` naprawiony - zapisywał 8 bitów bez
-   znaku, koniec sygnału trzaskał), A2, ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
+   znaku, koniec sygnału trzaskał), A2, ~~D4~~ (zrobione: `StuntTrack.obox` statyczne - jedyne pudło, także
+   w `HighwayScenery._box`; orientacja ścian sprawdzona liczbowo), D7
+   odrzucone (bsearch_custom nie działa na Array[Dictionary] - pułapka
+   w sekcji 3; ręczna pętla zostaje), ~~D5~~ (zrobione: `StuntTrack._node_at(nazwa, dist)` zamiast 8 kopii), ~~A7~~ (zrobione:
    `StuntTrack._flat_mat(klucz, kolor)` - tablice, słupki bram i miast,
    warsztat, linie mety wspólne; "sign_blue" był w 4 kopiach;
    nieużywany `_plain_material` usunięty), ~~A6~~ (zrobione: bufory
