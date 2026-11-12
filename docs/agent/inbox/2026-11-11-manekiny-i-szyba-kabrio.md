@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (punkt 1 - szyba; punkt 2 - manekin wybrany i w grze)
 Od: wątek w chmurze "Znajdź darmowe modele manekinów"
 Decyzje użytkownika: użytkownik chce posadzić manekiny crash-test w autach
 (zwłaszcza w kabriolecie). 2026-11-11 18:42 UTC użytkownik wybrał
@@ -53,3 +53,15 @@ i bliskich botów, a dla dalekich botów wariant ~300 tris albo nic
 (wizualizacja daleko może się upraszczać, fizyka nie).
 
 Szczegóły i linki są w odpowiedzi wątku w chmurze dla użytkownika.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12, noc) Punkt 1: `tools/prepare_period_cars.py` -
+`CUT_ROOF_KEEP = {"kabriolet": (0.24, 1.04)}`: nad progiem 0,80 zostają
+ściany ze środkiem z > 0,24 (przód kabiny, przód siatki = +Z) i y < 1,04
+(bez ramy dachu) - przednia szyba ("Windows", w grze przyciemniona
+alfa 0,45) i słupki A. Ponowny eksport tylko kabrioletu (parametry z
+`car_styles_tuned.json` przez `to_sim`, bez przestrajania i bez
+nadpisywania car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*.png`.
+Z kokpitu gracza bez zmian (bryła modelu na warstwie 10, niewidoczna
+z fotela). Punkt 2: manekin Crash Test Dummy mark1 w grze od 2026-11-11.

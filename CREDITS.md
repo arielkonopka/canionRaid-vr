@@ -90,4 +90,5 @@ kod gry, GPL-3.0). Tekstury pobiera `tools/fetch_highway_media.py`
   (https://blendswap.com/blend/19677), CC0 - w `models/dummy/`
   (poza siedząca wypieczona z rigu i przeskalowana przez
   `tools/prepare_dummy.py`; tekstura manekina `man_neutral_Texture1.png`
-  jako `dummy_texture.png`).
+  jako `dummy_texture.png`). Dłonie gracza (`dummy_hand_L/R.obj`) wycięte
+  z tego samego modelu przez `tools/prepare_dummy_hands.py`.

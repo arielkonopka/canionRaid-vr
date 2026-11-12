@@ -196,6 +196,8 @@ func _ready() -> void:
 		gs.apply_game_speed()
 		_xr_ready = gs.enable_xr(get_viewport())
 	if _xr_ready:
+		_attach_dummy_hands()
+	if _xr_ready:
 		right_hand.button_pressed.connect(_on_xr_button.bind(true))
 		left_hand.button_pressed.connect(_on_xr_button.bind(false))
 		left_hand.button_released.connect(_on_left_released)
@@ -458,6 +460,38 @@ func _stick_curve(x: float) -> float:
 	return signf(x) * clampf(pow(a, expo) * sens, 0.0, 1.0)
 
 
+## Żółte dłonie manekina na kontrolerach (gracz też jest manekinem;
+## użytkownik 2026-11-12). Siatki z tools/prepare_dummy_hands.py: -Z od
+## nadgarstka do kłykci, +Y kciuk, zero w środku dłoni - jak póza "grip"
+## kontrolera. Ułożenie do oceny w goglach (bez cieni, lekkie).
+func _attach_dummy_hands() -> void:
+	for pair in [[left_hand, "L"], [right_hand, "R"]]:
+		var path := "res://models/dummy/dummy_hand_%s.obj" % pair[1]
+		if not ResourceLoader.exists(path):
+			continue
+		var mi := MeshInstance3D.new()
+		mi.name = "DummyHand"
+		mi.mesh = load(path)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(pair[0] as Node3D).add_child(mi)
+
+
+## Kierownica w powietrzu (użytkownik 2026-11-12: "dłonie w powietrzu, jako
+## alternatywne sterowanie"): AirWheel z pozycji kontrolerów i gripów,
+## wieniec w kokpicie obraca się 1:1.
+var _air := AirWheel.new()
+func _air_wheel_steer(gs: Node) -> float:
+	var fr: Array = car.steering_frame()
+	if fr.is_empty():
+		return 0.0
+	_air.half_range = float(gs.wheel_range)
+	var hands := [[left_hand.global_position, left_hand.get_float("grip") > 0.5],
+			[right_hand.global_position, right_hand.get_float("grip") > 0.5]]
+	var s := _air.update(hands, fr[0], fr[1], fr[2], get_physics_process_delta_time())
+	car.steering_wheel_deg = _air.angle
+	return s
+
+
 func _read_drive_input() -> void:
 	var thr := 0.0
 	var brk := 0.0
@@ -469,13 +503,19 @@ func _read_drive_input() -> void:
 		var gas_right: bool = gs == null or gs.gas_hand == "right"
 		var gas_c := right_hand if gas_right else left_hand
 		var brake_c := left_hand if gas_right else right_hand
+		var air: bool = gs != null and gs.steer_stick == "wheel"
 		var steer_c := left_hand if (gs == null or gs.steer_stick == "left") else right_hand
 		thr = gas_c.get_float("trigger")
 		brk = brake_c.get_float("trigger")
-		steer_in = _stick_curve(steer_c.get_vector2("primary").x)
+		if air:
+			steer_in = _air_wheel_steer(gs)
+		else:
+			steer_in = _stick_curve(steer_c.get_vector2("primary").x)
+			car.steering_wheel_deg = NAN
 		# Drugi drążek: biegi (w górę = wyżej). Jedno wychylenie = jeden bieg,
-		# kolejny dopiero po powrocie drążka do środka.
-		var shift_c := right_hand if steer_c == left_hand else left_hand
+		# kolejny dopiero po powrocie drążka do środka. Kierownica w powietrzu:
+		# biegi prawym drążkiem.
+		var shift_c := right_hand if (air or steer_c == left_hand) else left_hand
 		var sy: float = shift_c.get_vector2("primary").y
 		if absf(sy) < 0.3:
 			_shift_ready = true
@@ -486,11 +526,18 @@ func _read_drive_input() -> void:
 				car.shift_up()
 			else:
 				car.shift_down()
-		# Ręczny: grip ręki z hamulcem. Wsteczny: grip ręki z gazem
-		# (wchodzi dopiero po zatrzymaniu auta - pilnuje tego skrzynia).
-		hb = brake_c.get_float("grip")
-		car.dedicated_reverse = true
-		car.reverse_request = gas_c.get_float("grip") > 0.5
+		if air:
+			# Gripy trzymają kierownicę: ręczny - lewy drążek w dół, wsteczny -
+			# hamulec na postoju (automat), jak bez gogli.
+			hb = clampf(-left_hand.get_vector2("primary").y * 1.25 - 0.25, 0.0, 1.0)
+			car.dedicated_reverse = false
+			car.reverse_request = false
+		else:
+			# Ręczny: grip ręki z hamulcem. Wsteczny: grip ręki z gazem
+			# (wchodzi dopiero po zatrzymaniu auta - pilnuje tego skrzynia).
+			hb = brake_c.get_float("grip")
+			car.dedicated_reverse = true
+			car.reverse_request = gas_c.get_float("grip") > 0.5
 	else:
 		if Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_B):
 			hb = 1.0
@@ -2372,6 +2419,7 @@ func _respawn() -> void:
 	if _endless:
 		_last_safe_dist = d
 		track.update_progress(d)
+	_air.reset()
 	car.place(xf)
 	_fallen_time = 0.0
 	if _mode == Mode.DRIVE and not _xr_ready:

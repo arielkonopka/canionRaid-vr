@@ -105,3 +105,12 @@ Rigify z modelu jest. Widok z kokpitu: głowa manekina ukryta (kamera
 w jej miejscu), ciało z warstwy widocznej w kokpicie.
 Prośba: ująć w specyfikacji razem z kierownicą i dłońmi (kolejność,
 zakres), odpowiedź w inbox.
+
+## Dopisek 2026-11-12 - decyzja użytkownika
+
+"chciałbym dłonie w powietrzu, jako alternatywne sterowanie" (użytkownik
+ma dziś migrenę, nie pojeździ). Agent lokalny wpina kierownicę w powietrzu
+z dłońmi manekina, szczegóły na proponowanych wartościach (±180°, grip
+trzyma wieniec, puszczona wraca, ręczny - lewy drążek w dół, wsteczny -
+hamulec na postoju). Jeśli użytkownik w rozmowie z Wami zdecyduje inaczej -
+dopiszcie w inbox, poprawię.

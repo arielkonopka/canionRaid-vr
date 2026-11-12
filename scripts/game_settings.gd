@@ -83,6 +83,7 @@ var xr_resolution: int = 110
 ## Foweacja: 0 wył., 1 słaba, 2 średnia, 3 mocna (zawsze dynamiczna -
 ## mocniej tylko, gdy gogle nie nadążają).
 var xr_foveation: int = 2
+var wheel_range: int = 180          # [°] obrót kierownicy w powietrzu na pełny skręt
 var shadows: String = "full"
 ## Rodzaj trasy (menu "Trasa"): "canyon" wąwóz bez końca albo "autostrada"
 ## (tryb Autostrada, użytkownik 2026-11-09, docs/AUTOSTRADA.md). "endless"
@@ -405,11 +406,23 @@ var OPTIONS: Array[Dictionary] = [
 	},
 	{
 		"key": "steer_stick", "group": "controls", "label": "Kierownica",
-		"values": ["right", "left"],
-		"names": ["prawy drążek", "lewy drążek"],
+		"values": ["right", "left", "wheel"],
+		"names": ["prawy drążek", "lewy drążek", "w powietrzu (dłonie)"],
 		"hints": [
 			"Skręcasz prawym drążkiem. Lewy drążek w górę/w dół: bieg wyżej/niżej.",
 			"Skręcasz lewym drążkiem. Prawy drążek w górę/w dół: bieg wyżej/niżej.",
+			"Złap kierownicę gripami i kręć jak prawdziwą (jedną albo dwiema rękami); puszczona wraca do środka. Biegi: prawy drążek, ręczny: lewy drążek w dół, wsteczny: hamulec na postoju.",
+		],
+	},
+	{
+		"key": "wheel_range", "group": "controls", "label": "Obrót kierownicy",
+		"values": [90, 180, 270, 450],
+		"names": ["±90°", "±180°", "±270°", "±450°"],
+		"hints": [
+			"Pełny skręt kół przy ćwierć obrotu - bardzo szybko.",
+			"Pełny skręt przy pół obrotu w każdą stronę (domyślnie).",
+			"Trzy czwarte obrotu - spokojniej, precyzyjniej przy dużych prędkościach.",
+			"Jak w aucie z epoki bez wspomagania - dużo kręcenia.",
 		],
 	},
 	{
