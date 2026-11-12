@@ -1,5 +1,6 @@
 """Manekin crash-test do gry (Blender, bez okna):
   blender -b CrashTestDummy_UnityMecanim.blend -P tools/prepare_dummy.py -- WYJŚCIE.obj TEKSTURA.png [podgląd.png]
+  ... -- WYJŚCIE.glb TEKSTURA.png  - manekin gracza ze szkieletem (poza siedząca = spoczynkowa)
 
 Źródło: "Crash Test Dummy mark1", Panckuha, blendswap.com/blend/19677, CC0
 (archiwum w build/media_in/dummy, poza gitem). Model w pozie T, rig
@@ -76,6 +77,49 @@ for s, sd in (("L", side_l), ("R", -side_l)):
 # Punkt zero: biodra (głowa kości hips) w pozie - do posadzenia na fotelu.
 hips_pos = arm.matrix_world @ pb["hips"].head
 bpy.ops.object.mode_set(mode="OBJECT")
+
+if out_glb.endswith(".glb"):
+    # Manekin gracza ze szkieletem (użytkownik 2026-11-12: "fajnie by było,
+    # gdyby gracz był tym manekinem ... a nie tylko dłonie"): poza siedząca
+    # staje się pozą spoczynkową (gra rusza tylko ramionami - IK - i prawą
+    # stopą), skala 1,75 m, zero w biodrach, tekstura manekina.
+    import os
+    k = 1.75 / 3.268
+    bpy.context.view_layer.objects.active = man
+    for o in bpy.context.scene.objects:
+        o.select_set(False)
+    man.select_set(True)
+    mod = [m for m in man.modifiers if m.type == "ARMATURE"][0]
+    bpy.ops.object.modifier_copy(modifier=mod.name)
+    bpy.ops.object.modifier_apply(modifier=mod.name)          # siatka w pozie
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.armature_apply(selected=False)               # poza = spoczynek
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for o in list(bpy.data.objects):
+        if o.type in ("CAMERA", "LIGHT"):
+            bpy.data.objects.remove(o)
+    # Zero w biodrach i skala - na obu obiektach naraz, potem zastosowane.
+    for o in (arm, man):
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    arm.location = -hips_pos * k
+    arm.scale = (k, k, k)
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=True)
+    man.matrix_parent_inverse.identity()
+    mat = bpy.data.materials.new("dummy")
+    mat.use_nodes = True
+    tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(tex_path)
+    mat.node_tree.links.new(tex.outputs["Color"], mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    man.data.materials.clear()
+    man.data.materials.append(mat)
+    for p in man.data.polygons:
+        p.material_index = 0
+    bpy.ops.export_scene.gltf(filepath=out_glb, export_format="GLB", export_skins=True,
+            export_animations=False, use_selection=False, export_yup=True)
+    print("ZAPISANO", out_glb)
+    sys.exit(0)
 
 # Wypiekanie pozy: zastosuj modyfikator armatury.
 bpy.context.view_layer.objects.active = man
