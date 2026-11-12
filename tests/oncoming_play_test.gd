@@ -54,14 +54,14 @@ func _physics_process(delta: float) -> bool:
 			print("scenka: ", main._osk.kind)
 		if main._osk_started and started_at < 0.0:
 			started_at = t
-			start_gap = float(main._osk_cars["b"]["dist"]) - main._last_safe_dist
+			start_gap = main._osk_cars["b"].dist - main._last_safe_dist
 		# Auta scenki po drugiej stronie pasa rozdziału.
 		for who in ["a", "b"]:
-			var o: Dictionary = main._osk_cars[who]
-			var c: StuntCar = o["car"]
+			var o: OncomingCar = main._osk_cars[who]
+			var c: StuntCar = o.car
 			if not c.visible:
 				continue
-			var xf: Transform3D = main.track.transform_at_distance(float(o["dist"]))
+			var xf: Transform3D = main.track.transform_at_distance(o.dist)
 			var side: float = (c.global_position - xf.origin).dot(xf.basis.x)
 			worst_side = maxf(worst_side, side)
 	elif seen and not ended:
@@ -72,7 +72,7 @@ func _physics_process(delta: float) -> bool:
 		_check(main._osk_next_d > main._last_safe_dist + main.OSK_GAP_MIN - 200.0, "następna scenka najwcześniej za 3 km")
 		var in_scene := 0
 		for o in main._oncoming:
-			if o.has("osk"):
+			if o.osk != "":
 				in_scene += 1
 		_check(in_scene == 0, "auta scenki zwolnione")
 		print("oncoming_play_test: ", "OK" if fails == 0 else "BŁĄD (%d)" % fails)

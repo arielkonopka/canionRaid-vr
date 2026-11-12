@@ -398,6 +398,9 @@ static func _km_label(samples: Array, d: float, lat: float, km: int) -> Label3D:
 
 ## Układ toru (pos, right, fwd) na dystansie d - wyszukiwanie binarne
 ## i interpolacja liniowa między próbkami (dist rośnie).
+## Ręczne wyszukiwanie binarne celowo (D7 z przeglądu odrzucone): próbki
+## przychodzą jako Array[Dictionary], a bsearch_custom na tablicy typowanej
+## odrzuca szukaną wartość float (błąd _internal_validate co wywołanie).
 static func frame_at(samples: Array, d: float) -> Dictionary:
 	var n := samples.size()
 	var lo := 0
@@ -493,25 +496,11 @@ static func mesh(kind: String) -> Mesh:
 
 ## Prostopadłościan (ściany na zewnątrz, płaskie cieniowanie).
 static func _box(st: SurfaceTool, c: Vector3, s: Vector3, col: Color) -> void:
+	# Jedno pudło w całym kodzie (StuntTrack.obox, przegląd D4). Uwaga
+	# historyczna: ściany muszą być zgodne z ruchem wskazówek zegara
+	# z zewnątrz (przód w Godocie) - odwrotnie budynki były "otwarte".
 	st.set_color(col)
-	var h := s * 0.5
-	var v := [
-		c + Vector3(-h.x, -h.y, -h.z), c + Vector3(h.x, -h.y, -h.z), c + Vector3(h.x, h.y, -h.z), c + Vector3(-h.x, h.y, -h.z),
-		c + Vector3(-h.x, -h.y, h.z), c + Vector3(h.x, -h.y, h.z), c + Vector3(h.x, h.y, h.z), c + Vector3(-h.x, h.y, h.z),
-	]
-	# Ściany (a, b, c, d) wypisane przeciwnie do ruchu wskazówek zegara
-	# patrząc z zewnątrz; Godot uznaje za przód trójkąty zgodne z ruchem
-	# wskazówek, więc wierzchołki idą w odwrotnej kolejności (a, c, b).
-	# Wcześniej (a, b, c): wszystkie ściany pudeł odrzucane jako tylne -
-	# budynki z renderów wyglądały jak otwarte "L" z ukośnymi daszkami.
-	var faces := [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]]
-	for f in faces:
-		var a: Vector3 = v[f[0]]
-		var b: Vector3 = v[f[1]]
-		var cc: Vector3 = v[f[2]]
-		var d: Vector3 = v[f[3]]
-		st.add_vertex(a); st.add_vertex(cc); st.add_vertex(b)
-		st.add_vertex(a); st.add_vertex(d); st.add_vertex(cc)
+	StuntTrack.obox(st, c, Vector3.RIGHT, Vector3.BACK, s)
 
 
 ## Palma: lekko pochylony pień z kilku walców i 6 opadających liści.

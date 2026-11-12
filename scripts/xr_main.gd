@@ -2333,7 +2333,7 @@ func _restart_section() -> void:
 	# Auta z naprzeciwka do puli (było: niszczone razem z pulą - po każdym
 	# odrodzeniu budowane od nowa, ~170 ms na auto na Queście).
 	for o in _oncoming.duplicate():
-		(o["car"] as StuntCar).repair_body()
+		o.car.repair_body()
 		_pool_oncoming(o)
 	_osk = null
 	_osk_cars = {}
@@ -2572,7 +2572,7 @@ static func _make_rain_noise() -> AudioStreamWAV:
 ## pasie (zderzenie po przeskoczeniu bariery działa). Najwyżej
 ## ONCOMING_MAX naraz, 110-140 km/h, tylko na odcinkach autostrady.
 const ONCOMING_MAX := 4
-var _oncoming: Array[Dictionary] = []      # {"car", "dist", "v", "lane"}
+var _oncoming: Array[OncomingCar] = []
 var _oncoming_timer := 0.0
 var _oncoming_pool: Array[StuntCar] = []
 
@@ -2587,32 +2587,32 @@ func _update_oncoming(delta: float) -> void:
 	if _endless and track.autostrada:
 		_update_skirmish(delta)
 	for o in _oncoming.duplicate():
-		var c: StuntCar = o["car"]
-		if is_instance_valid(c) and not o.has("loose") and c.visible \
+		var c: StuntCar = o.car
+		if is_instance_valid(c) and not o.loose and c.visible \
 				and (c.global_position - car.global_position).length_squared() < LOOSE_R * LOOSE_R:
 			_loosen_oncoming(o)
-		if o.has("loose"):
+		if o.loose:
 			# Swobodne auto (po zbliżeniu gracza): sama fizyka, do puli daleko
 			# za graczem albo po LOOSE_TIME.
-			o["loose_t"] = float(o["loose_t"]) + delta
-			if not is_instance_valid(c) or float(o["loose_t"]) > LOOSE_TIME \
+			o.loose_t = o.loose_t + delta
+			if not is_instance_valid(c) or o.loose_t > LOOSE_TIME \
 					or (c.global_position - car.global_position).length() > 400.0:
 				if is_instance_valid(c):
 					c.repair()
 				_pool_oncoming(o)
 			continue
-		if o.has("osk"):
+		if o.osk != "":
 			continue                           # scenka: _update_skirmish
-		o["dist"] = float(o["dist"]) - float(o["v"]) * delta
-		var d2: float = o["dist"]
+		o.dist = o.dist - o.v * delta
+		var d2: float = o.dist
 		var rail: Array = [] if d2 < _last_safe_dist - 150.0 else track.rail_at(d2)
 		if rail.is_empty() or not is_instance_valid(c):
 			_pool_oncoming(o)
 			continue
-		c.global_transform = _oncoming_pose(rail[0], rail[1], float(o["lane"]), c.wheel_radius)
+		c.global_transform = _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
-			w.omega = float(o["v"]) / c.wheel_radius
+			w.omega = o.v / c.wheel_radius
 
 
 ## Potyczki na drugiej jezdni autostrady (OncomingSkirmish, moduł chmury,
@@ -2621,7 +2621,7 @@ func _update_oncoming(delta: float) -> void:
 ## Najwyżej jedna naraz, następna 1,2-2,5 km jazdy po poprzedniej. Bez
 ## fizyki i bez punktów (gracz jest za barierą).
 var _osk: OncomingSkirmish = null
-var _osk_cars := {}                  # "a"/"b" -> wpis z _oncoming
+var _osk_cars := {}                  # "a"/"b" -> OncomingCar z _oncoming
 var _osk_started := false
 var _osk_v := 0.0                    # prędkość bazowa scenki [m/s]
 ## Odstęp między scenkami na drugiej jezdni [m] (użytkownik 2026-11-10:
@@ -2651,39 +2651,39 @@ func _update_skirmish(delta: float) -> void:
 		for who in ["b", "a"]:
 			var dd := d if who == "b" else d + _osk.gap
 			_spawn_oncoming(dd, 0, _osk_v * 3.6)
-			var o: Dictionary = _oncoming[-1]
-			o["osk"] = who
-			var c: StuntCar = o["car"]
+			var o: OncomingCar = _oncoming[-1]
+			o.osk = who
+			var c: StuntCar = o.car
 			c.set_paint(GameSettings.PAINTS[_gang_paint(gg[0] if who == "a" else gg[1])])
 			_osk_cars[who] = o
 		print("Scenka na drugiej jezdni: ", _osk.kind)
-	var oa: Dictionary = _osk_cars["a"]
-	var ob: Dictionary = _osk_cars["b"]
-	if not (is_instance_valid(oa["car"]) and is_instance_valid(ob["car"])):
+	var oa: OncomingCar = _osk_cars["a"]
+	var ob: OncomingCar = _osk_cars["b"]
+	if not (is_instance_valid(oa.car) and is_instance_valid(ob.car)):
 		_osk_end()
 		return
 	if not _osk_started:
-		ob["dist"] = float(ob["dist"]) - _osk_v * delta
+		ob.dist = float(ob.dist) - _osk_v * delta
 		var closing := maxf(car.speed, 0.0) + _osk_v
-		if float(ob["dist"]) - _last_safe_dist <= _osk.trigger_gap(closing):
+		if float(ob.dist) - _last_safe_dist <= _osk.trigger_gap(closing):
 			_osk_started = true
 	else:
 		for ev in _osk.step(delta):
 			_osk_event(ev)
-		ob["dist"] = float(ob["dist"]) - _osk_v * float(_osk.state_b["v"]) * delta
-	oa["dist"] = float(ob["dist"]) + _osk.gap
+		ob.dist = float(ob.dist) - _osk_v * float(_osk.state_b["v"]) * delta
+	oa.dist = float(ob.dist) + _osk.gap
 	for who in ["a", "b"]:
-		var o: Dictionary = _osk_cars[who]
-		var c: StuntCar = o["car"]
+		var o: OncomingCar = _osk_cars[who]
+		var c: StuntCar = o.car
 		var stt: Dictionary = _osk.state_a if who == "a" else _osk.state_b
 		if bool(stt["hidden"]):
 			c.visible = false
 			continue
-		c.global_transform = _osk_xf(float(o["dist"]), stt, c.wheel_radius)
+		c.global_transform = _osk_xf(o.dist, stt, c.wheel_radius)
 		var v := _osk_v * float(stt["v"])
 		for w in c.wheels:
 			w.omega = v / c.wheel_radius
-	if _osk.done or float(oa["dist"]) < _last_safe_dist - 150.0:
+	if _osk.done or float(oa.dist) < _last_safe_dist - 150.0:
 		_osk_end()
 
 
@@ -2715,8 +2715,8 @@ func _osk_gangs() -> Array:
 
 
 func _osk_event(ev: Dictionary) -> void:
-	var o: Dictionary = _osk_cars[ev["car"]]
-	var c: StuntCar = o["car"]
+	var o: OncomingCar = _osk_cars[ev["car"]]
+	var c: StuntCar = o.car
 	match ev["type"]:
 		"horn":
 			BotDriver.horn_on(c).play()
@@ -2730,9 +2730,9 @@ func _osk_event(ev: Dictionary) -> void:
 
 func _osk_end() -> void:
 	for who in _osk_cars:
-		var o: Dictionary = _osk_cars[who]
-		o.erase("osk")
-		var c: StuntCar = o["car"]
+		var o: OncomingCar = _osk_cars[who]
+		o.osk = ""
+		var c: StuntCar = o.car
 		if is_instance_valid(c):
 			c.repair_body()                    # wgniecenia scenki nie wracają z puli
 		if _oncoming.has(o):
@@ -2748,28 +2748,28 @@ func _osk_end() -> void:
 ## uderzone przez gracza zawsze mają bezwładność i reakcję zgodną z fizyką.
 const LOOSE_R := 5.5           # środki aut - kontakt zaczyna się ~4,6 m
 const LOOSE_TIME := 30.0
-func _loosen_oncoming(o: Dictionary) -> void:
-	var c: StuntCar = o["car"]
-	if o.has("osk"):
+func _loosen_oncoming(o: OncomingCar) -> void:
+	var c: StuntCar = o.car
+	if o.osk != "":
 		# Scenka się kończy; drugie auto jedzie dalej jak zwykły ruch.
 		for who in _osk_cars:
-			(_osk_cars[who] as Dictionary).erase("osk")
+			(_osk_cars[who] as OncomingCar).osk = ""
 		_osk_cars = {}
 		_osk = null
 		_osk_next_d = _last_safe_dist + _bot_rng.randf_range(OSK_GAP_MIN, OSK_GAP_MAX)
-	o["loose"] = true
-	o["loose_t"] = 0.0
+	o.loose = true
+	o.loose_t = 0.0
 	c.freeze = false
-	c.linear_velocity = -c.global_basis.z * float(o["v"])
+	c.linear_velocity = -c.global_basis.z * o.v
 	c.angular_velocity = Vector3.ZERO
 	c.throttle = 0.0
 	c.brake = 0.0
 
 
 ## Auto z naprzeciwka do puli (ukryte), zamiast queue_free - bez alokacji.
-func _pool_oncoming(o: Dictionary) -> void:
-	var c: StuntCar = o["car"]
-	o.erase("loose")
+func _pool_oncoming(o: OncomingCar) -> void:
+	var c: StuntCar = o.car
+	o.loose = false
 	if is_instance_valid(c):
 		c.freeze = true                        # z powrotem na szynę (po _loosen_oncoming)
 		c.visible = false
@@ -2803,9 +2803,9 @@ func _update_traffic(delta: float) -> void:
 		cars.append({"id": b.get_instance_id(), "dist": drv.dist, "lane": drv.lane, "oncoming": false,
 				"raging": drv.rage > 0.05, "visible": TrafficZone.visible(head, hf, cf, b.global_position)})
 	for o in _oncoming:
-		var oc: StuntCar = o["car"]
-		cars.append({"id": oc.get_instance_id(), "dist": o["dist"], "lane": int(o["lane"]), "oncoming": true,
-				"raging": o.has("osk"), "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
+		var oc: StuntCar = o.car
+		cars.append({"id": oc.get_instance_id(), "dist": o.dist, "lane": int(o.lane), "oncoming": true,
+				"raging": o.osk != "", "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
 	var r: Dictionary = _traffic.step(_last_safe_dist, cars, _bot_rng)
 	for id in r["despawn"]:
 		for b in _bots.duplicate():
@@ -2813,7 +2813,7 @@ func _update_traffic(delta: float) -> void:
 				_bots.erase(b)
 				_retire_bot(b)
 		for o in _oncoming.duplicate():
-			if (o["car"] as Node).get_instance_id() == id:
+			if (o.car as Node).get_instance_id() == id:
 				_pool_oncoming(o)
 	for sp in r["spawn"]:
 		var d: float = sp["dist"]
@@ -2878,7 +2878,7 @@ func _spawn_oncoming(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 		lane = float(lane_i)
 	var v := (speed_kmh if speed_kmh > 0.0 else _bot_rng.randf_range(110.0, 140.0)) / 3.6
 	c.global_transform = _oncoming_xf(d, lane, c.wheel_radius)
-	_oncoming.append({"car": c, "dist": d, "v": v, "lane": lane})
+	_oncoming.append(OncomingCar.new(c, d, v, lane))
 
 
 
