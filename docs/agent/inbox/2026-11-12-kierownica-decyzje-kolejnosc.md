@@ -55,3 +55,8 @@ przy sprzęgle w manualu - jeszcze nie. Rendery
 `docs/renders/manekin_gracza_*.png` ("rendery super!" - użytkownik).
 Bench skinningu na Queście - przy podłączonych goglach. Dalej: boty
 (znikanie) -> wibracje -> pogoda -> dźwięki.
+
+(2026-11-12, później) Boty (znikanie) - zrobione (516a1bb). Wibracje -
+zrobione: `Haptics` (logika + `haptics_test`), opcje Wibracje (Wył./Słabe/
+Mocne, domyślnie Słabe) i Faktura drogi (domyślnie wył.); w trybie
+kierownicy tylko trzymające ręce. Dalej: pogoda, potem dźwięki.

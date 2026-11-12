@@ -143,6 +143,8 @@ do_test() {
 	run_test air_wheel_test ""          "air_wheel_test"
 	run_test air_wheel_scene_test ""    "air_wheel_scene_test"
 	run_test ccd_pool_test ""           "ccd_pool_test|po powrocie"
+	run_test vanish_test ""             "vanish_test"
+	run_test haptics_test ""            "haptics_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

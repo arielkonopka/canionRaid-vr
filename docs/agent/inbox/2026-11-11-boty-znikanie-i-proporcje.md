@@ -1,4 +1,4 @@
-Status: przyjęte (następne w kolejce agenta lokalnego, 2026-11-12)
+Status: zrobione (proporcja 1 : 2 przy 140 km/h nieosiągalna bez dwa razy więcej botów - patrz odpowiedź)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika: 2026-11-11 22:58 UTC "Tak, zleć od razu" - poprawki
 botów idą przed resztą planu urozmaiceń. Zgłoszenie użytkownika
@@ -95,3 +95,26 @@ zlecenie. Tu tylko ruch i znikanie.
 krótka jazda w goglach: spojrzenie w lusterko po minięciu auta
 z naprzeciwka i obejrzenie się po stłuczce - auto ma zostać.
 Wynik do HANDOVER.md.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12) **Znikanie**: `xr_main._can_vanish(pos)` (TrafficZone.visible
+z kamery i auta) przed oddaniem do puli: bot w szale daleko (poza wrakiem),
+auto z naprzeciwka za graczem (szyna do BEHIND 300 m, za nim znika dopiero
+poza wzrokiem; widoczne jedzie dalej po szynie, bez toru stoi, aż zniknie
+z oczu), auto po zderzeniu (LOOSE_TIME / 400 m + niewidoczne), koniec
+scenki (oba auta niewidoczne). Odrodzenie gracza czyści jak dotąd.
+`TrafficZone`: nadmiar usuwany tylko za graczem; widoczność przed autem
+do 2000 m (FAR_VIEW_DIST), w innych kierunkach 900 m. Test `vanish_test`.
+
+**Proporcje**: wolni na prawym pasie (60% prawego pasa, 0,5-0,7 limitu),
+doganiający (40% nowych aut w naszą stronę, 300-600 m za graczem, lewy
+pas, 1,15-1,35 limitu), SAME_DIR_MULT w mieście 1,5. Pomiar
+(`highway_plan_test._meetings`, ziarno 777): 140 km/h - 1 : 25 -> 1 : 6,
+180 km/h - 1 : 4,2 -> 1 : 2,9. **1 : 2 przy 140 km/h nieosiągalne
+strojeniem**: same = rho·|Δv|/v - przy obecnej gęstości trzeba by ~6
+wolnych aut/km w naszą stronę (dwa razy więcej botów; SAME_DIR_MULT 3
+dawało 1 : 6,6 i +17% aut w oknie). Zostawiłem gęstość bez zmian (koszt na
+Queście); próg w teście pilnuje 1 : 10 / 1 : 4. Pełne rozwiązanie - bajt
+zdarzeń (pod prąd, zasadzka), jak piszecie. Do oceny w goglach
+(lusterko po minięciu auta, obejrzenie się po stłuczce).

@@ -25,6 +25,13 @@ func _initialize() -> void:
 	_jumps(plan)
 	_posts(plan)
 	_traffic(plan, seed_v)
+	# Cel chmury 1 : 2 wymagałby ~6 wolnych aut/km w naszą stronę (dwa razy
+	# więcej botów - koszt na Queście); próg pilnuje, żeby nie było gorzej
+	# niż po zmianie z 2026-11-12 (było 1 : 25 przy 140 km/h).
+	_chasers(plan, seed_v)
+	for vr in [[140.0, 0.1], [180.0, 0.25]]:
+		if _meetings(plan, seed_v, vr[0]) < vr[1]:
+			_fail("za mało spotkań w naszą stronę przy %.0f km/h" % vr[0])
 	print("HIGHWAY_PLAN: OK" if errors == 0 else "HIGHWAY_PLAN: BŁĘDY %d" % errors)
 	quit(0 if errors == 0 else 1)
 
@@ -147,6 +154,78 @@ func _posts(plan: HighwayPlan) -> void:
 ## swoją prędkością, widoczne są te 0-500 m przed graczem. Sprawdza:
 ## gęstość w strefie miasta, brak ruchu daleko od miast, brak usuwania
 ## aut widocznych i w furii.
+## Spotkania na km (zlecenie boty-znikanie): wyprzedzenia + bycie
+## wyprzedzanym w naszą stronę vs mijanie aut z naprzeciwka. Cel startowy:
+## stosunek nie gorszy niż 1 : 2.
+func _meetings(plan: HighwayPlan, seed_v: int, v_kmh: float) -> float:
+	var tz := TrafficZone.new(plan)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var cars := []
+	var next_id := 0
+	var v_player := v_kmh / 3.6
+	var dt := 0.5
+	var t := 0.0
+	var same := 0
+	var opp := 0
+	while t * v_player < 40000.0:
+		var pd := t * v_player
+		var pd2 := (t + dt) * v_player
+		for c in cars:
+			var before := float(c["dist"]) - pd
+			c["dist"] += float(c["speed"]) * dt * (-1.0 if c["oncoming"] else 1.0)
+			var after := float(c["dist"]) - pd2
+			if pd > 5000.0 and signf(before) != signf(after):
+				if c["oncoming"]:
+					opp += 1
+				else:
+					same += 1
+			c["visible"] = float(c["dist"]) > pd2 and float(c["dist"]) < pd2 + 500.0
+		var r := tz.step(pd2, cars, rng)
+		for id in r["despawn"]:
+			cars = cars.filter(func(c): return c["id"] != id)
+		for sp in r["spawn"]:
+			cars.append({"id": next_id, "dist": sp["dist"], "lane": sp["lane"], "oncoming": sp["oncoming"],
+					"raging": false, "visible": false, "speed": float(sp["speed_kmh"]) / 3.6})
+			next_id += 1
+		t += dt
+	var km := (40000.0 - 5000.0) / 1000.0
+	var ratio := float(same) / maxf(opp, 1.0)
+	print("spotkania przy %.0f km/h: w naszą stronę %.1f/km, z naprzeciwka %.1f/km, stosunek 1 : %.1f" % [
+			v_kmh, same / km, opp / km, 1.0 / maxf(ratio, 0.001)])
+	return ratio
+
+
+## Przegląd 516a1bb: przy zajętym przodzie doganiający nie mogą się
+## mnożyć za graczem (wcześniej poza liczonym oknem).
+func _chasers(plan: HighwayPlan, seed_v: int) -> void:
+	var tz := TrafficZone.new(plan)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var pd := 40000.0
+	var cars := []
+	var id := 0
+	# Auta stoją w miejscu, co krok mogą dochodzić nowe - łącznie w naszą
+	# stronę nie może ich być więcej niż chciane (doganiający też się liczą).
+	var want := tz.wanted(pd, true)
+	for _k in range(200):
+		var r := tz.step(pd, cars, rng)
+		for sp in r["spawn"]:
+			cars.append({"id": id, "dist": sp["dist"], "lane": sp["lane"], "oncoming": sp["oncoming"],
+					"raging": false, "visible": false})
+			id += 1
+	var behind := 0
+	var same := 0
+	for c in cars:
+		if not c["oncoming"]:
+			same += 1
+			if float(c["dist"]) < pd:
+				behind += 1
+	print("po 200 krokach: w naszą stronę %d (chciane %d), w tym za graczem %d" % [same, want, behind])
+	if same > want or behind == 0:
+		_fail("bilans aut w naszą stronę: %d (chciane %d), za graczem %d" % [same, want, behind])
+
+
 func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 	var tz := TrafficZone.new(plan)
 	var rng := RandomNumberGenerator.new()
@@ -181,8 +260,13 @@ func _traffic(plan: HighwayPlan, seed_v: int) -> void:
 						_fail("usunięte auto w furii %d" % id)
 			cars = cars.filter(func(c): return c["id"] != id)
 		for s in r["spawn"]:
-			if float(s["dist"]) < pd + TrafficZone.SPAWN_MIN_AHEAD - 0.01:
-				_fail("auto dodane za blisko: %.0f m" % (float(s["dist"]) - pd))
+			var rel := float(s["dist"]) - pd
+			# Przed graczem dalej niż SPAWN_MIN_AHEAD; za graczem tylko
+			# doganiający (BEHIND..BEHIND+300 m, poza lusterkiem, szybsi).
+			var behind_ok: bool = not s["oncoming"] and rel <= -TrafficZone.MIRROR_DIST - 49.99 \
+					and rel >= -TrafficZone.BEHIND - 0.01 and float(s["speed_kmh"]) > plan.limit_at(float(s["dist"]))
+			if rel < TrafficZone.SPAWN_MIN_AHEAD - 0.01 and not behind_ok:
+				_fail("auto dodane za blisko: %.0f m" % rel)
 			cars.append({"id": next_id, "dist": s["dist"], "lane": s["lane"], "oncoming": s["oncoming"],
 					"raging": false, "visible": false, "speed": float(s["speed_kmh"]) / 3.6})
 			next_id += 1
