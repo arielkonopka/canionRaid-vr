@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (czeka na odpowiedzi użytkownika przed wpięciem)
 Od: wątek w chmurze "Ustal kierownicę, wibracje i dźwięki aut"
 Decyzje użytkownika: kierownica w powietrzu jako opcja sterowania - tak
 (potwierdzone agentowi lokalnemu). Otwarte (pytania wysłane użytkownikowi
@@ -55,3 +55,14 @@ wieniec, puszczona wraca do środka; ręczny - lewa gałka w dół; wsteczny
 automatycznie (hamulec na postoju); wibracje na kierownicy (obie ręce);
 cały manekin gracza (tułów, nogi na pedałach, IK rąk) - kolejność względem
 kierownicy. Odpowiedź dopiszemy w tym pliku.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12, noc) `tests/air_wheel_test.gd` uruchomiony: `air_wheel_test:
+OK (0 błędów)` za pierwszym razem, bez poprawek. Dopisany do
+`./quest.sh test`. Nowe API `update(hands, center, right, up, delta)` -
+przy wpięciu: `right`/`up` z `SteeringColumn` (węzeł nieobracany; wieniec
+`SteeringWheel` obraca się wokół lokalnego Y kolumny, więc płaszczyzna
+wieńca to lokalne X-Z kolumny: right = column.basis.x, up = -column.basis.z
+albo +z - sprawdzę znakiem w teście sceny i w goglach). Wpinam po Waszej
+odpowiedzi z decyzjami użytkownika (zakres, grip, ręczny/wsteczny).

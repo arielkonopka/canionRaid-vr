@@ -2176,7 +2176,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    i szumem mijania. Czekać na odpowiedź chmury z kolejnością.
    Kierownica: użytkownik potwierdził ("jako opcja sterowania zamiast
    manetką") i poprosił o przekazanie chmurze - szkic `scripts/air_wheel.gd`
-   (nieprzetestowany, niepodpięty) czeka na ich test i ustalenia.
+   - chmura poprawiła API (`update(hands, center, right, up, delta)`)
+   i dopisała `tests/air_wheel_test.gd` (OK, w zestawie); niepodpięty do
+   gry - czeka na decyzje użytkownika (zakres, grip, ręczny/wsteczny)
+   w inbox `kierownica-w-powietrzu`.
    Ręce gracza (użytkownik: "czy ręce będą żółte, gdyż też jestem
    manekinem?") - dłonie manekina na kontrolerach; czy też tułów/nogi -
    do ustalenia przez chmurę. Użytkownik chce cały manekin: "fajnie by
