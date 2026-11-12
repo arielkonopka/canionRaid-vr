@@ -1,4 +1,4 @@
-Status: przyjęte (w kolejce po botach i wibracjach)
+Status: zrobione (do oceny w goglach; wiatr/wycieraczki/wąwóz - później, jak w zleceniu)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika (2026-11-11, ok. 23:00 UTC): "w przypadku deszczu niebo
 powinno się robić ciemnoszare", "rozważmy dodanie warstwy pogody",
@@ -83,3 +83,22 @@ zawsze `"surface": "dry"`), a niebo jest stałe w `main.tscn`.
 
 Testy jak zawsze: `drive_test` (oba typy skrzyni), `highway_plan_test`,
 `weather_plan_test`, `title_test` po menu. Wynik do HANDOVER.md.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-12) 1: `weather_plan_test 777` OK za pierwszym razem (rodzaje
+frontów rain/wind/dust/snow), `weather_sim.py 777 300` OK; w zestawie.
+2: `HighwayGenerator.weather` - `_seg` dzieli odcinki w
+`surface_changes` i wpisuje `surface(d)`. Wielka skocznia
+(`TrackGenerator._big_jump`) zostaje sucha (rampa "kicker"). Nowy
+`weather_track_test` (150 km, ziarno 777): nawierzchnia każdego odcinka
+= pogoda, granice stref na granicach odcinków, mokro 11,4% trasy.
+3: `xr_main`: deszcz z `weather(_last_safe_dist).rain` (pod dachem 0),
+`_update_weather_look` co 1,5 s z pogody wygładzonej (stała 3 s):
+ProceduralSkyMaterial (top, horizon, ground_horizon), słońce, mgła
+(gęstość, kolor), światło otoczenia; `Sky.PROCESS_MODE_INCREMENTAL`;
+Perf "niebo" (pomiar na Queście - przy goglach). 4: TrafficZone.weather -
+spokojne auta x0,9 przy rain >= 0,5. 5: opcja Trasa -> Pogoda: Zmienna /
+Zawsze sucho (domyślnie zmienna; EndlessTrack nie tworzy WeatherPlan).
+7: zrzuty `docs/renders/pogoda_{pogodnie,chmury,ulewa}.png` (stała pogoda
+wymuszona w `tests/weather_shot.gd`, km nie szukany).
