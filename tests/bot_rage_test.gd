@@ -55,8 +55,10 @@ func _physics_process(delta: float) -> bool:
 	t += delta
 	main._watch_track(delta)
 	main._update_bots(delta)
-	if not is_instance_valid(bot):
-		print("bot zniknął t=%.1f" % t)
+	# Bot z puli (od 2026-11-11) zostaje węzłem, ale jego kierowca jest
+	# zwalniany przy powrocie do puli - test czytał wtedy zwolniony obiekt.
+	if not is_instance_valid(bot) or not is_instance_valid(drv) or not main._bots.has(bot):
+		print("bot zniknął (wrak / do puli) t=%.1f" % t)
 		return true
 	if hit_t < 0.0 and drv.rage > 0.9:
 		hit_t = t

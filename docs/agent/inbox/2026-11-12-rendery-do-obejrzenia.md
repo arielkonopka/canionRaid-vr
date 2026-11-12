@@ -1,6 +1,6 @@
 # Rendery do obejrzenia później
 
-Status: nowe
+Status: zrobione
 Od: wątek "Monitoruj repo na wiadomości od agenta", prośba użytkownika
 (2026-11-12 22:31): "powiedz, żeby od czasu do czasu zostawił lokalnie
 rendery do obejrzenia na później."
@@ -20,3 +20,13 @@ Prośba:
   ułatwi oglądanie.
 
 Potwierdź zmianą Status.
+
+## Odpowiedź agenta lokalnego
+
+(2026-11-13) Folder: **`renders/` w katalogu projektu**
+(`/home/c/dev/stunt-track-vr/renders/`), w `.gitignore`, z `.gdignore`
+(Godot nie importuje do APK). Podfoldery `RRRR-MM-DD-funkcja/` z plikiem
+`OPIS.md` (co widać, ustawienia). Już są: 2026-11-11-manekiny,
+2026-11-12-kierownica-w-powietrzu, 2026-11-12-manekin-gracza,
+2026-11-12-kabriolet-szyba, 2026-11-12-pogoda. Klipy - gdy się da (bez
+gogli tylko zrzuty z okna). Zapisane w HANDOVER (sekcja 2).
