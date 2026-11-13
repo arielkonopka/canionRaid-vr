@@ -30,7 +30,7 @@ co kod mówi.
 | 2 | **przekroje** (b1): zwężenie do 1 pasa, 1+1, roboty z przejazdem na drugą jezdnię, rozjazd L/P (`_split`), 2+1, pas dla wolnych | zmienia sposób jazdy przy minimalnym koszcie (to ta sama jezdnia, inne pasy i pachołki); zdarzenia z etapu 1 nabierają sensu (blokada na zwężeniu, ciężarówka na 1+1, pod prąd na robotach) | pachołki/bariery jako MultiMesh |
 | 3 | **budowle** (b0): tunel (jest już w generatorze), podjazd górski kilometrami, wiadukt kolejowy z pociągiem, most nad rzeką, estakada, serpentyny | największa różnorodność za oknem, ale najdroższa w pracy (modele, LOD, oświetlenie tunelu bez OmniLight) | największy - bench przed/po każdej budowli |
 | 4 | **pułapki** (b2) po kalendarzu: zakręt zaciskający się, zwężenie za tunelem, niski wiadukt, boczny wiatr, przejazd kolejowy... | pułapka potrzebuje budowli/przekroju (zwężenie za tunelem = tunel + zwężenie), więc po 2 i 3. Każda z jawną zapowiedzią >= 4 s przed nią | mały |
-| 5 | akcenty krajobrazu (wrak, wiatraki, zamek, billboard...), miasto liniowe (b0 = 7) | dekoracja, gdy reszta działa | średni |
+| 5 | akcenty krajobrazu (wrak, wiatraki, zamek, billboard...), miasto liniowe (b0 = 7) z **rondem** (dopisane 2026-11-13, osobne zlecenie `2026-11-13-rondo-w-miescie.md`) | dekoracja, gdy reszta działa | średni |
 
 Każdy etap: `drive_test` (oba typy skrzyni), testy logiki, bench na
 Queście przed i po (Perf), rendery dla użytkownika.

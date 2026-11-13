@@ -1557,7 +1557,12 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   prędkości (wcześniej "wolne" auta TrafficZone po chwili i tak jechały
   z limitem). Limit `EVENT_BOT_CAP` 16 - zdarzenie ponad przepada.
   Odcinek "rest": bez ekstremisty, nowych waśni i scenek z naprzeciwka
-  (`seg_calm()`). Scenka z naprzeciwka (`_update_skirmish`) pojawia się
+  (`seg_calm()`). Przy limicie zdarzenie robi miejsce kosztem tła
+  (`_make_room`: spokojne auta za graczem poza wzrokiem do puli); limit
+  sprawdzany też w pętli (waśń stawia do 8 aut). Wrogość gangów z waśni
+  zdarzenia cofana po odcinku; boty zepchnięte przed kierowcą pod prąd
+  wracają na swój pas po minięciu (przegląd PR #90).
+  Scenka z naprzeciwka (`_update_skirmish`) pojawia się
   teraz 2100 m przed graczem (przy 900 m auta pojawiały się na widoku).
   Test `tests/segment_event_test.gd -- 20` (~12 min, poza `quest.sh`):
   wymuszone zdarzenia 1..7 co 2 odcinki, 0 pojawień/zniknięć na widoku,
