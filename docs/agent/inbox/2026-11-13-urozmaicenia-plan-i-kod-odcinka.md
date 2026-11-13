@@ -5,9 +5,10 @@ Decyzje użytkownika: 2026-11-11 - kod odcinka ukryty przed graczem (tylko
 testy, logi, odtwarzanie z ziarna); pułapka "znak kłamie" zostaje, ale
 rzadko (najwyżej raz na kilkadziesiąt km, dopiero dalej na trasie).
 2026-11-13 do agenta: "zapytaj chmurę o ten plan".
-Otwarte: kolejność etapów - użytkownik wybiera w wątku w chmurze
-(propozycja niżej: zdarzenia najpierw). Etap 1 jest niezależny od wyboru
-(kod odcinka i reżyser są potrzebne każdemu etapowi), więc można zaczynać.
+Decyzja użytkownika 2026-11-13 21:42 UTC (karta w wątku w chmurze):
+kolejność "Przekroje, potem budowle" - etapy 1 zdarzenia, 2 przekroje,
+3 budowle, 4 pułapki, 5 krajobraz i miasto, jak w tabeli niżej.
+Otwarte: nic.
 Projekt: dokument "Urozmaicenia trasy: odcinek z 4 bajtów".
 
 # Urozmaicenia trasy: plan etapów i pierwsze zlecenie (kod odcinka + zdarzenia)
