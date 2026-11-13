@@ -15,10 +15,13 @@ var step := 0
 ## Nadgarstek po IK: get_bone_global_pose poza sygnałem skeleton_updated
 ## zwraca pozę bez modyfikatorów (TwoBoneIK3D) - czytamy w sygnale.
 var hand_ik := Vector3.ZERO
+var hand_yx := 1.0                    # skala dłoni wzdłuż jej osi Y / w poprzek, po IK
 
 
 func _on_skel_updated() -> void:
 	hand_ik = _wpos("hand.R")
+	var g := pd.skel.get_bone_global_pose(pd.skel.find_bone("hand.R"))
+	hand_yx = g.basis.y.length() / g.basis.x.length()
 ## [nazwa, odległość celu od barku jako ułamek długości ramienia, maks. przerwa]
 const CASES := [["blisko (0,7 ramienia)", 0.7, 0.03], ["prawie wyprost (0,95)", 0.95, 0.03],
 		["za daleko (1,3)", 1.3, 0.03], ["dużo za daleko (1,8)", 1.8, 0.0]]
@@ -51,6 +54,7 @@ func _process(_d: float) -> bool:
 		pd = PlayerDummy.new()
 		pd.setup(car, ctrl[0], ctrl[1])
 		pd.skel.skeleton_updated.connect(_on_skel_updated)
+		pd.set_replay(true)               # dłonie widoczne, skala 1
 	if f < 5:
 		return false
 	# Co 4 klatki nowy przypadek: kontroler prawej ręki przed barkiem, w dół
@@ -69,6 +73,10 @@ func _process(_d: float) -> bool:
 		var gap := hand.distance_to(wrist)
 		var sc: float = pd.skel.get_bone_pose_scale(pd.skel.find_bone("upper_arm.R")).y
 		print("  %s: przerwa %.3f m, rozciągnięcie %.2f" % [c[0], gap, sc])
+		# Dłoń nie rośnie z ramieniem: skala globalna kości dłoni wzdłuż
+		# jej osi Y ~ jak w spoczynku (powtórka - dłonie widoczne).
+		var hy := hand_yx
+		_check(absf(hy - 1.0) < 0.1, "%s - dłoń bez wydłużenia (Y/X %.2f)" % [c[0], hy])
 		if float(c[2]) > 0.0:
 			_check(gap < float(c[2]), "%s - nadgarstek przy kontrolerze" % c[0])
 		else:

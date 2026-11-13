@@ -31,6 +31,7 @@ const KEEP_BEHIND := 1
 @export var autostrada: bool = false
 var plan: HighwayPlan
 var weather: WeatherPlan          # null = zawsze sucho (opcja) albo wąwóz
+var plan_seed := 0                 # ziarno planu (HighwayPlan, WeatherPlan, SegmentCode)
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""
@@ -52,6 +53,7 @@ func _ready() -> void:
 	rng.seed = seed_value if seed_value != 0 else (test_seed if test_seed != 0 else int(Time.get_ticks_usec()))
 	if autostrada:
 		var sv := rng.randi()
+		plan_seed = sv
 		plan = HighwayPlan.new(sv)
 		if first_biome != "":
 			plan._kinds[0] = first_biome

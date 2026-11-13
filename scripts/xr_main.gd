@@ -1056,7 +1056,8 @@ func _feud_scan() -> void:
 		if drv.lod != BotLod.RAIL:
 			phys.append(b)
 	phys.sort_custom(func(a, b): return _drv(a).dist < _drv(b).dist)
-	var room := _feud_count() < MAX_FEUDS and _free_tokens() >= 2
+	# W odcinku "rest" (reżyser napięcia) nowe waśnie nie startują.
+	var room := _feud_count() < MAX_FEUDS and _free_tokens() >= 2 and not seg_calm()
 	var order := {}
 	for i in range(phys.size()):
 		var a: StuntCar = phys[i]
@@ -1196,7 +1197,8 @@ func _update_extremist() -> void:
 		var km := int(_last_safe_dist / 1000.0)
 		if km > _x_km:
 			_x_km = km
-			if _bot_rng.randf() < ExtremistBrain.spawn_chance_per_km(float(km)):
+			# Losowanie co km zostaje, ale nie w odcinku "rest" (reżyser napięcia).
+			if _bot_rng.randf() < ExtremistBrain.spawn_chance_per_km(float(km)) and not seg_calm():
 				_spawn_extremist()
 		return
 	var drv: BotDriver = _drv(_extremist)
@@ -1240,8 +1242,37 @@ func _spawn_extremist() -> void:
 	print("EKSTREMISTA: pojawia się %.0f m za graczem" % (_last_safe_dist - d))
 
 
+## Kod odcinka i zdarzenia (SegmentCode + SegmentEvents, etap 1 urozmaiceń;
+## inbox urozmaicenia-plan-i-kod-odcinka). Kod ukryty przed graczem - log.
+var segments: SegmentEvents
+func _update_segments(delta: float) -> void:
+	if not (_endless and track.autostrada) or race_state != Race.RACING:
+		return
+	if segments == null:
+		var sv: int = track.plan_seed
+		segments = SegmentEvents.new(SegmentCode.new(sv, track.weather), self, sv)
+	var t0 := Time.get_ticks_usec()
+	segments.step(delta)
+	Perf.add("odcinki", t0)
+
+
+## Odcinek "rest" (oddech w rytmie reżysera): nic nowego wrogiego.
+## seg_rhythm = false - bez rytmu (testy waśni i scenek: pierwsze odcinki
+## trasy są zawsze "rest").
+var seg_rhythm := true
+func seg_calm() -> bool:
+	return seg_rhythm and segments != null and segments.calm_at(_last_safe_dist)
+
+
+func _traffic_ensure() -> void:
+	if _traffic == null:
+		_traffic = TrafficZone.new(track.plan)
+		_traffic.weather = track.weather
+
+
 func _update_bots(delta: float) -> void:
 	_update_bot_lod(delta)
+	_update_segments(delta)
 	_update_extremist()
 	var hwy: bool = _endless and track.autostrada
 	if hwy:
@@ -1263,6 +1294,12 @@ func _update_bots(delta: float) -> void:
 		# w szale zgubiony daleko za graczem znika jak w wąwozie ("lost").
 		var gone: bool = (not hwy or drv.rage > 0.05) and (drv.dist < _last_safe_dist - behind_max or drv.dist > _last_safe_dist + 2000.0) \
 				and _can_vanish(b.global_position)
+		# Auto zdarzenia odcinka (spokojne, poza ruchem TrafficZone): daleko
+		# za graczem albo bardzo daleko przed nim (gracz stanął).
+		if drv.event != "" and drv.rage <= 0.05 and not drv.hold \
+				and (drv.dist < _last_safe_dist - 700.0 or drv.dist > _last_safe_dist + 4000.0) \
+				and _can_vanish(b.global_position):
+			gone = true
 		var dead: bool = b.is_wrecked or drv.flipped_time > 3.0 or b.global_position.y < -50.0
 		if gone or dead:
 			if drv.rage > 0.05:
@@ -3269,7 +3306,8 @@ func _update_oncoming(delta: float) -> void:
 				# ostatniej osi, nie staje na pasie (przegląd 516a1bb).
 				c.global_position += -c.global_basis.z * o.v * delta
 			continue
-		c.global_transform = _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
+		c.global_transform = _wrong_way_pose(rail[0], c.wheel_radius) if o.wrong_way \
+				else _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = o.v / c.wheel_radius
@@ -3293,9 +3331,16 @@ var _osk_next_d := 3000.0            # dystans gracza, od którego wolno zaczą�
 
 func _update_skirmish(delta: float) -> void:
 	if _osk == null:
-		if race_state != Race.RACING or _last_safe_dist < _osk_next_d:
+		if race_state != Race.RACING or _last_safe_dist < _osk_next_d or seg_calm():
 			return
-		var d := _last_safe_dist + 900.0
+		# Poza wzrokiem (przed autem widać do 2 km; przy 900 m auta scenki
+		# pojawiały się na widoku - segment_event_test). Do trigger_gap i tak
+		# jadą zwykłym ruchem.
+		var d := _last_safe_dist + SegmentEvents.HIDE_DIST
+		var dxf: Transform3D = track.transform_at_distance(d)
+		if not _can_vanish(dxf.origin):
+			_osk_next_d = _last_safe_dist + 200.0
+			return
 		# Cała scenka na zwykłej jezdni (bez pasa stacji, nie w mieście).
 		for k in [0.0, 300.0, 600.0]:
 			var smp: Dictionary = track.sample_at(d - k, 1.0)
@@ -3432,6 +3477,7 @@ func _pool_oncoming(o: OncomingCar) -> void:
 	var c: StuntCar = o.car
 	o.loose = false
 	if is_instance_valid(c):
+		c.set_high_beam(0.0)                   # pod prąd mógł mrugać
 		c.freeze = true                        # z powrotem na szynę (po _loosen_oncoming)
 		c.visible = false
 		c.global_position.y -= 500.0
@@ -3453,9 +3499,7 @@ func _update_traffic(delta: float) -> void:
 	if _traffic_t > 0.0 or race_state != Race.RACING:
 		return
 	_traffic_t = 0.5
-	if _traffic == null:
-		_traffic = TrafficZone.new(track.plan)
-		_traffic.weather = track.weather
+	_traffic_ensure()
 	var head := camera.global_position
 	var hf := -camera.global_basis.z
 	var cf := -car.global_basis.z
@@ -3463,12 +3507,12 @@ func _update_traffic(delta: float) -> void:
 	for b in _bots:
 		var drv: BotDriver = _drv(b)
 		cars.append({"id": b.get_instance_id(), "dist": drv.dist, "lane": drv.lane, "oncoming": false,
-				"raging": drv.rage > 0.05 or drv.persona == "extremist",
+				"raging": drv.rage > 0.05 or drv.persona == "extremist" or drv.event != "",
 				"visible": TrafficZone.visible(head, hf, cf, b.global_position)})
 	for o in _oncoming:
 		var oc: StuntCar = o.car
 		cars.append({"id": oc.get_instance_id(), "dist": o.dist, "lane": int(o.lane), "oncoming": true,
-				"raging": o.osk != "", "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
+				"raging": o.osk != "" or o.wrong_way, "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
 	var r: Dictionary = _traffic.step(_last_safe_dist, cars, _bot_rng)
 	for id in r["despawn"]:
 		for b in _bots.duplicate():
@@ -3492,7 +3536,13 @@ func _update_traffic(delta: float) -> void:
 		if sp["oncoming"]:
 			_spawn_oncoming(d, lane, float(sp["speed_kmh"]))
 		else:
+			var n := _bots.size()
 			_spawn_bot(d, lane, float(sp["speed_kmh"]))
+			# Korek: wolne auta zostają wolne (bez tego wracały do limitu).
+			if _traffic.in_jam(d) and _bots.size() > n:
+				var smp: Dictionary = track.sample_at(d)
+				if not smp.is_empty():
+					_drv(_bots[-1]).speed_k = clampf(float(sp["speed_kmh"]) / float(smp["limit"]), 0.3, 1.0)
 
 
 func _is_highway_at(d: float) -> bool:
@@ -3505,6 +3555,15 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 	var smp: Dictionary = track.sample_at(d)
 	return _oncoming_pose(track.transform_at_distance(d),
 			14.8 if smp.is_empty() else float(smp["width"]), lane, wheel_r)
+
+
+## Kierowca pod prąd: nasza jezdnia, lewy pas, przodem do gracza.
+func _wrong_way_pose(xf: Transform3D, wheel_r: float) -> Transform3D:
+	var p := _oncoming_pose(xf, 14.8, 0.0, wheel_r)
+	var b := xf.basis.rotated(xf.basis.y, PI)
+	var o := xf.origin + xf.basis.x * hwy_lane_off(1)
+	# Wysokość jak auta z naprzeciwka (koła na jezdni): z ich pozy.
+	return Transform3D(b, o + xf.basis.y * (p.origin - xf.origin).dot(xf.basis.y))
 
 
 ## To samo z gotowej osi i szerokości (EndlessTrack.rail_at - co krok).

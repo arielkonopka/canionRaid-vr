@@ -725,6 +725,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 - **Pętla `until ! pgrep -f "nazwa_testu"` nigdy się nie kończy** → sama
   pętla ma tę nazwę w swojej linii poleceń. Szukać procesu godot
   (`pgrep -f "godot.*nazwa"`) albo czekać na `wait`.
+- **`pkill -f "wzorzec"` kończy własną komendę (kod 144, nic dalej się nie
+  wykonało)** → wzorzec jest też w linii poleceń powłoki, która go woła
+  (ta sama przyczyna co przy pgrep). Procesy w tle zabijać po PID-ach
+  (`P="$P $!"`, potem `kill $P`).
 - **Bench / start gry przez adb nic nie loguje, VrApi pokazuje ~1 ms
   GPU**: logcat ma "Launch is blocked because: a Guardian dialog is
   currently showing" - gogle leżą (ciemno, bez śledzenia) i system prosi
@@ -1525,8 +1529,44 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Pozycja aut **interpolowana** (`get_global_transform_interpolated`):
   update idzie w `_process`, a przy fizyce 120 Hz i obrazie 72 Hz klatka
   ma 1 albo 2 kroki - z `global_position` prędkość skakała 0,75-1,5 v
-  (przegląd PR #85). Klakson auta w slocie (węzeł "Horn") też z Dopplerem.
+  (przegląd PR #85). Zmiana prędkości do dźwięku najwyżej `ACC_MAX` 40 m/s²
+  (po wygładzeniu): przy obciążeniu CPU (pełny zestaw testów) zacięte
+  klatki dawały skok tonu i test padał co któryś przebieg. Klakson auta w slocie (węzeł "Horn") też z Dopplerem.
   Tylko trasa bez końca; bench: `traffic_audio` na liście wyłączeń.
+- **Kod odcinka i zdarzenia (etap 1 urozmaiceń, od 2026-11-13; inbox
+  urozmaicenia-plan-i-kod-odcinka)**: `SegmentCode` (chmura, odcinki
+  1,2 km, 4 bajty + reżyser napięcia build/peak/fade/rest) - jeden na
+  trasę Autostrady (ziarno `EndlessTrack.plan_seed`, z pogodą);
+  `SegmentEvents` (agent lokalny) w `xr_main._update_segments`. Kod
+  ukryty przed graczem - log "ODCINEK ..." i "ZDARZENIE k ...".
+  **Wyzwalanie wg przewidywanego spotkania**: przed autem gracza widać
+  2 km (`TrafficZone.FAR_VIEW_DIST`), więc auto zdarzenia pojawia się
+  `HIDE_DIST` 2100 m przed graczem, a wolna przeszkoda (s x prędkości
+  gracza) jest doganiana po 2100/(1-s) m - wyzwalamy, gdy spotkanie
+  wypada ~300 m w głąb odcinka (`lead_for`; blokada 0,6 -> ~5 km
+  wcześniej). Zdarzenia: korek (okno gęstości x2 i 0,5-0,7 limitu
+  w `TrafficZone.jam_*`), pod prąd (`OncomingCar.wrong_way` - auto
+  z naprzeciwka na naszym lewym pasie, mruga długimi i trąbi w 600 m,
+  boty przed graczem zjeżdżają na prawy pas, punkty za minięcie bez
+  kontaktu), zasadzka (`BotDriver.hold`, zamrożony na pasie awaryjnym,
+  rusza w szale 60 m przed graczem), pościg od tyłu (1+poziom aut
+  w szale 350-500 m za graczem), blokada (dwa boty na obu pasach
+  0,6 limitu, szał 35 m przed graczem), waśń (dwa wrogie gangi,
+  `feud.set_hostile`), wolne auto (0,5 limitu + 1-2 wyprzedzające;
+  w `CarStyles` nie ma ciężarówki). `BotDriver.speed_k` - trwały mnożnik
+  prędkości (wcześniej "wolne" auta TrafficZone po chwili i tak jechały
+  z limitem). Limit `EVENT_BOT_CAP` 16 - zdarzenie ponad przepada.
+  Odcinek "rest": bez ekstremisty, nowych waśni i scenek z naprzeciwka
+  (`seg_calm()`). Scenka z naprzeciwka (`_update_skirmish`) pojawia się
+  teraz 2100 m przed graczem (przy 900 m auta pojawiały się na widoku).
+  Test `tests/segment_event_test.gd -- 20` (~12 min, poza `quest.sh`):
+  wymuszone zdarzenia 1..7 co 2 odcinki, 0 pojawień/zniknięć na widoku,
+  maks. 17 botów; mijania 0,50 : 0,35 na km (naszą stronę : naprzeciw).
+  `main.seg_rhythm = false` wyłącza rytm (pierwsze ~3,6 km trasy to
+  zawsze "rest", więc `feud_play_test` i `oncoming_play_test` bez tego
+  nie widziały waśni ani scenki).
+  **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
+  ocena użytkownika w goglach (wartości startowe).
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały
@@ -2294,7 +2334,8 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - **Manekin gracza po jeździe użytkownika (2026-11-13)**: "dłonie odrywają
   się od rąk" - dłoń jedzie z kontrolerem, a bark manekina siedzi przy
   fotelu; gdy kontroler dalej niż ramię, `PlayerDummy` wydłuża ramię
-  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6) -
+  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6; dłoń
+  z odwrotną skalą, bo dziedziczy - inaczej w powtórce rosła z ręką) -
   `dummy_arm_test`: przerwa 0 do 1,3 ramienia. **Pułapka**:
   `get_bone_global_pose` poza sygnałem `Skeleton3D.skeleton_updated`
   zwraca pozę **bez** modyfikatorów (TwoBoneIK3D) - test czyta w sygnale.

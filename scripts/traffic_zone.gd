@@ -66,6 +66,17 @@ var plan: HighwayPlan
 ## Pogoda (WeatherPlan, ustawia scena) - wolniejszy ruch w deszczu.
 var weather: WeatherPlan
 
+## Korek (zdarzenie odcinka, SegmentEvents): na [jam_from, jam_to] ruch
+## w naszą stronę x JAM_MULT i wolno (JAM_SPEED_K limitu).
+const JAM_MULT := 2.0
+const JAM_SPEED_K := Vector2(0.5, 0.7)
+var jam_from := INF
+var jam_to := -INF
+
+
+func in_jam(d: float) -> bool:
+	return d >= jam_from and d <= jam_to
+
 
 func _init(p: HighwayPlan) -> void:
 	plan = p
@@ -80,6 +91,8 @@ func wanted(player_dist: float, same_dir := false) -> int:
 		var k := 1.0
 		if same_dir:
 			k = SAME_DIR_MULT_CITY if plan.in_city_zone(d + 50.0) else SAME_DIR_MULT
+			if in_jam(d + 50.0):
+				k *= JAM_MULT
 		sum += plan.traffic_density(d + 50.0) * 0.1 * k
 		d += 100.0
 	return int(round(sum))
@@ -159,6 +172,8 @@ func _candidate(player_dist: float, cars: Array, planned: Array, oncoming: bool,
 		elif lane == 0:
 			# Wolni (ciężarówki, ostrożni) - gracz ich dogania.
 			k = rng.randf_range(0.5, 0.7) if (not oncoming and rng.randf() < SLOW_SHARE) else rng.randf_range(0.8, 1.0)
+		if not oncoming and not chaser and in_jam(d):
+			k = rng.randf_range(JAM_SPEED_K.x, JAM_SPEED_K.y)
 		# Deszcz: spokojne auta wolniej (furiaci bez zmian - deszcz robi ich
 		# groźniejszymi; boty jadą po tej samej fizyce, same się ślizgają).
 		if weather and float(weather.weather(d)["rain"]) >= 0.5:

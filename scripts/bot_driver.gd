@@ -94,6 +94,14 @@ var rage := 0.0                        # 0 = spokój, 1 = pełny szał
 ## jedzie maksymalną prędkością, trąbi i mruga długimi, nie zwalnia przed
 ## autami. Logika w ExtremistBrain; tu tylko wejścia i wyjścia.
 var persona := ""
+## Zdarzenia odcinka (SegmentEvents, inbox urozmaicenia-plan-i-kod-odcinka):
+## speed_k - stały mnożnik prędkości spokojnej jazdy (korek, blokada,
+## ciężarówka; wcześniej prędkość ze spawnu po chwili wracała do limitu),
+## hold - stoi i czeka (zasadzka; zamrożony, bez szyny), event - nazwa
+## zdarzenia (ruch TrafficZone go nie usuwa i nie liczy do gęstości).
+var speed_k := 1.0
+var hold := false
+var event := ""
 var brain: ExtremistBrain
 var _x_lanes_t := 0.0
 var _x_ctx := {}
@@ -151,6 +159,11 @@ func _physics_process(delta: float) -> void:
 
 func _drive_step(delta: float) -> void:
 	if car == null or track == null:
+		return
+	if hold:
+		car.throttle = 0.0
+		car.brake = 1.0
+		car.steer = 0.0
 		return
 	if _update_rail(delta):
 		return
@@ -221,7 +234,7 @@ func _drive_step(delta: float) -> void:
 		# jezdni, lewy -3,0 m) - 3-pasowe lane_w wąwozu jechałoby poboczem.
 		target_off = main.hwy_lane_off(lane)
 	var kmh := car.speed * 3.6
-	var target_kmh := _calm_speed(kmh)
+	var target_kmh := _calm_speed(kmh) * speed_k
 	_aggr = 1.0
 	var extremist := persona == "extremist" and brain != null
 	if extremist:
@@ -481,7 +494,7 @@ func _update_rail(delta: float) -> bool:
 	var smp2: Dictionary = track.sample_at(dist, 1.0)
 	if smp2.is_empty():
 		return true
-	var v_goal := float(smp2["limit"]) / 3.6
+	var v_goal := float(smp2["limit"]) / 3.6 * speed_k
 	if persona == "extremist":
 		v_goal = EXTREMIST_RAIL_V              # ograniczenia go nie obchodzą
 	elif rage > 0.05 and player and not _foe_valid():

@@ -28,6 +28,8 @@ var _targets: Array[Node3D] = []
 var _poles: Array[Node3D] = []
 var _ctrl: Array[Node3D] = []
 var _upper: Array[int] = []           # upper_arm.L, upper_arm.R
+var _hand: Array[int] = []            # hand.L, hand.R
+var _replay := false                  # dłonie tułowia widoczne (powtórka)
 var _arm_len: Array[float] = []       # bark - nadgarstek przy wyproście [m]
 var _thigh_r := -1
 var _foot_r := -1
@@ -114,6 +116,7 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 	for s in ["L", "R"]:
 		var ua := skel.find_bone("upper_arm." + s)
 		_upper.append(ua)
+		_hand.append(skel.find_bone("hand." + s))
 		var fa := skel.find_bone("forearm." + s)
 		var hd := skel.find_bone("hand." + s)
 		_arm_len.append(skel.get_bone_rest(fa).origin.length() + skel.get_bone_rest(hd).origin.length() if fa >= 0 and hd >= 0 else 0.6)
@@ -140,6 +143,7 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 func set_replay(on: bool) -> void:
 	if skel == null:
 		return
+	_replay = on
 	for b in ["head", "hand.L", "hand.R"]:
 		var i := skel.find_bone(b)
 		if i >= 0:
@@ -176,6 +180,11 @@ func update(throttle: float, brake: float, delta: float, clutch := 0.0) -> void:
 			var shoulder := skel.global_transform * skel.get_bone_global_pose(skel.get_bone_parent(ua)) * skel.get_bone_rest(ua).origin
 			var stretch := clampf(shoulder.distance_to(wrist) / maxf(_arm_len[k], 0.1), 1.0, ARM_STRETCH_MAX)
 			skel.set_bone_pose_scale(ua, Vector3(1.0, stretch, 1.0))
+			# Skala ramienia dziedziczy się w dół łańcucha - dłoń z odwrotną,
+			# żeby nie rosła razem z ręką (widać w powtórce; przegląd PR #87).
+			if _hand[k] >= 0:
+				var hs := 1.0 if _replay else 0.001
+				skel.set_bone_pose_scale(_hand[k], Vector3(hs, hs / stretch, hs))
 		# Łokieć w dół i na zewnątrz (strona ręki) - biegun pod barkiem.
 		var side := -1.0 if k == 0 else 1.0
 		_poles[k].global_position = global_transform * Vector3(side * 0.6, 0.0, 0.2)

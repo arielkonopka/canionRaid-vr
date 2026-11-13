@@ -72,7 +72,11 @@ func _invariants(sc: SegmentCode, n: int, label: String) -> void:
 			_fail("%s: zwężenie za tunelem bez zwężenia w %d" % [label, k])
 		if se == 1 and st != 4:
 			_fail("%s: pas dla wolnych poza podjazdem %d" % [label, k])
-		if k > 0 and int(s["cost"]) + int(sc.segment(k - 1)["cost"]) > SegmentCode.COST_MAX:
+		# Ponad budżet tylko, gdy nie ma już czego ciąć (ulewa po ulewie ze
+		# zdarzeniem: koszt deszczu nie zależy od kodu; budowla bez kosztu,
+		# np. podjazd, zostaje).
+		if k > 0 and int(s["cost"]) + int(sc.segment(k - 1)["cost"]) > SegmentCode.COST_MAX \
+				and (int(SegmentCode.COST_STRUCT[int(s["structure"])]) > 0 or int(s["event"]) != 0):
 			_fail("%s: koszt %d" % [label, k])
 		if st != 0 and st != 4:
 			for j in range(maxi(0, k - SegmentCode.SAME_STRUCT_GAP + 1), k):

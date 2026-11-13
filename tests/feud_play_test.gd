@@ -31,6 +31,7 @@ func _physics_process(delta: float) -> bool:
 	f += 1
 	if f == 5:
 		main.race_state = main.Race.RACING
+		main.seg_rhythm = false             # pierwsze odcinki trasy są "rest" (reżyser)
 		# Ruch autostrady wyłączony (test steruje botami sam).
 		main._traffic_t = 1e9
 		main.feud.set_hostile(0, 1, true)

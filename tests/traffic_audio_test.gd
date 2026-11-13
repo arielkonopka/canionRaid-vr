@@ -110,7 +110,9 @@ func _process(delta: float) -> bool:
 		if prev_pitch > 0.0:
 			max_jump = maxf(max_jump, absf(eng.pitch_scale - prev_pitch))
 		prev_pitch = eng.pitch_scale
-		if ta._slots[0]["warm"]:
+		# Stałość prędkości po rozbiegu (auto rusza z miejsca, a zmiana
+		# prędkości do dźwięku ma limit TrafficAudio.ACC_MAX).
+		if ta._slots[0]["warm"] and f > 130:
 			var v: float = (ta._slots[0]["vel"] as Vector3).length()
 			v_min = minf(v_min, v)
 			v_max = maxf(v_max, v)
