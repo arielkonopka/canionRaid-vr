@@ -1518,6 +1518,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   świata. Obroty: z silnika bota z fizyką, inaczej umowne z prędkości
   (5 biegów co 13 m/s). Pierwszy pomiar prędkości wprost - przy
   wygładzaniu od zera każde nowe auto "przełączało biegi" (skok tonu).
+  Pozycja aut **interpolowana** (`get_global_transform_interpolated`):
+  update idzie w `_process`, a przy fizyce 120 Hz i obrazie 72 Hz klatka
+  ma 1 albo 2 kroki - z `global_position` prędkość skakała 0,75-1,5 v
+  (przegląd PR #85). Klakson auta w slocie (węzeł "Horn") też z Dopplerem.
   Tylko trasa bez końca; bench: `traffic_audio` na liście wyłączeń.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
