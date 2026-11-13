@@ -112,6 +112,7 @@ func _end() -> bool:
 			lit = lit or mi.visible
 		_check(not lit, "długie zgaszone po puli")
 		main._park_bot(b)
+		main._bot_pool.append(b)          # z powrotem do puli (przegląd PR #83)
 	print("extremist_play_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails else 0)
 	return true

@@ -43,7 +43,7 @@ const TITLE_SCENE := "res://scenes/title.tscn"
 
 enum Mode { DRIVE, FLY }
 ## Przejazd: czeka na ruszenie, jedzie (zegar), po mecie (wyniki).
-enum Race { READY, RACING, FINISHED, WORKSHOP, EXPLODING }
+enum Race { READY, RACING, FINISHED, WORKSHOP, EXPLODING, REPLAY }
 
 @export var fly_speed: float = 14.0
 @export var boost_multiplier: float = 4.0
@@ -273,6 +273,11 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 	# Pomiar: kontrolery leżą obok gogli i potrafią wysyłać zdarzenia
 	# (powrót do menu przerywał przejazd) - wejście ignorowane.
 	if Bench.active():
+		return
+	if race_state == Race.REPLAY:
+		# Spust albo B pomija powtórkę; reszta przycisków nic nie robi.
+		if button == "trigger_click" or (is_right and button == "by_button"):
+			_rp_skip = true
 		return
 	if _pause and _pause.is_open():
 		# W pauzie: lewe menu wraca do jazdy, A albo spust zatwierdza w menu
@@ -607,6 +612,11 @@ func _read_drive_input() -> void:
 # --------------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	# Powtórka wypadku: świat stoi (boty wyłączone, bez dobudowy trasy
+	# i przesunięć świata), auto i boty z zapisu.
+	if race_state == Race.REPLAY:
+		_replay_physics(delta)
+		return
 	_check_origin_shift()
 	# Dobudowa trasy pierwsza: błąd skryptu w dalszych funkcjach przerywa
 	# resztę kroku i trasa przestawała rosnąć ("trasa się skończyła" także
@@ -627,6 +637,7 @@ func _physics_process(delta: float) -> void:
 		_player_dummy.update(car.throttle, car.brake, delta)
 	_watch_incident(delta)
 	update_race(delta)
+	_record_replay()
 	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
 		_watch_track(delta)
@@ -728,6 +739,7 @@ func _check_origin_shift() -> void:
 	_chase_xf.origin -= s
 	_cine_from.origin -= s
 	_cine_to.origin -= s
+	_rec.shift(s)
 	if _rain:
 		_rain.restart()
 	print("ŚWIAT: przesunięty o %s (razem %d, offset %.0f, %.0f m)" % [str(s), _origin.shifts, _origin.offset_x, _origin.offset_z])
@@ -2013,15 +2025,18 @@ func _process(delta: float) -> void:
 		if _y_held >= RECENTER_HOLD:
 			XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, false)
 			_y_held = -1.0    # puszczenie po centrowaniu nie przełącza już TCS
-	_update_mirror()
+	if race_state != Race.REPLAY:
+		_update_mirror()
 	if race_state == Race.EXPLODING:
 		_cinematic(delta)
+	elif race_state == Race.REPLAY:
+		_replay_camera(delta)
 	elif _mode == Mode.DRIVE:
 		_follow_car(delta)
 	else:
 		_fly(delta)
 	var th := Time.get_ticks_usec()
-	if _track_hud:
+	if _track_hud and race_state != Race.REPLAY:
 		_track_hud.refresh(delta, car.get_global_transform_interpolated(),
 				func(): return track.samples_from(_last_safe_dist - 10.0, TrackHud.RANGE + 20.0, TrackHud.STRIDE),
 				_last_safe_dist)
@@ -2272,6 +2287,7 @@ func _watch_track(delta: float) -> void:
 ## jazdy zabiera życie; po ostatnim - koniec jazdy.
 var _auto_rights: Array[float] = []
 func _use_crane(automatic := false) -> void:
+	_rec.reset()                      # przeniesienie auta - nie do powtórki
 	if _endless and race_state == Race.RACING:
 		# Trasa bez końca: bez dźwigu. Auto na kołach, ale utknięte - stawiamy
 		# na koła w miejscu. Auto na dachu - to utrata życia (wybuch), żadnego
@@ -2442,6 +2458,16 @@ func _make_chirp() -> AudioStreamWAV:
 func lose_life(reason: String) -> void:
 	if race_state != Race.RACING or _grace_t > 0.0:
 		return
+	if reason in REPLAY_REASONS and _mode == Mode.DRIVE and _rec.count() > 30 \
+			and (_gs == null or bool(_gs.get("crash_replay"))):
+		_start_replay(reason)
+		return
+	_begin_explosion(reason)
+
+
+## Wybuch i kamera wybuchu. keep_view: po powtórce - wybuch na żywo z tego
+## samego miejsca (kamera obserwatora stoi).
+func _begin_explosion(reason: String, keep_view := false) -> void:
 	race_state = Race.EXPLODING
 	_cine_reason = reason
 	_cine_t = 0.0
@@ -2461,6 +2487,8 @@ func lose_life(reason: String) -> void:
 	_cine_to = Transform3D(Basis.looking_at(flat_dir.normalized(), Vector3.UP), cam_pos)
 	if not _xr_ready:
 		_cine_to = Transform3D(Basis(), cam_pos).looking_at(p, Vector3.UP)
+	if keep_view:
+		_cine_to = _cine_from
 	_result_label.visible = false
 	print("Utrata życia: %s" % reason)
 
@@ -2473,7 +2501,351 @@ func _cinematic(delta: float) -> void:
 		_after_explosion()
 
 
+# --------------------------------------------------------------------------
+# Powtórka wypadku (inbox 2026-11-12-powtorka-wypadku; użytkownik: "jeśli
+# gracz zginął w wypadku, to robimy powtórzone ujęcie ... obserwatorem
+# podążającym za samochodem, trochę z góry"). Zapis w ReplayRecorder
+# (ostatnie 6 s), odtwarzanie ze zwolnieniem wokół uderzenia, potem wybuch
+# na żywo z miejsca kamery. Kamera obserwatora: tylko pozycja i obrót
+# w poziomie (horyzont równy - w goglach pion robi głowa), za autem i nad
+# nim, sprężyna krytycznie tłumiona - bez szarpnięć.
+# --------------------------------------------------------------------------
+
+const REPLAY_REASONS := ["auto rozbite", "auto na dachu", "upadek"]
+const REPLAY_FADE := 0.2              # [s] ściemnienie przed i rozjaśnienie po przejściu
+const REPLAY_BACK := 8.0              # [m] kamera za autem (wzdłuż trasy)
+const REPLAY_UP := 4.0                # [m] nad jezdnią
+const REPLAY_ABOVE_CAR := 2.5         # [m] co najmniej nad autem
+const REPLAY_TUNNEL_BACK := 6.0       # [m] za autem pod stropem
+const REPLAY_CEIL_GAP := 0.6          # [m] kamera pod stropem
+const REPLAY_SPRING := 0.4            # [s] czas reakcji sprężyny kamery
+const REPLAY_YAW_T := 0.5             # [s] wygładzenie kierunku trasy
+const REPLAY_PITCH := 25.0            # [°] w dół, tylko bez gogli
+const REPLAY_OTHERS_R := 120.0        # [m] boty w zapisie
+var _rec := ReplayRecorder.new()
+var _rec_frame := PackedFloat32Array()
+var _rec_ids := PackedInt64Array()
+var _rec_poses := PackedFloat32Array()
+var _rec_hit := 0.0                   # najmocniejszy impuls od ostatniej klatki zapisu
+var _rp_t := 0.0                      # czas zapisu odtwarzanej klatki
+var _rp_key := 0.0
+var _rp_end := 0.0
+var _rp_fade := 0.0                   # czas od początku powtórki (ściemnienie)
+var _rp_skip := false
+var _rp_reason := ""
+var _rp_car_xf: Transform3D
+var _rp_saved: Array = []             # [auto, xf, v, ω, tryb procesu, widoczne]
+var _rp_cam := Vector3.ZERO
+var _rp_cam_v := Vector3.ZERO
+var _rp_goal := Vector3.ZERO
+var _rp_goal_v := Vector3.ZERO
+var _rp_yaw := 0.0
+var _rp_yaw_goal := 0.0
+var _rp_road_y := 0.0
+var _rp_ceil := INF
+var _rp_probe_t := 0.0
+var _rp_label: Label3D
+var _rp_veil: MeshInstance3D
+
+
+## Klatka gracza do zapisu - w kroku fizyki, tylko w jeździe.
+func _record_replay() -> void:
+	if race_state != Race.RACING or _mode != Mode.DRIVE:
+		return
+	if _gs and not bool(_gs.get("crash_replay")):
+		return
+	var t0 := Time.get_ticks_usec()
+	_rec_hit = maxf(_rec_hit, car.hit_j)
+	if _rec_frame.size() != ReplayRecorder.P_STRIDE:
+		_rec_frame.resize(ReplayRecorder.P_STRIDE)
+		_rec_ids.resize(ReplayRecorder.MAX_OTHERS)
+		_rec_poses.resize(ReplayRecorder.MAX_OTHERS * ReplayRecorder.O_STRIDE)
+	var f := _rec_frame
+	var xf := car.global_transform
+	_put_xf(f, 0, xf)
+	var ground := 0
+	for i in range(mini(car.wheels.size(), 4)):
+		var w: StuntCar.Wheel = car.wheels[i]
+		f[ReplayRecorder.I_WHEELS + i * 3] = w.steer_angle
+		f[ReplayRecorder.I_WHEELS + i * 3 + 1] = w.spin
+		f[ReplayRecorder.I_WHEELS + i * 3 + 2] = w.spring_len
+		if w.contact:
+			ground += 1
+	f[ReplayRecorder.I_WHEEL_DEG] = car.steering_wheel_deg
+	f[ReplayRecorder.I_THROTTLE] = car.throttle
+	f[ReplayRecorder.I_BRAKE] = car.brake
+	var inv := xf.affine_inverse()
+	_put_xf(f, ReplayRecorder.I_CTRL_L, inv * left_hand.global_transform)
+	_put_xf(f, ReplayRecorder.I_CTRL_R, inv * right_hand.global_transform)
+	f[ReplayRecorder.I_RPM] = car.engine_rpm
+	f[ReplayRecorder.I_GAS] = car.throttle
+	f[ReplayRecorder.I_HIT] = _rec_hit
+	f[ReplayRecorder.I_GROUND] = ground
+	if not _rec.push(race_time, f):
+		return
+	_rec_hit = 0.0
+	# Inne auta w promieniu REPLAY_OTHERS_R (pierwsze MAX_OTHERS).
+	var n := 0
+	var p := xf.origin
+	var cands: Array[StuntCar] = []
+	cands.assign(_bots)
+	for o in _oncoming:
+		cands.append(o.car)
+	for b in cands:
+		if n >= ReplayRecorder.MAX_OTHERS:
+			break
+		if not is_instance_valid(b) or not b.visible or b.global_position.distance_squared_to(p) > REPLAY_OTHERS_R * REPLAY_OTHERS_R:
+			continue
+		_rec_ids[n] = b.get_instance_id()
+		var k := n * ReplayRecorder.O_STRIDE
+		_put_xf(_rec_poses, k, b.global_transform)
+		_rec_poses[k + 7] = b.wheels[0].steer_angle if not b.wheels.is_empty() else 0.0
+		n += 1
+	for s in range(n, ReplayRecorder.MAX_OTHERS):
+		_rec_ids[s] = 0
+	_rec.push_others(race_time, _rec_ids, _rec_poses)
+	Perf.add("replay_rec", t0)
+
+
+static func _put_xf(arr: PackedFloat32Array, i: int, xf: Transform3D) -> void:
+	var q := xf.basis.get_rotation_quaternion()
+	arr[i] = xf.origin.x
+	arr[i + 1] = xf.origin.y
+	arr[i + 2] = xf.origin.z
+	arr[i + 3] = q.x
+	arr[i + 4] = q.y
+	arr[i + 5] = q.z
+	arr[i + 6] = q.w
+
+
+static func _get_xf(arr: PackedFloat32Array, i: int) -> Transform3D:
+	var q := Quaternion(arr[i + 3], arr[i + 4], arr[i + 5], arr[i + 6]).normalized()
+	return Transform3D(Basis(q), Vector3(arr[i], arr[i + 1], arr[i + 2]))
+
+
+func _start_replay(reason: String) -> void:
+	race_state = Race.REPLAY
+	_rp_reason = reason
+	_rp_skip = false
+	_rp_fade = 0.0
+	_rp_key = _rec.key_time()
+	_rp_t = _rec.t_start()
+	_rp_end = _rec.t_end()
+	_rp_car_xf = car.global_transform
+	car.freeze = true
+	car.throttle = 0.0
+	car.brake = 0.0
+	_rp_saved.clear()
+	var others: Array[StuntCar] = []
+	others.assign(_bots)
+	for o in _oncoming:
+		others.append(o.car)
+	for b in others:
+		if is_instance_valid(b):
+			_rp_saved.append([b, b.global_transform, b.linear_velocity, b.angular_velocity, b.process_mode, b.visible])
+			b.process_mode = Node.PROCESS_MODE_DISABLED
+	_result_label.visible = false
+	print("POWTÓRKA: %s, %.1f s, kluczowa chwila %.2f s przed końcem" % [reason, _rp_end - _rp_t, _rp_end - _rp_key])
+
+
+## Krok fizyki powtórki: auto i boty z zapisu (stałe tempo kroków - płynne
+## przy interpolacji fizyki).
+func _replay_physics(delta: float) -> void:
+	_rp_fade += delta
+	if _rp_fade < REPLAY_FADE:
+		return                        # ściemnienie - jeszcze chwila wypadku
+	if _rp_veil_switch():
+		return
+	if _rp_skip or _rp_t >= _rp_end:
+		_end_replay()
+		return
+	_rp_t = minf(ReplayRecorder.advance(_rp_t, delta, _rp_key), _rp_end)
+	_apply_replay_frame()
+
+
+## Pierwsza klatka po ściemnieniu: przejście do powtórki (kamera od razu
+## na miejscu, bez dolatywania).
+func _rp_veil_switch() -> bool:
+	if _rp_label and _rp_label.visible:
+		return false
+	_apply_replay_frame()
+	car.reset_physics_interpolation()
+	if _player_dummy:
+		_player_dummy.set_replay(true)
+	if _track_hud:
+		_track_hud.visible = false
+	_replay_probe()
+	_rp_yaw = _rp_yaw_goal
+	_rp_cam = _replay_cam_goal(car.global_position)
+	_rp_goal = _rp_cam
+	_rp_goal_v = Vector3.ZERO
+	_rp_cam_v = Vector3.ZERO
+	_replay_label(true)
+	return true
+
+
+func _apply_replay_frame() -> void:
+	var fr := _rec.player_at(_rp_t)
+	car.global_transform = _get_xf(fr, 0)
+	for i in range(mini(car.wheels.size(), 4)):
+		var w: StuntCar.Wheel = car.wheels[i]
+		w.steer_angle = fr[ReplayRecorder.I_WHEELS + i * 3]
+		w.spin = fr[ReplayRecorder.I_WHEELS + i * 3 + 1]
+		w.spring_len = fr[ReplayRecorder.I_WHEELS + i * 3 + 2]
+		w.omega = 0.0
+	car.steering_wheel_deg = fr[ReplayRecorder.I_WHEEL_DEG]
+	car.throttle = fr[ReplayRecorder.I_THROTTLE]
+	car.brake = fr[ReplayRecorder.I_BRAKE]
+	car.engine_rpm = fr[ReplayRecorder.I_RPM]
+	if _player_dummy:
+		_player_dummy.replay_hands = [_get_xf(fr, ReplayRecorder.I_CTRL_L), _get_xf(fr, ReplayRecorder.I_CTRL_R)]
+		_player_dummy.update(car.throttle, car.brake, get_physics_process_delta_time())
+	var others := _rec.others_at(_rp_t)
+	# Auto nieobecne w tej chwili zapisu (dalej niż 120 m, w puli) - ukryte.
+	for sv in _rp_saved:
+		var sb: StuntCar = sv[0]
+		if is_instance_valid(sb):
+			sb.visible = others.has(sb.get_instance_id())
+	for id in others:
+		var b := instance_from_id(id) as StuntCar
+		if b == null or not is_instance_valid(b):
+			continue
+		var o: Array = others[id]
+		b.global_transform = o[0]
+		if b.wheels.size() > 1:
+			b.wheels[0].steer_angle = o[1]
+			b.wheels[1].steer_angle = o[1]
+
+
+func _end_replay() -> void:
+	car.global_transform = _rp_car_xf
+	car.reset_physics_interpolation()
+	for sv in _rp_saved:
+		var b: StuntCar = sv[0]
+		if not is_instance_valid(b):
+			continue
+		b.global_transform = sv[1]
+		b.visible = sv[5]
+		b.process_mode = sv[4]
+		b.linear_velocity = sv[2]
+		b.angular_velocity = sv[3]
+		b.reset_physics_interpolation()
+	_rp_saved.clear()
+	if _player_dummy:
+		_player_dummy.set_replay(false)
+	if _track_hud:
+		_track_hud.visible = true
+	car.steering_wheel_deg = NAN
+	_replay_label(false)
+	print("POWTÓRKA: koniec%s" % (" (pominięta)" if _rp_skip else ""))
+	race_state = Race.RACING
+	_begin_explosion(_rp_reason, true)
+	_rec.reset()
+
+
+## Kierunek trasy, wysokość jezdni i strop (tunel) przy aucie - 10 razy na
+## sekundę (nearest_sample szuka liniowo).
+func _replay_probe() -> void:
+	var p := car.global_position
+	var s: Dictionary = track.nearest_sample(p) if track else {}
+	if not s.is_empty():
+		var r: Vector3 = (track.global_basis * (s["right"] as Vector3)) * Vector3(1, 0, 1)
+		if r.length() > 0.1:
+			var fwd := Vector3.UP.cross(r.normalized())
+			_rp_yaw_goal = atan2(-fwd.x, -fwd.z)
+		_rp_road_y = track.to_global(s["pos"]).y
+	else:
+		var v := -car.global_basis.z
+		_rp_yaw_goal = atan2(-v.x, -v.z)
+		_rp_road_y = p.y
+	# Strop nad autem (tunel): promień w górę po świecie statycznym.
+	_rp_ceil = INF
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.5, p + Vector3.UP * (REPLAY_UP + 3.0))
+	q.exclude = [car.get_rid()]
+	q.collide_with_areas = false
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and not (hit["collider"] is StuntCar):
+		_rp_ceil = (hit["position"] as Vector3).y
+
+
+func _replay_cam_goal(p: Vector3) -> Vector3:
+	var back := Vector3(sin(_rp_yaw), 0.0, cos(_rp_yaw))     # +Z obrotu = za autem
+	if _rp_ceil < INF:
+		var g := p + back * REPLAY_TUNNEL_BACK
+		g.y = minf(maxf(_rp_road_y, p.y) + 2.2, _rp_ceil - REPLAY_CEIL_GAP)
+		return g
+	var g := p + back * REPLAY_BACK
+	g.y = maxf(_rp_road_y + REPLAY_UP, p.y + REPLAY_ABOVE_CAR)
+	return g
+
+
+func _replay_camera(delta: float) -> void:
+	_update_replay_veil()
+	if _rp_label == null or not _rp_label.visible:
+		return                        # ściemnienie - kamera jeszcze w aucie
+	_rp_probe_t -= delta
+	if _rp_probe_t <= 0.0:
+		_rp_probe_t = 0.1
+		_replay_probe()
+	_rp_yaw = lerp_angle(_rp_yaw, _rp_yaw_goal, 1.0 - exp(-delta / REPLAY_YAW_T))
+	var p := car.get_global_transform_interpolated().origin
+	var goal := _replay_cam_goal(p)
+	# Sprężyna krytycznie tłumiona (ω = 1/τ), półjawny Euler, z prędkością
+	# celu (bez niej kamera wisiała 2v/ω ~ 22 m dalej przy 100 km/h).
+	if delta > 0.0:
+		_rp_goal_v = _rp_goal_v.lerp((goal - _rp_goal) / delta, 1.0 - exp(-delta / 0.1))
+	_rp_goal = goal
+	var w := 1.0 / REPLAY_SPRING
+	_rp_cam_v += (w * w * (goal - _rp_cam) + 2.0 * w * (_rp_goal_v - _rp_cam_v)) * delta
+	_rp_cam += _rp_cam_v * delta
+	var b := Basis(Vector3.UP, _rp_yaw)
+	if not _xr_ready:
+		b = b * Basis(Vector3.RIGHT, deg_to_rad(-REPLAY_PITCH))
+	origin.global_transform = Transform3D(b, _rp_cam)
+
+
+func _replay_label(on: bool) -> void:
+	if _rp_label == null:
+		_rp_label = Label3D.new()
+		_rp_label.name = "ReplayLabel"
+		_rp_label.text = "● POWTÓRKA"
+		_rp_label.font_size = 48
+		_rp_label.pixel_size = 0.0012
+		_rp_label.modulate = Color(1.0, 0.25, 0.2)
+		_rp_label.outline_size = 12
+		_rp_label.no_depth_test = true
+		_rp_label.position = Vector3(-0.32, 0.26, -1.2)
+		camera.add_child(_rp_label)
+	_rp_label.visible = on
+
+
+## Ściemnienie przy przejściu do powtórki: czarna zasłona przed kamerą,
+## 0-1 przez REPLAY_FADE, potem 1-0.
+func _update_replay_veil() -> void:
+	if _rp_veil == null:
+		_rp_veil = MeshInstance3D.new()
+		_rp_veil.name = "ReplayVeil"
+		var q := QuadMesh.new()
+		q.size = Vector2(4.0, 4.0)
+		_rp_veil.mesh = q
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.no_depth_test = true
+		m.render_priority = 100
+		m.albedo_color = Color(0, 0, 0, 0)
+		_rp_veil.material_override = m
+		_rp_veil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_rp_veil.position = Vector3(0, 0, -0.3)
+		camera.add_child(_rp_veil)
+	var a := 1.0 - absf(_rp_fade - REPLAY_FADE) / REPLAY_FADE
+	a = clampf(a, 0.0, 1.0) if race_state == Race.REPLAY else 0.0
+	(_rp_veil.material_override as StandardMaterial3D).albedo_color.a = a
+	_rp_veil.visible = a > 0.001
+
+
 func _after_explosion() -> void:
+	_rec.reset()
 	# Nowe auto na POCZĄTKU bieżącego odcinka (jak w River Raid przy
 	# ostatnim moście; użytkownik: "respawn zawsze na początku aktualnego
 	# etapu"), naprawione i zatankowane; przez chwilę bez utraty życia.
@@ -2502,6 +2874,7 @@ func _after_explosion() -> void:
 ## w tym samym rozkładzie (ziarno z numeru odcinka - każda próba odcinka
 ## wygląda tak samo, jak w River Raid).
 func _restart_section() -> void:
+	_rec.reset()
 	var cp: float = track.checkpoint_before(_last_safe_dist)
 	var d := maxf(cp + 25.0, start_distance)
 	_last_safe_dist = d

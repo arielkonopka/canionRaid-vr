@@ -85,6 +85,9 @@ var xr_resolution: int = 110
 var xr_foveation: int = 2
 var wheel_range: int = 180          # [°] obrót kierownicy w powietrzu na pełny skręt
 var weather: String = "variable"    # pogoda na autostradzie (WeatherPlan) / "dry"
+## Powtórka wypadku (inbox powtorka-wypadku): ostatnie ~6 s z kamery
+## obserwatora przed wybuchem.
+var crash_replay: bool = true
 var vibration: float = 0.5          # siła wibracji kontrolerów (0 = wył.)
 var road_texture: bool = false      # lekka faktura drogi w drążkach
 var shadows: String = "full"
@@ -164,6 +167,14 @@ var OPTIONS: Array[Dictionary] = [
 		"hints": [
 			"Fronty deszczu, ciemne niebo przed ulewą, mokra jezdnia (autostrada).",
 			"Bez deszczu i mokrej jezdni - jak dotąd.",
+		],
+	},
+	{
+		"key": "crash_replay", "group": "track", "label": "Powtórka wypadku", "live": true,
+		"values": [true, false], "names": ["Wł.", "Wył."],
+		"hints": [
+			"Po rozbiciu, dachowaniu albo upadku: ostatnie sekundy z kamery nad autem, zwolnione wokół uderzenia. Spust albo B pomija.",
+			"Od razu wybuch, bez powtórki.",
 		],
 	},
 	{

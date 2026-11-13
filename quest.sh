@@ -149,6 +149,8 @@ do_test() {
 	run_test weather_track_test ""      "weather_track_test|mokra"
 	run_test extremist_test ""          "extremist_test"
 	run_test extremist_play_test ""     "extremist_play_test"
+	run_test replay_recorder_test ""    "replay_recorder_test"
+	run_test replay_play_test ""        "replay_play_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
