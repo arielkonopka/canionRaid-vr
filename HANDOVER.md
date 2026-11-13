@@ -2113,6 +2113,11 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
   **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
   8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
+- **Sprzęgło przy ruszaniu, TCS_GAIN, odcięcie napędu ESP (PR #35 chmury,
+  scalony 2026-11-13)**: `drive_test` szybciej (24.00-24.17 zamiast
+  24.12-24.29), ESP przy 300 km/h i limicie 6° mniej znoszenia (7,1°
+  zamiast 9,5°), reszta bez zmian; `_launch_t` zerowany przy nowym
+  ruszaniu (przegląd).
 - **Warstwa pogody (2026-11-12, inbox warstwa-pogody; użytkownik: "przy
   deszczu niebo ciemnoszare", "rozważmy warstwę pogody")**: `WeatherPlan`
   (chmura, fronty co ~12 km, `weather_plan_test`); mokra jezdnia

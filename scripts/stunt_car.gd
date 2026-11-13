@@ -1653,6 +1653,7 @@ func _update_gearbox(delta: float) -> void:
 	elif wheel_rpm < clutch_engage_rpm:
 		_clutch_engaged = false        # inaczej silnik by zgasł
 		_launching = true
+		_launch_t = 0.0                # nowe ruszanie - pełny czas ślizgania (przegląd PR #35)
 	elif not _clutch_engaged:
 		if not _launching or _drive_pedal() <= 0.02:
 			_clutch_engaged = true
