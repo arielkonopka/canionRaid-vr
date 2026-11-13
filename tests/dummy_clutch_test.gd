@@ -52,6 +52,13 @@ func _process(_d: float) -> bool:
 	if f == 5:
 		pd.update(0.0, 0.0, 1.0, 0.0)
 	if f == 7:
+		# Stopy nad podłogą (pięta ~8 cm pod kostką, czubek palców).
+		var low := INF
+		for side in ["L", "R"]:
+			low = minf(low, _bone("foot." + side).y - 0.08)
+			low = minf(low, _bone("toe." + side, true).y - 0.02)
+		print("  najniższy punkt stóp: %.3f m (podłoga %.3f), kostka L %s" % [low, PlayerDummy.FLOOR_Y, _bone("foot.L")])
+		_check(low > PlayerDummy.FLOOR_Y, "stopy nad podłogą (%.3f m)" % low)
 		foot0 = _bone("foot.L")
 		toe0 = _bone("foot.L", true)
 		foot_r0 = _bone("foot.R")

@@ -1494,10 +1494,14 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   `_replay_physics` (krok fizyki - płynne przy interpolacji), boty
   `PROCESS_MODE_DISABLED` (wyjęte z fizyki), po powtórce wracają z tymi
   samymi prędkościami. Kamera obserwatora (`_replay_camera`): 8 m za autem
-  wzdłuż trasy, 4 m nad jezdnią, min. 2,5 m nad autem, pod stropem tunelu
+  wzdłuż trasy (wysokość - niżej), pod stropem tunelu
   6 m za autem (promień w górę); sprężyna krytyczna 0,4 s **z prędkością
   celu** - bez niej kamera wisiała 2v/ω ~ 22 m za autem przy 100 km/h.
-  W goglach tylko obrót w poziomie, na PC 25° w dół. Obrót kół: `lerp_angle`
+  W goglach tylko obrót w poziomie, na PC 32° w dół. Kamera 5,5 m nad
+  jezdnią, min. 3,5 m nad autem (użytkownik 2026-11-13 po jeździe:
+  "powtórka wyszła nieźle, kamera może być nieco wyżej, ale poza tym
+  świetnie" - było 4 / 2,5; odległość, okno, zwolnienie i napis
+  zaakceptowane). Obrót kół: `lerp_angle`
   (zawinięty do ±π), powyżej 40 m/s z drogi auta (zapis 60 Hz aliasuje).
   Spust/B pomija dopiero po 0,8 s od ściemnienia (gaz na spuście po
   uderzeniu). Auta, które przed śmiercią wróciły do puli, nie ruszane. Manekin gracza:
@@ -2287,6 +2291,18 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   -22° i przy gazie unosiła palce o 3,5 cm (poprawione na +22°). Sam
   wyprost kolana unosi kostkę po łuku - trzeba go równoważyć udem.
   W powtórce wypadku sprzęgło nie jest zapisywane (lewa noga spoczywa).
+- **Manekin gracza po jeździe użytkownika (2026-11-13)**: "dłonie odrywają
+  się od rąk" - dłoń jedzie z kontrolerem, a bark manekina siedzi przy
+  fotelu; gdy kontroler dalej niż ramię, `PlayerDummy` wydłuża ramię
+  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6) -
+  `dummy_arm_test`: przerwa 0 do 1,3 ramienia. **Pułapka**:
+  `get_bone_global_pose` poza sygnałem `Skeleton3D.skeleton_updated`
+  zwraca pozę **bez** modyfikatorów (TwoBoneIK3D) - test czyta w sygnale.
+  "Stopy wystają spod podwozia przy dachowaniu w powtórce" - biodra są
+  ~9 cm nad spodem nadwozia, poza z modelu wbijała stopy 28 cm pod
+  podłogę; `LEG_THIGH/SHIN/FOOT_DEG` (-25/15/-25, obie nogi) - najniższy
+  punkt stóp -0,355 m (podłoga -0,36, spód nadwozia -0,405),
+  `dummy_clutch_test` to sprawdza.
 - **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.
@@ -2610,9 +2626,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    wektorowo albo w GDExtension, jeśli GDScript okaże się za wolny.
    Elektryk: wysoki ton falownika zamiast silnika spalinowego.
 
-6. **Powtórka wypadku - dalej** (podstawa jest, sekcja 5): ocena
-   w goglach (choroba lokomocyjna przy kamerze obserwatora? tempo
-   zwolnienia?), dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
+6. **Powtórka wypadku - dalej** (oceniona przez użytkownika, sekcja 5):
+   dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
    zapisane są `engine_rpm` i gaz), sprzęgło w zapisie (lewa noga).
 
 7. **Skutki uszkodzeń dla jazdy** (wgniecenia wizualne już są, sekcja 5):
