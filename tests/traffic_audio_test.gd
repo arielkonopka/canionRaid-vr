@@ -14,6 +14,26 @@ var max_jump := 0.0
 var prev_pitch := 0.0
 var shifted := false
 var pick_nodes: Array = []
+var v_min := INF
+var v_max := 0.0
+var horn_before := 0.0
+
+
+## Ruch auta w krokach fizyki (jak w grze), dźwięk w _process przy 72 kl./s:
+## klatka ma raz 0, raz 1, raz 2 kroki fizyki.
+func _physics_process(delta: float) -> bool:
+	if car == null or f < 1:
+		return false
+	car.global_position += Vector3(0, 0, -35.0 * delta)   # w środku umownego biegu (granica 39 m/s)
+	# Przesunięcie świata w połowie dojazdu: wszystko o -1000 m w X.
+	if not shifted and car.global_position.z < 30.0:
+		shifted = true
+		var s := Vector3(1000, 0, 0)
+		car.global_position -= s
+		car.reset_physics_interpolation()
+		ta.listener_pos -= s
+		ta.shift(s)
+	return false
 
 
 func _check(ok: bool, what: String) -> void:
@@ -67,6 +87,8 @@ func _initialize() -> void:
 	root.add_child(car)
 	car.freeze = true
 	car.position = Vector3(3, 0, 60)
+	BotDriver.horn_on(car)
+	Engine.max_fps = 72
 
 
 func _process(delta: float) -> bool:
@@ -81,31 +103,31 @@ func _process(delta: float) -> bool:
 		_check(dists == [10, 20, 30, 50], "najbliższe 4 w 80 m: %s" % str(dists))
 		for nd in pick_nodes:
 			nd.queue_free()
-	var dt := 1.0 / 60.0
-	car.global_position += Vector3(0, 0, -35.0 * dt)   # w środku umownego biegu (granica 39 m/s)
-	# Przesunięcie świata w połowie dojazdu: wszystko o -1000 m w X.
-	if not shifted and car.global_position.z < 30.0:
-		shifted = true
-		var s := Vector3(1000, 0, 0)
-		car.global_position -= s
-		ta.listener_pos -= s
-		ta.shift(s)
-	ta.update([car], dt)
+	ta.update([car], delta)
 	var eng: AudioStreamPlayer3D = ta._slots[0]["eng"]
-	if ta.active() == 1 and f > 5:
+	# Po rozbiegu (auto stoi, zanim ruszy fizyka - wygładzanie od zera).
+	if ta.active() == 1 and f > 60:
 		if prev_pitch > 0.0:
 			max_jump = maxf(max_jump, absf(eng.pitch_scale - prev_pitch))
 		prev_pitch = eng.pitch_scale
+		if ta._slots[0]["warm"]:
+			var v: float = (ta._slots[0]["vel"] as Vector3).length()
+			v_min = minf(v_min, v)
+			v_max = maxf(v_max, v)
 		var z := car.global_position.z
 		if z > 20.0 and z < 22.0:
 			pitch_before = eng.pitch_scale
+			horn_before = (car.get_node("Horn") as AudioStreamPlayer3D).pitch_scale
 		if z < -20.0 and z > -22.0:
 			pitch_after = eng.pitch_scale
-	if car.global_position.z < -90.0 or f > 600:
+	if car.global_position.z < -90.0 or f > 1200:
 		_check(pitch_before > 0.0 and pitch_after > 0.0 and pitch_before / pitch_after > 1.2,
 				"ton przed / po minięciu: %.2f / %.2f" % [pitch_before, pitch_after])
 		_check(max_jump < 0.1, "bez skoku tonu przy przesunięciu świata (maks. %.3f na klatkę)" % max_jump)
 		_check(ta.active() == 0, "auto poza 80 m - slot wolny")
+		_check(v_min > 34.0 and v_max < 36.0, "prędkość auta stała przy 72 kl./s i fizyce 120 Hz: %.1f-%.1f m/s (35)" % [v_min, v_max])
+		_check(horn_before > 1.05, "klakson z Dopplerem przed minięciem (%.2f)" % horn_before)
+		_check(is_equal_approx((car.get_node("Horn") as AudioStreamPlayer3D).pitch_scale, 1.0), "klakson bez Dopplera po wyjściu ze slotu")
 		print("traffic_audio_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 		quit(1 if fails else 0)
 		return true

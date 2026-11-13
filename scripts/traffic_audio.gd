@@ -48,7 +48,7 @@ func _ready() -> void:
 		var eng := _player(_engine_wav)
 		var noise := _player(_noise_wav)
 		_slots.append({"car": null, "eng": eng, "noise": noise,
-				"prev": Vector3.ZERO, "vel": Vector3.ZERO, "have": false, "warm": false})
+				"prev": Vector3.ZERO, "vel": Vector3.ZERO, "have": false, "warm": false, "skip": 1})
 
 
 func _player(wav: AudioStreamWAV) -> AudioStreamPlayer3D:
@@ -82,20 +82,30 @@ func update(cars: Array, delta: float) -> void:
 		var eng: AudioStreamPlayer3D = s["eng"]
 		var noise: AudioStreamPlayer3D = s["noise"]
 		if c == null or not is_instance_valid(c) or not c.visible:
+			_horn_reset(c)
 			s["car"] = null
 			if eng.playing:
 				eng.stop()
 				noise.stop()
 			continue
-		var p := c.global_position
+		# Pozycja interpolowana: update() idzie w _process, a global_position
+		# zmienia się tylko w krokach fizyki (120 Hz przy obrazie 72/90 Hz
+		# klatka ma raz 1, raz 2 kroki - prędkość skakała 0,75-1,5 v;
+		# przegląd PR #85).
+		var p := c.get_global_transform_interpolated().origin
 		if s["have"]:
 			var v: Vector3 = (p - s["prev"]) / delta
 			# Skok (pula, teleport) - bez prędkości z tej klatki.
 			# Pierwszy pomiar wprost - bez rozbiegu od zera (umowne biegi
 			# "zmieniały się" przy każdym nowym aucie w slocie).
+			# Pierwsza różnica po przydzieleniu bywa z niepełnego kroku
+			# (start, pula) - pomijana; druga wprost, dalej wygładzane.
 			if v.length() < 150.0:
-				s["vel"] = v if not s["warm"] else (s["vel"] as Vector3).lerp(v, clampf(delta * 10.0, 0.0, 1.0))
-				s["warm"] = true
+				if s["skip"] > 0:
+					s["skip"] -= 1
+				else:
+					s["vel"] = v if not s["warm"] else (s["vel"] as Vector3).lerp(v, clampf(delta * 10.0, 0.0, 1.0))
+					s["warm"] = true
 		s["prev"] = p
 		s["have"] = true
 		if not s["warm"]:
@@ -107,6 +117,11 @@ func update(cars: Array, delta: float) -> void:
 		var load := clampf(c.throttle, 0.0, 1.0) if not c.freeze else 0.5
 		eng.global_position = p
 		noise.global_position = p
+		# Klakson auta (BotDriver.horn_on) też z Dopplerem - ekstremista
+		# trąbi długo przy mijaniu.
+		var horn := c.get_node_or_null("Horn") as AudioStreamPlayer3D
+		if horn:
+			horn.pitch_scale = dop
 		eng.pitch_scale = clampf(rpm / REF_RPM * dop, 0.15, 4.0)
 		eng.volume_db = ENGINE_DB + linear_to_db(0.45 + 0.55 * load)
 		# Szum opon i wiatru rośnie z prędkością (~v²): przy mijaniu "świst".
@@ -123,6 +138,7 @@ func _assign(chosen: Array) -> void:
 	# Auta już grające zostają w swoich slotach (bez trzasku przy zmianie).
 	for s in _slots:
 		if s["car"] != null and not chosen.has(s["car"]):
+			_horn_reset(s["car"])
 			s["car"] = null
 	for c in chosen:
 		var has := false
@@ -137,8 +153,17 @@ func _assign(chosen: Array) -> void:
 				s["car"] = c
 				s["have"] = false
 				s["warm"] = false
+				s["skip"] = 1
 				s["vel"] = Vector3.ZERO
 				break
+
+
+## Auto wychodzi ze slotu: klakson bez Dopplera.
+static func _horn_reset(c: Variant) -> void:
+	if c != null and is_instance_valid(c):
+		var horn := (c as Node).get_node_or_null("Horn") as AudioStreamPlayer3D
+		if horn:
+			horn.pitch_scale = 1.0
 
 
 ## Aktywne sloty (do testu i PERF).

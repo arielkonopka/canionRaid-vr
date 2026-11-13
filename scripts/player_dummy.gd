@@ -26,6 +26,21 @@ var _thigh_r := -1
 var _foot_r := -1
 var _thigh_rest: Quaternion
 var _foot_rest: Quaternion
+var _thigh_l := -1
+var _shin_l := -1
+var _foot_l := -1
+var _thigh_l_rest: Quaternion
+var _shin_l_rest: Quaternion
+var _foot_l_rest: Quaternion
+var _clutch := 0.0
+## Lewa noga na sprzęgle (manual): kolano się prostuje (łydka), udo
+## opada, żeby kostka nie poszła w górę po łuku, stopa wciska pedał.
+## Kąty z pomiaru kości (tests/dummy_clutch_test.gd): kostka ~4 cm do
+## przodu na tej samej wysokości, palce ~2 cm w dół. Sam wyprost kolana
+## unosił kostkę o 19 cm, samo udo opuszczało ją i cofało.
+const CLUTCH_THIGH_DEG := 20.0
+const CLUTCH_SHIN_DEG := -40.0
+const CLUTCH_FOOT_DEG := 40.0
 var _press := 0.0
 var _brake_side := 0.0
 ## Powtórka wypadku: kontrolery z zapisu (w układzie auta), a nie z rąk
@@ -75,6 +90,15 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 		_ik.set_pole_node(k, _ik.get_path_to(p))
 	_thigh_r = skel.find_bone("thigh.R")
 	_foot_r = skel.find_bone("foot.R")
+	_thigh_l = skel.find_bone("thigh.L")
+	_shin_l = skel.find_bone("shin.L")
+	_foot_l = skel.find_bone("foot.L")
+	if _thigh_l >= 0:
+		_thigh_l_rest = skel.get_bone_pose_rotation(_thigh_l)
+	if _shin_l >= 0:
+		_shin_l_rest = skel.get_bone_pose_rotation(_shin_l)
+	if _foot_l >= 0:
+		_foot_l_rest = skel.get_bone_pose_rotation(_foot_l)
 	if _thigh_r >= 0:
 		_thigh_rest = skel.get_bone_pose_rotation(_thigh_r)
 	if _foot_r >= 0:
@@ -95,7 +119,8 @@ func set_replay(on: bool) -> void:
 		replay_hands.clear()
 
 
-func update(throttle: float, brake: float, delta: float) -> void:
+## clutch: wciśnięcie sprzęgła 0..1 (StuntCar.clutch_pedal, manual).
+func update(throttle: float, brake: float, delta: float, clutch := 0.0) -> void:
 	if skel == null:
 		return
 	var car := get_parent() as StuntCar
@@ -122,4 +147,16 @@ func update(throttle: float, brake: float, delta: float) -> void:
 	if _thigh_r >= 0:
 		skel.set_bone_pose_rotation(_thigh_r, _thigh_rest * Quaternion(Vector3.UP, deg_to_rad(9.0) * _brake_side))
 	if _foot_r >= 0:
-		skel.set_bone_pose_rotation(_foot_r, _foot_rest * Quaternion(Vector3.RIGHT, deg_to_rad(-22.0) * _press))
+		# Dodatni kąt = palce w dół (pomiar kości w dummy_clutch_test; -22°
+		# unosiło palce o 3,5 cm przy wciśniętym gazie).
+		skel.set_bone_pose_rotation(_foot_r, _foot_rest * Quaternion(Vector3.RIGHT, deg_to_rad(22.0) * _press))
+	# Lewa stopa: sprzęgło szybko w dół (zmiana biegu trwa ~0,2 s), wolniej
+	# w górę - jak noga kierowcy.
+	var rate := 14.0 if clutch > _clutch else 6.0
+	_clutch = move_toward(_clutch, clampf(clutch, 0.0, 1.0), rate * delta)
+	if _thigh_l >= 0:
+		skel.set_bone_pose_rotation(_thigh_l, _thigh_l_rest * Quaternion(Vector3.RIGHT, deg_to_rad(CLUTCH_THIGH_DEG) * _clutch))
+	if _shin_l >= 0:
+		skel.set_bone_pose_rotation(_shin_l, _shin_l_rest * Quaternion(Vector3.RIGHT, deg_to_rad(CLUTCH_SHIN_DEG) * _clutch))
+	if _foot_l >= 0:
+		skel.set_bone_pose_rotation(_foot_l, _foot_l_rest * Quaternion(Vector3.RIGHT, deg_to_rad(CLUTCH_FOOT_DEG) * _clutch))

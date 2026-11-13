@@ -1518,6 +1518,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   świata. Obroty: z silnika bota z fizyką, inaczej umowne z prędkości
   (5 biegów co 13 m/s). Pierwszy pomiar prędkości wprost - przy
   wygładzaniu od zera każde nowe auto "przełączało biegi" (skok tonu).
+  Pozycja aut **interpolowana** (`get_global_transform_interpolated`):
+  update idzie w `_process`, a przy fizyce 120 Hz i obrazie 72 Hz klatka
+  ma 1 albo 2 kroki - z `global_position` prędkość skakała 0,75-1,5 v
+  (przegląd PR #85). Klakson auta w slocie (węzeł "Horn") też z Dopplerem.
   Tylko trasa bez końca; bench: `traffic_audio` na liście wyłączeń.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
@@ -2273,6 +2277,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   40 m/s; przejazd obok słuchacza: ton przed / po minięciu 1,23x, bez
   skoku przy przesunięciu świata), `extremist_play_test`: ekstremista
   słyszalny, Doppler 1,15 / 0,88 przed / po minięciu gracza.
+- **Lewa noga manekina gracza na sprzęgle (2026-11-13)**:
+  `StuntCar.clutch_pedal()` (manual: 1 przy zmianie biegu, przy
+  ruszaniu na ślizgającym się sprzęgle; automat 0) ->
+  `PlayerDummy.update(..., clutch)`. Kąty uda, łydki i stopy dobrane
+  **pomiarem pozycji kości** (`tests/dummy_clutch_test.gd`), bo na
+  zrzutach stopy zasłania deska i konsola. **Pułapka**: obrót kości nóg
+  wokół lokalnej X - dodatni kąt stopy to palce w dół; prawa stopa miała
+  -22° i przy gazie unosiła palce o 3,5 cm (poprawione na +22°). Sam
+  wyprost kolana unosi kostkę po łuku - trzeba go równoważyć udem.
+  W powtórce wypadku sprzęgło nie jest zapisywane (lewa noga spoczywa).
 - **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.
@@ -2599,7 +2613,7 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 6. **Powtórka wypadku - dalej** (podstawa jest, sekcja 5): ocena
    w goglach (choroba lokomocyjna przy kamerze obserwatora? tempo
    zwolnienia?), dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
-   zapisane są `engine_rpm` i gaz), lewa noga na sprzęgle w zapisie.
+   zapisane są `engine_rpm` i gaz), sprzęgło w zapisie (lewa noga).
 
 7. **Skutki uszkodzeń dla jazdy** (wgniecenia wizualne już są, sekcja 5):
    krzywe zawieszenie po twardym lądowaniu ściąga auto (z `landed`
