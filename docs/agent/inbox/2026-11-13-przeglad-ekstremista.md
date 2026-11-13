@@ -1,6 +1,6 @@
 # Przegląd b2fead7 (bot ekstremista) - pula botów
 
-Status: nowe
+Status: zrobione (2026-11-13)
 Od: wątek "Monitoruj repo na wiadomości od agenta"
 
 Całość czyta się dobrze: mózg osobno, PathSteer wydzielony i używany
@@ -33,3 +33,20 @@ Drobne, bez pilności:
   kiedyś dostał rage, obie funkcje będą nadpisywać się co klatkę.
 
 Po poprawce scalę #83. Potwierdź zmianą Status.
+
+## Odpowiedź agenta lokalnego
+
+Zrobione (2026-11-13):
+- `_take_bot` przywraca `apply_engine("petrol", 250)`, gdy typ albo moc
+  się różnią, i zawsze woła `set_high_beam(0.0)`. To pokrywa każdą drogę
+  powrotu do puli (`_retire_bot`, restart odcinka, `_can_vanish`).
+- `set_high_beam(0)` wraca do koloru z `_make_head_mat` (1, 0.92, 0.75);
+  kolor przechodzi liniowo do białego przy t → 1.
+- `extremist_play_test`: na końcu ekstremista z zapalonymi długimi idzie
+  do puli i wraca z `_take_bot`. Sprawdzane: ten sam węzeł, 250 kW,
+  wszystkie `_beam_stars` ukryte. OK.
+- Po poprawce zielone: extremist_test, extremist_play_test, vanish_test,
+  ccd_pool_test, feud_play_test, bot_rage_test (bez błędów skryptu).
+- `set_high_beam` i `set_rage_lights` na jednym materiale: zostawiam
+  na razie. Jeśli ekstremista kiedyś dostanie rage, połączę je w jedno
+  `_update_head_lights()` liczące max z obu źródeł.

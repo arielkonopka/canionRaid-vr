@@ -889,6 +889,11 @@ func _take_bot() -> StuntCar:
 	b.repair()
 	b.fuel = 1.0
 	b.TIRE_SUBSTEPS = 2
+	# Auto po ekstremiście (przegląd chmury 2026-11-13): zwykła moc botów
+	# i zgaszone długie, także gdy zniknął w trakcie mrugania.
+	if b.engine_type != "petrol" or absf(b.engine_power_kw - 250.0) > 0.5:
+		b.apply_engine("petrol", 250)
+	b.set_high_beam(0.0)
 	return b
 
 

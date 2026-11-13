@@ -96,6 +96,22 @@ func _end() -> bool:
 	_check(beam_seen, "mrugał długimi")
 	_check(max_brake < 0.01, "nie hamował (maks. hamulec %.2f)" % max_brake)
 	_check(main._x_passes == 1, "premia za przepuszczenie (%d)" % main._x_passes)
+	# Auto ekstremisty wraca do puli w trakcie mrugania (przegląd chmury
+	# 2026-11-13): następny bot z tego węzła ma zwykłą moc i zgaszone długie.
+	var x: StuntCar = main._extremist
+	if x and is_instance_valid(x):
+		x.set_high_beam(1.0)
+		main._extremist = null
+		main._bots.erase(x)
+		main._retire_bot(x)
+		var b: StuntCar = main._take_bot()
+		_check(b == x, "to samo auto z puli")
+		_check(absf(b.engine_power_kw - 250.0) < 0.5, "moc po puli %.0f kW" % b.engine_power_kw)
+		var lit := false
+		for mi in b._beam_stars:
+			lit = lit or mi.visible
+		_check(not lit, "długie zgaszone po puli")
+		main._park_bot(b)
 	print("extremist_play_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails else 0)
 	return true

@@ -618,7 +618,8 @@ func set_high_beam(t: float) -> void:
 	for m in [g.get("mat"), _style_head]:
 		if m == null:
 			continue
-		m.emission = Color(1.0, 0.95, 0.85)
+		# t = 0: kolor i jasność z _make_head_mat (lampy jak przed mruganiem).
+		m.emission = Color(1.0, 0.92, 0.75).lerp(Color(1.0, 0.95, 0.85), clampf(t, 0.0, 1.0))
 		m.emission_energy_multiplier = 0.6 + 5.4 * t
 	if _beam_stars.is_empty() and t > 0.0:
 		var mat := StandardMaterial3D.new()
