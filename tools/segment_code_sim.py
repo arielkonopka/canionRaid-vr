@@ -168,7 +168,9 @@ class SegmentCode:
             return c
         d_mid = (k + 0.5) * SEG_LEN
         prev_cost = prev["cost"] if prev else 0
-        if cost(struct, event, d_mid) + prev_cost > COST_MAX:
+        # Budowla bez kosztu (podjazd) zostaje - jej wycięcie nic nie daje,
+        # a zostawiało pas dla wolnych bez podjazdu (ziarno 5 z pogodą).
+        if cost(struct, event, d_mid) + prev_cost > COST_MAX and COST_STRUCT[struct] > 0:
             if trap in TRAP_STRUCT:
                 trap = 15
             struct = 0

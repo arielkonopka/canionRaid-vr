@@ -239,7 +239,9 @@ func _make(k: int) -> Dictionary:
 	# 5. Koszt na Queście (ten i poprzedni odcinek zbudowane naraz).
 	var d_mid := (k + 0.5) * SEG_LEN
 	var prev_cost: int = int(prev["cost"]) if not prev.is_empty() else 0
-	if _cost(structure, event, d_mid) + prev_cost > COST_MAX:
+	# Budowla bez kosztu (podjazd) zostaje - jej wycięcie nic nie daje,
+	# a zostawiało pas dla wolnych bez podjazdu (ziarno 5 z pogodą).
+	if _cost(structure, event, d_mid) + prev_cost > COST_MAX and int(COST_STRUCT[structure]) > 0:
 		if TRAP_STRUCT.has(trap):
 			trap = TRAP_NONE
 		structure = 0
@@ -280,5 +282,5 @@ static func unpack(code: int) -> Dictionary:
 ## Krótki opis do logu: "k 5 peak 0xCC0FC808 nasyp / 2+2 / brak / pościg od tyłu".
 func describe(k: int) -> String:
 	var s := segment(k)
-		return "k %d %s 0x%08X %s / %s / %s / %s" % [k, s["phase"], int(s["code"]),
+	return "k %d %s 0x%08X %s / %s / %s / %s" % [k, s["phase"], int(s["code"]),
 			STRUCTURES[int(s["structure"])], SECTIONS[int(s["section"])], TRAPS[int(s["trap"])], EVENTS[int(s["event"])]]
