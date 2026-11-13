@@ -26,6 +26,8 @@ const EVENT_BOT_CAP := 16             # więcej botów - zdarzenie przepada
 const AMBUSH_TRIGGER := 60.0          # [m] gracz tak blisko - zasadzka rusza
 const BLOCK_TRIGGER := 35.0           # [m] gracz za blokadą - zajeżdżanie
 const WRONG_WARN := 600.0             # [m] zapowiedź pod prąd (>= 4 s przy 140 km/h)
+## Ile aut zdarzenie potrzebuje (miejsce robione kosztem zwykłego ruchu).
+const NEED := {3: 2, 4: 2, 5: 2, 6: 4, 7: 3}
 ## Prędkość przeszkody jako ułamek limitu (spotkanie i speed_k bota).
 const SPEED := {1: 0.6, 2: -1.0, 3: 0.0, 5: 0.6, 6: 0.75, 7: 0.5}
 
@@ -38,6 +40,11 @@ var done := {}
 var forced := {}
 var _cur_k := -1
 var _jam_k := -1
+## Waśń zdarzenia: [ga, gb, k] - wrogość cofana po wyjściu z odcinka
+## (chyba że para była wroga wcześniej; przegląd PR #90).
+var _feud_ev: Array = []
+## Boty zepchnięte na prawy pas przed kierowcą pod prąd: bot -> dawny pas.
+var _yielded := {}
 var _horn_t := 0.0
 
 
@@ -117,8 +124,10 @@ func _start(k: int, ev: int, lvl: int, start: float, end: float) -> String:
 		main._traffic.jam_to = end
 		_jam_k = k
 		return "ok (korek %.0f-%.0f m)" % [start, end]
-	if ev != 2 and main._bots.size() >= EVENT_BOT_CAP:
-		return "przepadło: limit botów"
+	if ev != 2:
+		_make_room(NEED.get(ev, 2))
+		if main._bots.size() >= EVENT_BOT_CAP:
+			return "przepadło: limit botów"
 	match ev:
 		2:
 			return _wrong_way(p, lvl)
@@ -133,6 +142,26 @@ func _start(k: int, ev: int, lvl: int, start: float, end: float) -> String:
 		7:
 			return _truck(p, lvl)
 	return "przepadło: nieznane"
+
+
+## Zdarzenie ma pierwszeństwo przed tłem: przy limicie spokojne auta
+## ruchu (nie zdarzenia, nie w szale) za graczem i poza wzrokiem wracają do
+## puli - liczba aut zostaje w limicie (budżet fizyki Questa).
+func _make_room(need: int) -> void:
+	var over: int = main._bots.size() + need - EVENT_BOT_CAP
+	if over <= 0:
+		return
+	var p: float = main._last_safe_dist
+	var cands: Array = []
+	for b in main._bots:
+		var drv: BotDriver = main._drv(b)
+		if drv.event == "" and drv.rage < 0.05 and drv.persona == "" and drv.dist < p - 50.0 \
+				and main._can_vanish(b.global_position):
+			cands.append(b)
+	cands.sort_custom(func(a, b): return main._drv(a).dist < main._drv(b).dist)
+	for i in range(mini(over, cands.size())):
+		main._bots.erase(cands[i])
+		main._retire_bot(cands[i])
 
 
 ## Miejsce przed graczem poza wzrokiem (-1 = brak: trasy jeszcze nie ma albo
@@ -155,6 +184,9 @@ func _limit(d: float) -> float:
 ## Bot zdarzenia: spawn i ustawienia kierowcy; null - nie wyszło.
 func _bot(d: float, lane: int, k_speed: float, ev_name: String) -> StuntCar:
 	var n: int = main._bots.size()
+	# Limit w pętli zdarzenia (waśń stawia kilka aut naraz; przegląd PR #90).
+	if n >= EVENT_BOT_CAP:
+		return null
 	main._spawn_bot(d, lane, _limit(d) * maxf(k_speed, 0.05))
 	if main._bots.size() == n:
 		return null
@@ -233,6 +265,8 @@ func _feud(p: float, lvl: int) -> String:
 		return ""
 	var ga: int = rng.randi() % main.GANGS
 	var gb: int = (ga + 1 + rng.randi() % (main.GANGS - 1)) % main.GANGS
+	if not main.feud.gangs_hostile(ga, gb):
+		_feud_ev.append([ga, gb, code.index_at(d)])
 	main.feud.set_hostile(ga, gb, true)
 	var n := 0
 	for i in range(1 + lvl):
@@ -267,6 +301,10 @@ func _truck(p: float, lvl: int) -> String:
 ## i daje punkty za minięcie, korek się kończy.
 func _update_active(delta: float) -> void:
 	var p: float = main._last_safe_dist
+	for fe in _feud_ev.duplicate():
+		if p > (int(fe[2]) + 1) * SegmentCode.SEG_LEN:
+			main.feud.set_hostile(int(fe[0]), int(fe[1]), false)
+			_feud_ev.erase(fe)
 	if _jam_k >= 0 and p > (_jam_k + 1) * SegmentCode.SEG_LEN + TrafficZone.BEHIND:
 		main._traffic.jam_from = INF
 		main._traffic.jam_to = -INF
@@ -299,6 +337,8 @@ func _update_active(delta: float) -> void:
 			for b in main._bots:
 				var drv: BotDriver = main._drv(b)
 				if drv.event == "" and drv.rage < 0.05 and drv.dist > p and drv.dist < o.dist:
+					if not _yielded.has(b):
+						_yielded[b] = drv.lane
 					drv.lane = 0
 		if absf(ahead) < 15.0:
 			var lat := absf((c.global_position - main.car.global_position).dot(main.car.global_basis.x)) - 1.8
@@ -306,6 +346,11 @@ func _update_active(delta: float) -> void:
 		if not o.passed and ahead < -6.0:
 			o.passed = true
 			c.set_high_beam(0.0)
+			# Zepchnięte boty wracają na swoje pasy.
+			for b in _yielded:
+				if is_instance_valid(b) and main._bots.has(b):
+					main._drv(b).lane = int(_yielded[b])
+			_yielded.clear()
 			# Bez kontaktu (odstęp boków > 5 cm; po zbliżeniu auto i tak
 			# przechodzi na fizykę - loose nie znaczy zderzenia).
 			if o.min_gap < INF and o.min_gap > 0.05:

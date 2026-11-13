@@ -160,8 +160,19 @@ func _end() -> bool:
 		var r: String = main.segments.done.get(k, "brak")
 		_check(r.begins_with("ok"), "wymuszone %s (k %d): %s" % [SegmentCode.EVENTS[i + 1], k, r])
 	_check(ambush_go, "zasadzka ruszyła")
+	_check(main.segments._feud_ev.is_empty(), "wrogość gangów z waśni zdarzenia cofnięta po odcinku")
 	_check(wrong_passed, "kierowca pod prąd minął gracza")
 	_check(max_bots <= SegmentEvents.EVENT_BOT_CAP + 4, "botów najwyżej %d (było %d)" % [SegmentEvents.EVENT_BOT_CAP + 4, max_bots])
+	# Limit w pętli: waśń przy pełnym limicie nie dokłada aut.
+	var n0: int = main._bots.size()
+	while main._bots.size() < SegmentEvents.EVENT_BOT_CAP:
+		var nb: int = main._bots.size()
+		main._spawn_bot(main._last_safe_dist + 2600.0 + nb * 40.0, 0, 100.0)
+		if main._bots.size() == nb:
+			break
+	var before: int = main._bots.size()
+	main.segments._feud(main._last_safe_dist, 3)
+	_check(main._bots.size() <= SegmentEvents.EVENT_BOT_CAP, "waśń przy limicie: %d -> %d aut (limit %d)" % [before, main._bots.size(), SegmentEvents.EVENT_BOT_CAP])
 	_check(pop_in == 0 and pop_out == 0, "w polu widzenia: pojawień %d, zniknięć %d %s" % [pop_in, pop_out, ""])
 	for line in pop_info:
 		print("    ", line)
