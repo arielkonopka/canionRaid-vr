@@ -637,7 +637,7 @@ func _physics_process(delta: float) -> void:
 	if _xr_ready:
 		_update_haptics(delta)
 	if _player_dummy:
-		_player_dummy.update(car.throttle, car.brake, delta)
+		_player_dummy.update(car.throttle, car.brake, delta, car.clutch_pedal())
 	_watch_incident(delta)
 	update_race(delta)
 	_record_replay()

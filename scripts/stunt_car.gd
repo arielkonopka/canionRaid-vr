@@ -1759,6 +1759,19 @@ func is_shifting() -> bool:
 	return _shift_timer > 0.0
 
 
+## Sprzęgło dla manekina gracza (lewa stopa): w manualu wciśnięte przy
+## zmianie biegu i przy ruszaniu, dopóki się ślizga. Automat - zawsze 0.
+func clutch_pedal() -> float:
+	if automatic:
+		return 0.0
+	if is_shifting():
+		return 1.0
+	if _launching and not _clutch_engaged:
+		# Ruszanie: puszczane w miarę zrównywania obrotów (stoi - do końca w dół).
+		return 1.0 if absf(speed) < 0.5 and throttle < 0.05 else 0.6
+	return 0.0
+
+
 ## Ręczna zmiana biegów. Kolejność: R - N - 1 - 2 ... 6.
 ## W trakcie zmiany kolejne wciśnięcie liczy się od biegu docelowego.
 func shift_up() -> void:

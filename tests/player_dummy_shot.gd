@@ -10,9 +10,13 @@ var pd: PlayerDummy
 var f := 0
 var out := "/tmp"
 var ctrl: Array[Node3D] = []
-## [nazwa, kąt kierownicy, ujęcie, gaz, hamulec]
-const SHOTS := [["fotel", 0.0, "eye", 1.0, 0.0], ["w_dol", 30.0, "down", 0.0, 1.0],
-		["bok", 0.0, "side", 1.0, 0.0], ["przod", 30.0, "front", 0.0, 1.0]]
+## [nazwa, kąt kierownicy, ujęcie, gaz, hamulec, sprzęgło]
+const SHOTS := [["fotel", 0.0, "eye", 1.0, 0.0, 0.0], ["w_dol", 30.0, "down", 0.0, 1.0, 0.0],
+		["bok", 0.0, "side", 1.0, 0.0, 0.0], ["przod", 30.0, "front", 0.0, 1.0, 0.0],
+		["sprzeglo_bok_0", 0.0, "side", 0.0, 0.0, 0.0], ["sprzeglo_bok_1", 0.0, "side", 0.0, 0.0, 1.0],
+		["sprzeglo_dol_0", 0.0, "down", 0.0, 0.0, 0.0], ["sprzeglo_dol_1", 0.0, "down", 0.0, 0.0, 1.0],
+		["sprzeglo_nogi_0", 0.0, "feet", 0.0, 0.0, 0.0], ["sprzeglo_nogi_1", 0.0, "feet", 0.0, 0.0, 1.0],
+		["hamulec_nogi", 0.0, "feet", 0.0, 1.0, 0.0]]
 
 
 func _initialize() -> void:
@@ -64,7 +68,7 @@ func _process(d: float) -> bool:
 		var y := ax
 		var x := y.cross(z).normalized()
 		ctrl[k].global_transform = Transform3D(Basis(x, y, z), c + rr * side * 0.19)
-	pd.update(float(sh[3]), float(sh[4]), 1.0)
+	pd.update(float(sh[3]), float(sh[4]), 1.0, float(sh[5]))
 	var eye: Vector3 = car.seat.global_position
 	var b: Basis = car.global_basis
 	cam.current = true
@@ -78,6 +82,10 @@ func _process(d: float) -> bool:
 		"side":
 			cam.global_position = eye + b.x * -1.6 + b.y * 0.1 + b.z * 0.2
 			cam.look_at(eye - b.y * 0.45, b.y)
+		"feet":
+			# Od strony pasażera, na wysokości kolan - stopy przy pedałach.
+			cam.global_position = eye + b.x * 0.75 - b.y * 0.55 - b.z * 0.15
+			cam.look_at(eye - b.y * 0.85 - b.z * 0.7, b.y)
 		"front":
 			cam.global_position = eye - b.z * 1.2 + b.y * 0.1 + b.x * -0.2
 			cam.look_at(eye - b.y * 0.4, b.y)
