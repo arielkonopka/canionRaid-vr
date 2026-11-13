@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (2026-11-13), w toku - etap 1
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-13-plan-urozmaicen.md)
 Decyzje użytkownika: 2026-11-11 - kod odcinka ukryty przed graczem (tylko

@@ -2520,13 +2520,13 @@ func _cinematic(delta: float) -> void:
 const REPLAY_REASONS := ["auto rozbite", "auto na dachu", "upadek"]
 const REPLAY_FADE := 0.2              # [s] ściemnienie przed i rozjaśnienie po przejściu
 const REPLAY_BACK := 8.0              # [m] kamera za autem (wzdłuż trasy)
-const REPLAY_UP := 4.0                # [m] nad jezdnią
-const REPLAY_ABOVE_CAR := 2.5         # [m] co najmniej nad autem
+const REPLAY_UP := 5.5                # [m] nad jezdnią (użytkownik 2026-11-13: "nieco wyżej"; było 4)
+const REPLAY_ABOVE_CAR := 3.5         # [m] co najmniej nad autem
 const REPLAY_TUNNEL_BACK := 6.0       # [m] za autem pod stropem
 const REPLAY_CEIL_GAP := 0.6          # [m] kamera pod stropem
 const REPLAY_SPRING := 0.4            # [s] czas reakcji sprężyny kamery
 const REPLAY_YAW_T := 0.5             # [s] wygładzenie kierunku trasy
-const REPLAY_PITCH := 25.0            # [°] w dół, tylko bez gogli
+const REPLAY_PITCH := 32.0            # [°] w dół, tylko bez gogli
 const REPLAY_OTHERS_R := 120.0        # [m] boty w zapisie
 const REPLAY_SKIP_DELAY := 0.8        # [s] po ściemnieniu - wcześniej spust nie pomija
 var _rec := ReplayRecorder.new()

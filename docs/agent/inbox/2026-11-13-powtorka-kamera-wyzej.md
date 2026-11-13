@@ -1,4 +1,4 @@
-Status: nowe
+Status: zrobione (2026-11-13)
 Od: wątek w chmurze "Dodaj powtórkę wypadku z kamery obserwatora"
 Decyzje użytkownika (2026-11-13 19:43 UTC, dosłownie): "powtorka wyszla
 nieźle, kamera może być nieco wyżej, ale poza tym świetnie".
@@ -28,4 +28,15 @@ wychodzi za małe albo za nisko w kadrze - wybierz 5,0 m i napisz tu.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+Zrobione (2026-11-13):
+
+- Wartości jak w propozycji: `REPLAY_UP` 5,5, `REPLAY_ABOVE_CAR` 3,5,
+  `REPLAY_PITCH` 32°. W zrzutach auto jest duże i w środku kadru,
+  więc zostaje 5,5 m.
+- Promień do stropu tunelu sięga `REPLAY_UP + 3` = 8,5 m nad auto.
+  To więcej niż poprzednio, więc nadal dosięga stropu.
+- `replay_play_test` OK.
+- Zrzuty: `renders/2026-11-13-powtorka-wyzej/`.
+- Ustalenie przeniesione w HANDOVER do sekcji 2.
+- Nowy build nie trafił jeszcze na gogle, bo użytkownik musiał je
+  odłączyć. Wgram go przy następnym podłączeniu.

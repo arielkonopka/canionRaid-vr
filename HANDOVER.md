@@ -1497,7 +1497,11 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   wzdłuż trasy, 4 m nad jezdnią, min. 2,5 m nad autem, pod stropem tunelu
   6 m za autem (promień w górę); sprężyna krytyczna 0,4 s **z prędkością
   celu** - bez niej kamera wisiała 2v/ω ~ 22 m za autem przy 100 km/h.
-  W goglach tylko obrót w poziomie, na PC 25° w dół. Obrót kół: `lerp_angle`
+  W goglach tylko obrót w poziomie, na PC 32° w dół. Kamera 5,5 m nad
+  jezdnią, min. 3,5 m nad autem (użytkownik 2026-11-13 po jeździe:
+  "powtórka wyszła nieźle, kamera może być nieco wyżej, ale poza tym
+  świetnie" - było 4 / 2,5; odległość, okno, zwolnienie i napis
+  zaakceptowane). Obrót kół: `lerp_angle`
   (zawinięty do ±π), powyżej 40 m/s z drogi auta (zapis 60 Hz aliasuje).
   Spust/B pomija dopiero po 0,8 s od ściemnienia (gaz na spuście po
   uderzeniu). Auta, które przed śmiercią wróciły do puli, nie ruszane. Manekin gracza:
@@ -2622,9 +2626,8 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    wektorowo albo w GDExtension, jeśli GDScript okaże się za wolny.
    Elektryk: wysoki ton falownika zamiast silnika spalinowego.
 
-6. **Powtórka wypadku - dalej** (podstawa jest, sekcja 5): ocena
-   w goglach (choroba lokomocyjna przy kamerze obserwatora? tempo
-   zwolnienia?), dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
+6. **Powtórka wypadku - dalej** (oceniona przez użytkownika, sekcja 5):
+   dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
    zapisane są `engine_rpm` i gaz), sprzęgło w zapisie (lewa noga).
 
 7. **Skutki uszkodzeń dla jazdy** (wgniecenia wizualne już są, sekcja 5):
