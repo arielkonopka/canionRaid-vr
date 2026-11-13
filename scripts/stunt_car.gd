@@ -609,6 +609,40 @@ func set_rage_lights(t: float) -> void:
 		m.emission_energy_multiplier = 0.6 + 3.0 * t
 
 
+## Długie światła (bot ekstremista mruga nimi na auta przed sobą): biała,
+## mocna emisja przednich lamp (0..1). Za dnia sama emisja słabo widać -
+## do tego "gwiazdki" (BEAM_STAR) - małe, nieoświetlane quady, tanie na Queście.
+var _beam_stars: Array[MeshInstance3D] = []
+func set_high_beam(t: float) -> void:
+	var g: Dictionary = _dent_groups.get("head", {})
+	for m in [g.get("mat"), _style_head]:
+		if m == null:
+			continue
+		m.emission = Color(1.0, 0.95, 0.85)
+		m.emission_energy_multiplier = 0.6 + 5.4 * t
+	if _beam_stars.is_empty() and t > 0.0:
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.albedo_color = Color(1.0, 0.97, 0.85, 1.0)
+		var q := QuadMesh.new()
+		q.size = Vector2(0.9, 0.9)
+		q.material = mat
+		var hw := (wheels[0].mount.x - wheels[1].mount.x) * 0.5 if wheels.size() > 1 else 0.7
+		var zf := float(_sedan.get("mounts", [Vector3(0, 0, -1.3)])[0].z) - 1.0 if not _sedan.is_empty() else -2.3
+		for sx in [-1.0, 1.0]:
+			var mi := MeshInstance3D.new()
+			mi.mesh = q
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.position = Vector3(sx * absf(hw) * 0.8, 0.1, zf)
+			add_child(mi)
+			_beam_stars.append(mi)
+	for mi in _beam_stars:
+		mi.visible = t > 0.0
+
+
 ## Ustawia rodzaj napędu i moc maksymalną [kW]. Krzywa momentu jest
 ## przeskalowana tak, żeby jej szczyt mocy P = T·ω wynosił dokładnie power_kw.
 func apply_engine(type_name: String, power_kw: float) -> void:

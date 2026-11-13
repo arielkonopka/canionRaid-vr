@@ -1142,7 +1142,7 @@ func _update_bot_lod(delta: float) -> void:
 	for b in _bots:
 		var drv: BotDriver = _drv(b)
 		dists.append(absf(drv.dist - _last_safe_dist))
-		raging.append(drv.has_token)
+		raging.append(drv.has_token or drv.persona == "extremist")
 	if _lod_prev.size() != _bots.size():
 		_lod_prev = PackedInt32Array()
 	var lv := BotLod.assign(dists, raging, _lod_prev, BOT_PHYS_BUDGET)
@@ -1155,8 +1155,72 @@ func _update_bot_lod(delta: float) -> void:
 	_feud_scan()
 
 
+## Bot "ekstremista" (inbox bot-ekstremista): co km losowanie
+## (ExtremistBrain.spawn_chance_per_km), pojawia się 350-500 m za graczem
+## poza wzrokiem, lewym pasem ~200 km/h; najwyżej jeden. Punkty: wyprzedził
+## bez kontaktu - za odstęp boków; rozbity w 10 s od kontaktu z graczem - 500.
+var _extremist: StuntCar
+var _x_km := 3
+var _x_contact_t := -1e9
+var _x_min_gap := INF
+var _x_behind := true
+var _x_passes := 0
+func _update_extremist() -> void:
+	if not (_endless and track.autostrada) or race_state != Race.RACING:
+		return
+	if _extremist and not (is_instance_valid(_extremist) and _bots.has(_extremist)):
+		_extremist = null
+	if _extremist == null:
+		var km := int(_last_safe_dist / 1000.0)
+		if km > _x_km:
+			_x_km = km
+			if _bot_rng.randf() < ExtremistBrain.spawn_chance_per_km(float(km)):
+				_spawn_extremist()
+		return
+	var drv: BotDriver = _drv(_extremist)
+	var s := drv.dist - _last_safe_dist
+	# Okno 15 m: przy różnicy ~150 km/h i sterowaniu 30 Hz (LOD MID) bot
+	# przeskakiwał wąskie okno i premia przepadała.
+	if absf(s) < 15.0:
+		var lat := absf((_extremist.global_position - car.global_position).dot(car.global_basis.x)) - 1.8
+		_x_min_gap = minf(_x_min_gap, maxf(lat, 0.0))
+	if _x_behind and s > 6.0:
+		_x_behind = false
+		if race_time - _x_contact_t > 10.0 and _x_min_gap < INF:
+			var pts := ExtremistBrain.pass_points(_x_min_gap)
+			_score_pay(score.award_free("extremist_pass", pts, race_time, "PRZEPUŚCIŁEŚ EKSTREMISTĘ"))
+			_x_passes += 1
+	if s > 800.0 and _can_vanish(_extremist.global_position):
+		_bots.erase(_extremist)
+		_retire_bot(_extremist)
+		_extremist = null
+
+
+func _spawn_extremist() -> void:
+	var d := _last_safe_dist - _bot_rng.randf_range(350.0, 500.0)
+	var xf: Transform3D = track.transform_at_distance(d)
+	if not _can_vanish(xf.origin + xf.basis.x * hwy_lane_off(1)):
+		return
+	var n := _bots.size()
+	_spawn_bot(d, 1, 200.0)
+	if _bots.size() == n:
+		return
+	var b: StuntCar = _bots[-1]
+	var drv: BotDriver = _drv(b)
+	drv.persona = "extremist"
+	drv.brain = ExtremistBrain.new()
+	feud.remove_bot(b.get_instance_id(), race_time, false)   # nie należy do gangów
+	b.apply_engine("petrol", ExtremistBrain.engine_kw(car.engine_power_kw))
+	_extremist = b
+	_x_contact_t = -1e9
+	_x_min_gap = INF
+	_x_behind = true
+	print("EKSTREMISTA: pojawia się %.0f m za graczem" % (_last_safe_dist - d))
+
+
 func _update_bots(delta: float) -> void:
 	_update_bot_lod(delta)
+	_update_extremist()
 	var hwy: bool = _endless and track.autostrada
 	if hwy:
 		_update_traffic(delta)
@@ -1185,6 +1249,8 @@ func _update_bots(delta: float) -> void:
 				var fell_out: bool = b.global_position.y < -50.0
 				score_chase_close(b, "wreck" if dead and not fell_out else "lost")
 			if dead:
+				if b == _extremist and race_time - _x_contact_t < 10.0:
+					_score_pay(score.award_free("extremist_wreck", 500, race_time, "EKSTREMISTA ROZBITY"))
 				_explode(b)
 			_bots.erase(b)
 			_retire_bot(b, dead)
@@ -2324,6 +2390,8 @@ func _safe_pose(d: float) -> Transform3D:
 ## Potrącenie innego auta: -20 s od czasu (raz na zderzenie). Kusi - ale
 ## bot wpada w szał, oszukuje (mocniejszy silnik), goni i taranuje.
 func _on_player_hit(body: Node) -> void:
+	if body == _extremist:
+		_x_contact_t = race_time
 	# Najpierw typ: "in" na tablicy typowanej zgłasza błąd dla ściany (StaticBody3D).
 	if not (body is StuntCar and body in _bots) or race_state != Race.RACING:
 		return
@@ -2969,7 +3037,8 @@ func _update_traffic(delta: float) -> void:
 	for b in _bots:
 		var drv: BotDriver = _drv(b)
 		cars.append({"id": b.get_instance_id(), "dist": drv.dist, "lane": drv.lane, "oncoming": false,
-				"raging": drv.rage > 0.05, "visible": TrafficZone.visible(head, hf, cf, b.global_position)})
+				"raging": drv.rage > 0.05 or drv.persona == "extremist",
+				"visible": TrafficZone.visible(head, hf, cf, b.global_position)})
 	for o in _oncoming:
 		var oc: StuntCar = o.car
 		cars.append({"id": oc.get_instance_id(), "dist": o.dist, "lane": int(o.lane), "oncoming": true,
