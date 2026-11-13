@@ -2847,15 +2847,20 @@ func _recompute_normals(g: Dictionary) -> void:
 ## "dziwnych wypadków" - linia INCYDENT w logu xr_main): impuls [N·s],
 ## czas, ścieżka obiektu, punkt w układzie auta.
 var last_hit := {}
+## Najmocniejszy impuls nadwozia [N·s] z ostatniego kroku fizyki (z CCD
+## włącznie) - kluczowa chwila powtórki wypadku (ReplayRecorder).
+var hit_j := 0.0
 
 
 ## Odczyt kontaktów nadwozia z silnika fizyki. Impuls działa na auto, więc
 ## jego kierunek wskazuje w głąb karoserii - w tę stronę idzie wgniecenie.
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var inv := state.transform.affine_inverse()
+	hit_j = 0.0
 	for i in range(state.get_contact_count()):
 		var imp := state.get_contact_impulse(i)
 		var j := imp.length()
+		hit_j = maxf(hit_j, j)
 		if j > last_hit.get("j", 0.0) or Time.get_ticks_msec() - int(last_hit.get("ms", 0)) > 1000:
 			if j > 200.0:
 				var o := state.get_contact_collider_object(i)
@@ -2927,6 +2932,7 @@ func _ccd_impact(state: PhysicsDirectBodyState3D, inv: Transform3D) -> void:
 	var k := maxf(maxf(absf(out.x) / half.x, absf(out.y) / maxf(half.y, 0.01)), absf(out.z) / half.z)
 	var p := out / maxf(k, 1e-3) + _body_shape.position
 	last_hit = {"j": j, "ms": Time.get_ticks_msec(), "what": "CCD", "at": p}
+	hit_j = maxf(hit_j, j)
 	_dent_queue.append([p, d_in, (j - dent_threshold) * dent_per_impulse])
 	# Jedno uderzenie liczy się do pułapu powagi 1,5 (_damage_impact) -
 	# całe Δv naraz to jedno wielkie uderzenie, więc dzielimy je na części,

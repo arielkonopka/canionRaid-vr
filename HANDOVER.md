@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-11, sesja 8 (model auta z fabrycznym silnikiem, opcja Cienie, koniec trasy - siatka bezpieczeństwa, autopilot testów)
+Ostatnia aktualizacja: 2026-11-13, sesja 8 - noc (powtórka wypadku, poprawka puli po ekstremiście)
 
 ---
 
@@ -1482,6 +1482,26 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Poziomy (z `audio_demo`): wolne obroty ~-23 dB, gaz ~-16 dB, elektryk
   ~10 dB ciszej, łupnięcie ~-10 dB, bez przesteru. Słychać też na ekranie
   tytułowym (auto stoi na wolnych obrotach).
+- **Powtórka wypadku** (inbox `2026-11-12-powtorka-wypadku`, opcja
+  "Powtórka wypadku" w menu Trasa, domyślnie wł.): `ReplayRecorder`
+  (bufory kołowe przydzielone raz; gracz 60 Hz, do 8 aut w 120 m 30 Hz)
+  zapisuje w `_record_replay` (krok fizyki, tylko RACING w DRIVE).
+  Impuls uderzenia zbierany jako maksimum między klatkami zapisu
+  (`_rec_hit`): zapis idzie co drugi krok fizyki, pojedynczy krok
+  z uderzeniem przepadał i kluczowa chwila spadała na zapasową. Zgon
+  "auto rozbite" / "auto na dachu" / "upadek" -> `Race.REPLAY`:
+  ściemnienie 0,2 s, auto zamrożone i ustawiane z zapisu w
+  `_replay_physics` (krok fizyki - płynne przy interpolacji), boty
+  `PROCESS_MODE_DISABLED` (wyjęte z fizyki), po powtórce wracają z tymi
+  samymi prędkościami. Kamera obserwatora (`_replay_camera`): 8 m za autem
+  wzdłuż trasy, 4 m nad jezdnią, min. 2,5 m nad autem, pod stropem tunelu
+  6 m za autem (promień w górę); sprężyna krytyczna 0,4 s **z prędkością
+  celu** - bez niej kamera wisiała 2v/ω ~ 22 m za autem przy 100 km/h.
+  W goglach tylko obrót w poziomie, na PC 25° w dół. Manekin gracza:
+  `PlayerDummy.set_replay` (głowa i dłonie widoczne, ręce z zapisu
+  kontrolerów). Spust/B pomija. Potem `_begin_explosion(reason, true)` -
+  wybuch na żywo z miejsca kamery. "nowe auto", paliwo, utknięcie - bez
+  powtórki. Przesunięcie świata: `_rec.shift`, w powtórce wstrzymane.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały
@@ -2224,6 +2244,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - Ustalenie: pytania i decyzje najpierw przez chmurę (sekcja 2);
   outbox `2026-11-11-model-fabryczny-i-gpu.md`.
 
+- **Powtórka wypadku (2026-11-13, inbox powtorka-wypadku)**: opis
+  w sekcji 5 (Scena jazdy). Testy `replay_recorder_test`,
+  `replay_play_test` (w `quest.sh test`), zrzuty `tests/replay_shot.gd`
+  -> `renders/2026-11-13-powtorka/`. Pełny `./quest.sh test` OK,
+  `drive_test` soft 24.00/24.05, sport 24.06/24.07, stiff 24.10/24.17
+  (auto/manual) - bez zmian.
+- **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
+  250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
+  z `_make_head_mat`. Sprawdzane w `extremist_play_test`.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -2540,10 +2570,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    wektorowo albo w GDExtension, jeśli GDScript okaże się za wolny.
    Elektryk: wysoki ton falownika zamiast silnika spalinowego.
 
-6. **Powtórki** - użytkownik o nich wspomniał ("ewentualnie na
-   powtórkach, o których jeszcze nie rozmawialiśmy"). Nie ustalono nic.
-   Naturalny sposób: nagrywanie transformacji auta i stanu kół co klatkę
-   fizyki, odtwarzanie z kamer zewnętrznych.
+6. **Powtórka wypadku - dalej** (podstawa jest, sekcja 5): ocena
+   w goglach (choroba lokomocyjna przy kamerze obserwatora? tempo
+   zwolnienia?), dźwięk w powtórce (dziś silnik stoi na wolnych obrotach,
+   zapisane są `engine_rpm` i gaz), lewa noga na sprzęgle w zapisie.
 
 7. **Skutki uszkodzeń dla jazdy** (wgniecenia wizualne już są, sekcja 5):
    krzywe zawieszenie po twardym lądowaniu ściąga auto (z `landed`

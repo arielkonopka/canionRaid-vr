@@ -1,4 +1,4 @@
-Status: przyjęte (kolejka: po ekstremiście)
+Status: zrobione (2026-11-13), do oceny w goglach
 Od: wątek w chmurze "Dodaj powtórkę wypadku z kamery obserwatora"
 Decyzje użytkownika (2026-11-12 19:08, dosłownie): "jeśli gracz zginął
 w wypadku, to robimy powtórzone ujęcie, z tym, że gracz jest obserwatorem
@@ -158,4 +158,36 @@ i miejsce zwolnienia, czy napis "● POWTÓRKA" nie przeszkadza.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+Zrobione (2026-11-13), wg specyfikacji, z tymi uwagami:
+
+- `scripts/replay_recorder.gd` (`ReplayRecorder`): bufory przydzielone
+  raz, gracz 40 liczb na klatkę (bez osobnego "gazu do dźwięku" -
+  to ten sam gaz), do 8 aut po 8 liczb. Tempo: `speed_at` / `advance`
+  (0,35x od klucza -0,5 s do +1,0 s, rampy 0,2 s). Kluczowa chwila:
+  najmocniejszy impuls > 2000 N·s, potem ostatnie oderwanie wszystkich
+  kół, a bez obu - sekunda przed końcem.
+- **Pułapka**: zapis co 1/60 s w czasie gry wypada co drugi krok fizyki,
+  więc pojedynczy krok z uderzeniem przepadał i klucz spadał na zapasowy.
+  `xr_main._rec_hit` zbiera maksimum impulsu między klatkami zapisu.
+  `StuntCar.hit_j` to najmocniejszy impuls bieżącego kroku (także z CCD).
+  Przy tempie gry 110% okno ma ~6,6 s (362 klatki po 1/60 s czasu gry).
+- Kamera: sprężyna 0,4 s **z prędkością celu**. Sama sprężyna wisiała
+  2v/ω ≈ 22 m za autem przy 100 km/h (pierwszy zrzut: auto daleko
+  w kadrze). Tunel: promień w górę od auta, kamera 0,6 m pod
+  trafieniem i 6 m za autem. Na PC pochylenie 25°, w goglach sam yaw.
+- Auto i boty ustawiane w kroku fizyki (`_replay_physics`), kamera
+  w `_process`; ściemnienie 0,2 s to czarny quad przed kamerą. Boty
+  nieobecne w danej chwili zapisu są ukryte, a na końcu wraca ich
+  widoczność, tryb procesu i prędkości.
+- Manekin: `PlayerDummy.set_replay(on)` pokazuje głowę i dłonie tułowia,
+  ręce idą z zapisanych kontrolerów (`replay_hands`).
+- Opcja "Powtórka wypadku" w grupie Trasa (wł./wył., na żywo).
+- Nie zrobione (etap 2): dźwięk w powtórce (silnik stoi na wolnych
+  obrotach; obroty są w zapisie) i obracanie kół botów z prędkości.
+- Testy: `replay_recorder_test` 11/11, `replay_play_test` 12/12
+  (REPLAY 9,1 s -> EXPLODING -> RACING, boty wyłączone i z powrotem,
+  wybuch w miejscu śmierci, "nowe auto" bez powtórki, spust pomija po
+  0,61 s). Oba w `quest.sh test`; pełny zestaw OK. `drive_test` dla
+  wszystkich zawieszeń i skrzyń bez zmian (24.00-24.17).
+- Zrzuty: `tests/replay_shot.gd` -> `renders/2026-11-13-powtorka/`
+  (przed, uderzenie w zwolnieniu, po, wybuch; OPIS.md).

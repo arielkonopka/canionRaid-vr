@@ -28,6 +28,9 @@ var _thigh_rest: Quaternion
 var _foot_rest: Quaternion
 var _press := 0.0
 var _brake_side := 0.0
+## Powtórka wypadku: kontrolery z zapisu (w układzie auta), a nie z rąk
+## gracza - ten stoi wtedy obok jako obserwator.
+var replay_hands: Array[Transform3D] = []
 
 
 static func available() -> bool:
@@ -78,6 +81,20 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 		_foot_rest = skel.get_bone_pose_rotation(_foot_r)
 
 
+## Powtórka wypadku: widać głowę i dłonie tułowia (kamera jest poza autem,
+## dłonie kontrolerów są wtedy przy obserwatorze). Pozy kontrolerów w układzie
+## auta: replay_hands (dwie) albo [] = z rąk gracza.
+func set_replay(on: bool) -> void:
+	if skel == null:
+		return
+	for b in ["head", "hand.L", "hand.R"]:
+		var i := skel.find_bone(b)
+		if i >= 0:
+			skel.set_bone_pose_scale(i, Vector3.ONE * (1.0 if on else 0.001))
+	if not on:
+		replay_hands.clear()
+
+
 func update(throttle: float, brake: float, delta: float) -> void:
 	if skel == null:
 		return
@@ -88,8 +105,11 @@ func update(throttle: float, brake: float, delta: float) -> void:
 		var c := _ctrl[k]
 		if c == null:
 			continue
+		var cxf := c.global_transform
+		if replay_hands.size() == 2 and car:
+			cxf = car.global_transform * replay_hands[k]
 		# Cel IK: nadgarstek za środkiem dłoni kontrolera.
-		var wrist := c.global_transform * Vector3(0.0, 0.0, WRIST_BACK)
+		var wrist := cxf * Vector3(0.0, 0.0, WRIST_BACK)
 		_targets[k].global_position = wrist
 		# Łokieć w dół i na zewnątrz (strona ręki) - biegun pod barkiem.
 		var side := -1.0 if k == 0 else 1.0
