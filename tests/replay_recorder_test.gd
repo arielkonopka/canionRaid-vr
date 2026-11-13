@@ -71,6 +71,16 @@ func _initialize() -> void:
 	_check(mono, "tempo monotoniczne")
 	_check(absf(min_s - ReplayRecorder.SLOW) < 1e-6, "zwolnienie do %.2f" % min_s)
 	_check(play > 6.0 and play < 10.0, "powtórka 6 s okna trwa %.1f s" % play)
+	# Obrót koła przez ±π: interpolacja krótszą drogą, bez cofania o obrót.
+	var r4 := ReplayRecorder.new()
+	var fa := _frame(0.0)
+	var fb := _frame(1.0)
+	fa[ReplayRecorder.I_WHEELS + 1] = 3.0
+	fb[ReplayRecorder.I_WHEELS + 1] = -3.0
+	r4.push(0.0, fa)
+	r4.push(1.0 / 60.0, fb)
+	var sp: float = r4.player_at(0.5 / 60.0)[ReplayRecorder.I_WHEELS + 1]
+	_check(absf(absf(sp) - PI) < 0.01, "obrót koła przez ±π (%.3f)" % sp)
 	# Inne auta.
 	var r3 := ReplayRecorder.new()
 	for i in range(10):

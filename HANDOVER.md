@@ -1497,7 +1497,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   wzdłuż trasy, 4 m nad jezdnią, min. 2,5 m nad autem, pod stropem tunelu
   6 m za autem (promień w górę); sprężyna krytyczna 0,4 s **z prędkością
   celu** - bez niej kamera wisiała 2v/ω ~ 22 m za autem przy 100 km/h.
-  W goglach tylko obrót w poziomie, na PC 25° w dół. Manekin gracza:
+  W goglach tylko obrót w poziomie, na PC 25° w dół. Obrót kół: `lerp_angle`
+  (zawinięty do ±π), powyżej 40 m/s z drogi auta (zapis 60 Hz aliasuje).
+  Spust/B pomija dopiero po 0,8 s od ściemnienia (gaz na spuście po
+  uderzeniu). Auta, które przed śmiercią wróciły do puli, nie ruszane. Manekin gracza:
   `PlayerDummy.set_replay` (głowa i dłonie widoczne, ręce z zapisu
   kontrolerów). Spust/B pomija. Potem `_begin_explosion(reason, true)` -
   wybuch na żywo z miejsca kamery. "nowe auto", paliwo, utknięcie - bez
@@ -2249,7 +2252,8 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   `replay_play_test` (w `quest.sh test`), zrzuty `tests/replay_shot.gd`
   -> `renders/2026-11-13-powtorka/`. Pełny `./quest.sh test` OK,
   `drive_test` soft 24.00/24.05, sport 24.06/24.07, stiff 24.10/24.17
-  (auto/manual) - bez zmian.
+  (auto/manual) - bez zmian. Po przeglądzie PR #84 (koła, opóźnienie
+  pominięcia, auta z puli) - znów pełny zestaw OK, `drive_test` te same czasy.
 - **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.

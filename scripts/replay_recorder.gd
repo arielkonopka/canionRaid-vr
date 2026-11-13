@@ -133,6 +133,11 @@ func player_at(t: float) -> PackedFloat32Array:
 	var w: float = ab[2]
 	for k in range(P_STRIDE):
 		out[k] = lerpf(_p[a * P_STRIDE + k], _p[b * P_STRIDE + k], w)
+	# Obrót kół zawinięty do [-π, π] - lerpf przez ±π cofałby koło o prawie
+	# pełny obrót (przegląd PR #84).
+	for i in range(4):
+		var k := I_WHEELS + i * 3 + 1
+		out[k] = lerp_angle(_p[a * P_STRIDE + k], _p[b * P_STRIDE + k], w)
 	for qi in [3, I_CTRL_L + 3, I_CTRL_R + 3]:
 		var q := _quat(_p, a * P_STRIDE + qi).slerp(_quat(_p, b * P_STRIDE + qi), w)
 		out[qi] = q.x
