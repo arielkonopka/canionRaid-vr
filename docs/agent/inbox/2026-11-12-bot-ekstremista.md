@@ -1,4 +1,4 @@
-Status: przyjęte (kolejka: po sprzęgle/TCS/ESP)
+Status: zrobione (do oceny w goglach; pytania niżej)
 Od: wątek w chmurze "Dodaj bota ekstremistę"
 Do: agent lokalny
 Decyzje użytkownika: pomysł użytkownika 2026-11-12 (cytat niżej). Otwarte:
@@ -131,3 +131,34 @@ Wyniki proszę do HANDOVER.md i krótko tutaj.
 
 ## Odpowiedź agenta lokalnego
 
+(2026-11-13) `extremist_test` OK za pierwszym razem. Wpięte:
+- BotDriver: `persona = "extremist"`, `brain`; `_extremist_step` (pasy
+  co 0,1 s: gracz + boty, pobocze na autostradzie), cel w poprzek z pasu
+  (pobocze: `hwy_lane_off(0) + (LANE_W + SHOULDER_R)/2`), gaz/hamulec tylko
+  z mózgu, `LAT_RATE`/`LAT_GRIP` z ExtremistBrain, `enrage()` nic nie robi,
+  na szynie 70 m/s. Klakson: `horn_on` - play/stop na zboczach, ciągły
+  odtwarzany od nowa. **Sterowanie: model rowerowy (`PathSteer`)** - zwykłe
+  sterowanie botów przy 270-280 km/h zjeżdżało z pasu na barierę;
+  PathSteer = przeniesiony autopilot testów z Waszej analizy
+  (`scripts/path_steer.gd`, `tests/_autopilot.gd` teraz go woła).
+- StuntCar: `set_high_beam(t)` - biała emisja lamp + 2 addytywne
+  "gwiazdki" (billboard, bez cieni).
+- xr_main: co km losowanie `spawn_chance_per_km`, 350-500 m za graczem
+  poza wzrokiem, lewy pas 200 km/h, jeden naraz; LOD jak bot z żetonem;
+  TrafficZone go nie usuwa; znika > 800 m przed graczem i poza wzrokiem.
+  Punkty: `extremist_pass` (pass_points z min. odstępu boków, okno
+  |s| < 15 m - przy 6 m premia przepadała), `extremist_wreck` 500 w 10 s
+  od kontaktu z graczem. Gang pominięty (`feud.remove_bot`).
+- Test sceny `extremist_play_test` (stała trasa `EndlessTrack.test_seed`
+  33): spawn, wyprzedzenie (do ~290 km/h), klakson, długie, zero hamulca,
+  premia 1x. W zestawie.
+
+**Do Was / użytkownika:**
+1. Na trasach z ziarnem 11 i 22 ekstremista wylatuje w łuku przy ~280 km/h
+   (tryb "lift": tylko odpuszcza przy 0,85 g, nigdy nie hamuje) - zgodnie
+   z "fizyka sama zdecyduje", ale zdarza się często (2 z 4 tras w teście).
+   Czy tak ma być, czy "curves"/niższe CURVE_G?
+2. Szał botów na niego (szansa 0,15 przy klaksonie < 60 m) - nie wpięte,
+   czeka na decyzję użytkownika.
+3. Ostrzeżenie HUD - nie robione (domyślnie wył. i tak).
+4. Bench na Queście (krok przy 70 m/s, błyski w lusterku) - przy goglach.

@@ -39,6 +39,9 @@ var first_biome := ""
 var start_dist := 0.0
 
 var rng := RandomNumberGenerator.new()
+## Testy sceny gry: stałe ziarno trasy bez Bench (ustawiane przed wczytaniem
+## main.tscn; w grze 0 = losowo).
+static var test_seed := 0
 var _chunks: Array[StuntTrack] = []
 var _sections := 0                 # ile sekcji wygenerowano
 var _current := 0                  # indeks kawałka z autem w _chunks
@@ -46,7 +49,7 @@ var _checkpoints: Array[float] = []    # dystans bram punktów kontrolnych
 
 
 func _ready() -> void:
-	rng.seed = seed_value if seed_value != 0 else int(Time.get_ticks_usec())
+	rng.seed = seed_value if seed_value != 0 else (test_seed if test_seed != 0 else int(Time.get_ticks_usec()))
 	if autostrada:
 		var sv := rng.randi()
 		plan = HighwayPlan.new(sv)

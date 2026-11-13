@@ -891,6 +891,8 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 | `docs/PERF_PRZEGLAD_2026-11-11.md` | przegląd wydajności: pomiar na Queście, zrobione, propozycje, powielenia (DRY) |
 | `tools/bench_quest.sh` | pomiar na goglach (scenariusze S1-S4, A/B z wyłączaniem elementów) |
 | `models/dummy/` + `tools/prepare_dummy.py` | manekin crash-test (CC0) w pozie siedzącej, OBJ z Blendera; w autach botów (`StuntCar._update_dummy`) |
+| `scripts/path_steer.gd` | `PathSteer`: prowadzenie po torze z modelu rowerowego (autopilot testów, bot ekstremista) |
+| `scripts/extremist_brain.gd` | `ExtremistBrain` (chmura): decyzje bota ekstremisty |
 | `scripts/haptics.gd` | `Haptics`: wibracje kontrolerów (logika impulsów; wysyłka w xr_main) |
 | `scripts/player_dummy.gd` | `PlayerDummy`: gracz jako manekin (szkielet, IK ramion, stopa na pedałach) |
 | `scripts/air_wheel.gd` | `AirWheel`: kierownica w powietrzu (kąt z rąk, przyrostowo), test `air_wheel_test` / `air_wheel_scene_test` |
@@ -2113,6 +2115,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   i nadpisuje car_styles.gd). Rendery `docs/renders/kabriolet_szyba_*`.
   **Pułapka**: `tests/dummy_shot.gd` w nocy (ekran zablokowany?) zapisywał
   8 razy tę samą klatkę, `screenshot.gd` działał - zrzuty z Blendera.
+- **Bot "ekstremista" (pomysł użytkownika 2026-11-12, inbox
+  bot-ekstremista)**: jedzie maksymalnie (silnik >= 450 kW i 1,3x gracz),
+  trąbi, mruga długimi, nie hamuje przed autami, zmienia pas po TTC,
+  w ostateczności pobocze albo taran; w łukach tryb "lift" (do decyzji
+  użytkownika). `ExtremistBrain` (chmura) + `BotDriver._extremist_step`,
+  `StuntCar.set_high_beam`, `xr_main._update_extremist/_spawn_extremist`
+  (od 3 km, za graczem, jeden naraz), premie za przepuszczenie i rozbicie.
+  Sterowanie przy 250-300 km/h: `PathSteer` (model rowerowy, wspólny
+  z autopilotem testów). Testy `extremist_test`, `extremist_play_test`
+  (`EndlessTrack.test_seed` - stała trasa w teście sceny).
 - **Sprzęgło przy ruszaniu, TCS_GAIN, odcięcie napędu ESP (PR #35 chmury,
   scalony 2026-11-13)**: `drive_test` szybciej (24.00-24.17 zamiast
   24.12-24.29), ESP przy 300 km/h i limicie 6° mniej znoszenia (7,1°

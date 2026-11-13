@@ -90,6 +90,16 @@ var track
 var main                               # scena jazdy (player_compliant(), lane info)
 var dist := 0.0                        # dystans bota na trasie
 var rage := 0.0                        # 0 = spokój, 1 = pełny szał
+## Bot "ekstremista" (pomysł użytkownika 2026-11-12, inbox bot-ekstremista):
+## jedzie maksymalną prędkością, trąbi i mruga długimi, nie zwalnia przed
+## autami. Logika w ExtremistBrain; tu tylko wejścia i wyjścia.
+var persona := ""
+var brain: ExtremistBrain
+var _x_lanes_t := 0.0
+var _x_ctx := {}
+var _x_out := {}
+var _x_horn := false
+const EXTREMIST_RAIL_V := 70.0        # [m/s] na szynie (poza wzrokiem) - jego maks.
 var flipped_time := 0.0
 var rage_time := 0.0                   # od ostatniego zderzenia [s]
 ## Wychodzenie z utknięcia (np. obrócony po zderzeniu, przodem w ścianie):
@@ -213,7 +223,12 @@ func _drive_step(delta: float) -> void:
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh)
 	_aggr = 1.0
-	if rage > 0.05 and _foe():
+	var extremist := persona == "extremist" and brain != null
+	if extremist:
+		_x_out = _extremist_step(delta, best, right)
+		var ln := int(_x_out["lane"])
+		target_off = _x_shoulder_off() if ln == ExtremistBrain.SHOULDER else main.hwy_lane_off(ln)
+	elif rage > 0.05 and _foe():
 		_onset_t += delta
 		_aggr = clampf((_onset_t - RAGE_REACT) / RAGE_RAMP, 0.0, 1.0)
 		var plan := _rage_plan(delta, best, right, w, lane_w, offset)
@@ -226,7 +241,8 @@ func _drive_step(delta: float) -> void:
 	if not _tgt_ok:
 		_tgt_off_s = offset
 		_tgt_ok = true
-	_tgt_off_s = move_toward(_tgt_off_s, target_off, LAT_RATE * delta)
+	_tgt_off_s = move_toward(_tgt_off_s, target_off,
+			(ExtremistBrain.LAT_RATE if extremist else LAT_RATE) * delta)
 
 	var fwd := -car.global_basis.z
 	var head_err := fwd.signed_angle_to(best["fwd"], car.global_basis.y)
@@ -240,10 +256,19 @@ func _drive_step(delta: float) -> void:
 		var full := car.max_steer_deg
 		if car.steer_assist:
 			full = lerpf(car.max_steer_deg, car.high_speed_steer_deg, clampf(v / car.steer_assist_speed, 0.0, 1.0))
-		var lat_max := clampf(atan(LAT_GRIP * grip * 9.8 * car._wheelbase / (v * v)) / deg_to_rad(full), 0.05, 1.0)
+		var lg := ExtremistBrain.LAT_GRIP if extremist else LAT_GRIP
+		var lat_max := clampf(atan(lg * grip * 9.8 * car._wheelbase / (v * v)) / deg_to_rad(full), 0.05, 1.0)
 		lat = clampf(lat, -lat_max, lat_max)
 	car.steer = clampf(lat - head_err * 2.5, -1.0, 1.0) \
 			if car.wheels_on_ground > 0 else 0.0
+	if extremist and car.wheels_on_ground > 0:
+		# 250-300 km/h: sterowanie botów (stałe wzmocnienia) zjeżdżało na
+		# barierę - model rowerowy z tłumieniem (PathSteer) i krzywizną toru.
+		var ahead_i := mini(_win_hint + 5, _window.size() - 1)
+		var f1: Vector3 = _window[ahead_i]["fwd"]
+		var span := maxf(float(_window[ahead_i]["dist"]) - dist, 1.0)
+		var curve := (best["fwd"] as Vector3).signed_angle_to(f1, car.global_basis.y) / span
+		car.steer = PathSteer.steer(car, offset - _tgt_off_s, head_err, curve)
 	car.throttle = 1.0 if kmh < target_kmh - 1.0 else (0.3 if kmh < target_kmh + 2.0 else 0.0)
 	if _aggr < 1.0 and rage > 0.05:
 		# Mocniejszy silnik szału (enrage) nie wchodzi od razu pełnym gazem.
@@ -253,6 +278,10 @@ func _drive_step(delta: float) -> void:
 		# Hamowanie przed graczem: ostro, jak przy "nauczce".
 		car.throttle = 0.0
 		car.brake = 0.9
+	if extremist:
+		# Ekstremista: gaz i hamulec tylko z mózgu (nigdy przed autami).
+		car.throttle = float(_x_out["throttle"])
+		car.brake = float(_x_out["brake"])
 
 	# Utknięcie: stoi z gazem albo jest odwrócony (> 100° od kierunku drogi).
 	var backwards := absf(head_err) > deg_to_rad(100.0)
@@ -453,7 +482,9 @@ func _update_rail(delta: float) -> bool:
 	if smp2.is_empty():
 		return true
 	var v_goal := float(smp2["limit"]) / 3.6
-	if rage > 0.05 and player and not _foe_valid():
+	if persona == "extremist":
+		v_goal = EXTREMIST_RAIL_V              # ograniczenia go nie obchodzą
+	elif rage > 0.05 and player and not _foe_valid():
 		# Szał bez żetonu: pościg poza wzrokiem - dogania gracza od tyłu.
 		v_goal = clampf(player.speed + (12.0 if dist < float(main._last_safe_dist) else -5.0), 10.0, 70.0)
 	_rail_v = move_toward(_rail_v, v_goal, 5.0 * delta)
@@ -569,7 +600,65 @@ func end_feud() -> void:
 		rage = 0.0
 
 
+## Wejścia mózgu ekstremisty (pasy przed nim, ~10 Hz), krok decyzji,
+## klakson i długie. Pasy: najbliższe auto przed nim na każdym pasie naszej
+## jezdni (gracz + boty), auto obok (< CAR_LEN) zajmuje pas.
+func _extremist_step(delta: float, best: Dictionary, right: Vector3) -> Dictionary:
+	var fwd: Vector3 = best["fwd"]
+	_x_lanes_t -= delta
+	if _x_lanes_t <= 0.0 or _x_ctx.is_empty():
+		_x_lanes_t = 0.1
+		var lanes := [{"gap": INF, "v": 0.0}, {"gap": INF, "v": 0.0}]
+		var shoulder := {"gap": INF, "v": 0.0}
+		var others: Array = [main.car] + main._bots
+		var mid: float = (main.hwy_lane_off(0) + main.hwy_lane_off(1)) * 0.5
+		var sh_edge: float = main.hwy_lane_off(0) + HighwayGenerator.LANE_W * 0.5
+		for o in others:
+			if o == car or not is_instance_valid(o):
+				continue
+			var d: Vector3 = o.global_position - car.global_position
+			var ahead := d.dot(fwd)
+			if ahead < -ExtremistBrain.CAR_LEN or ahead > 400.0:
+				continue
+			var x: float = (o.global_position - (best["pos"] as Vector3)).dot(right)
+			var e: Dictionary
+			if x > sh_edge:
+				e = shoulder
+			else:
+				# Pas 0 prawy (x większe), 1 lewy.
+				e = lanes[0] if x > mid else lanes[1]
+			var gap := 0.0 if absf(ahead) < ExtremistBrain.CAR_LEN else ahead
+			if gap < float(e["gap"]):
+				e["gap"] = gap
+				e["v"] = (o as RigidBody3D).linear_velocity.dot(fwd)
+		var sh: Dictionary = shoulder if main.track.autostrada else {}
+		_x_ctx = {"lanes": lanes, "shoulder": sh}
+	var ctx := _x_ctx.duplicate()
+	ctx["v"] = car.speed
+	ctx["v_safe"] = ExtremistBrain.v_safe_from_profile(_prof, dist,
+			ExtremistBrain.decel_for(brain.curve_mode))
+	var r := brain.step(delta, ctx)
+	var h := BotDriver.horn_on(car)
+	if bool(r["horn"]) != _x_horn:
+		_x_horn = bool(r["horn"])
+		if _x_horn:
+			h.play()
+		else:
+			h.stop()
+	elif _x_horn and not h.playing:
+		h.play()                               # ciągły sygnał - od nowa
+	car.set_high_beam(float(r["beam"]))
+	return r
+
+
+## Oś pobocza (pas awaryjny po prawej) - ostateczność ekstremisty.
+func _x_shoulder_off() -> float:
+	return main.hwy_lane_off(0) + (HighwayGenerator.LANE_W + HighwayGenerator.SHOULDER_R) * 0.5
+
+
 func enrage(origin := "self") -> void:
+	if persona == "extremist":
+		return                                 # już jest na maksimum
 	foe = null
 	_rage_on_player = true
 	var fresh := rage < 0.5
