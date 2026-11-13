@@ -2287,6 +2287,18 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   -22° i przy gazie unosiła palce o 3,5 cm (poprawione na +22°). Sam
   wyprost kolana unosi kostkę po łuku - trzeba go równoważyć udem.
   W powtórce wypadku sprzęgło nie jest zapisywane (lewa noga spoczywa).
+- **Manekin gracza po jeździe użytkownika (2026-11-13)**: "dłonie odrywają
+  się od rąk" - dłoń jedzie z kontrolerem, a bark manekina siedzi przy
+  fotelu; gdy kontroler dalej niż ramię, `PlayerDummy` wydłuża ramię
+  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6) -
+  `dummy_arm_test`: przerwa 0 do 1,3 ramienia. **Pułapka**:
+  `get_bone_global_pose` poza sygnałem `Skeleton3D.skeleton_updated`
+  zwraca pozę **bez** modyfikatorów (TwoBoneIK3D) - test czyta w sygnale.
+  "Stopy wystają spod podwozia przy dachowaniu w powtórce" - biodra są
+  ~9 cm nad spodem nadwozia, poza z modelu wbijała stopy 28 cm pod
+  podłogę; `LEG_THIGH/SHIN/FOOT_DEG` (-25/15/-25, obie nogi) - najniższy
+  punkt stóp -0,355 m (podłoga -0,36, spód nadwozia -0,405),
+  `dummy_clutch_test` to sprawdza.
 - **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.

@@ -153,6 +153,7 @@ do_test() {
 	run_test replay_play_test ""        "replay_play_test"
 	run_test traffic_audio_test ""      "traffic_audio_test|wypalenie"
 	run_test dummy_clutch_test ""       "dummy_clutch_test"
+	run_test dummy_arm_test ""          "dummy_arm_test"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"

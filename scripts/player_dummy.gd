@@ -16,12 +16,19 @@ const SCENE := "res://models/dummy/player_dummy.glb"
 const EYE := Vector3(0.0, 0.77, 0.04)
 ## Nadgarstek za środkiem dłoni kontrolera (+Z kontrolera = do nadgarstka).
 const WRIST_BACK := 0.07
+## Ramię dłuższe, gdy kontroler jest dalej, niż sięga (użytkownik
+## 2026-11-13: "dłonie odrywają się od rąk" - dłoń jedzie z kontrolerem,
+## a bark manekina siedzi przy fotelu, nie przy prawdziwym barku gracza).
+## Powyżej tego mnożnika ręka zostaje krótsza (gracz poza fotelem).
+const ARM_STRETCH_MAX := 1.6
 
 var skel: Skeleton3D
 var _ik: TwoBoneIK3D
 var _targets: Array[Node3D] = []
 var _poles: Array[Node3D] = []
 var _ctrl: Array[Node3D] = []
+var _upper: Array[int] = []           # upper_arm.L, upper_arm.R
+var _arm_len: Array[float] = []       # bark - nadgarstek przy wyproście [m]
 var _thigh_r := -1
 var _foot_r := -1
 var _thigh_rest: Quaternion
@@ -39,6 +46,13 @@ var _clutch := 0.0
 ## przodu na tej samej wysokości, palce ~2 cm w dół. Sam wyprost kolana
 ## unosił kostkę o 19 cm, samo udo opuszczało ją i cofało.
 const CLUTCH_THIGH_DEG := 20.0
+## Poza nóg w niskim fotelu (względem pozy z modelu), obie nogi.
+const LEG_THIGH_DEG := -25.0
+const LEG_SHIN_DEG := 15.0
+const LEG_FOOT_DEG := -25.0
+## Najniższy dozwolony punkt stóp w układzie auta (podłoga nad spodem
+## nadwozia -0,405 m).
+const FLOOR_Y := -0.36
 const CLUTCH_SHIN_DEG := -40.0
 const CLUTCH_FOOT_DEG := 40.0
 var _press := 0.0
@@ -88,6 +102,21 @@ func setup(car: StuntCar, left: Node3D, right: Node3D) -> void:
 		_ik.set_end_bone_name(k, "hand." + s)
 		_ik.set_target_node(k, _ik.get_path_to(t))
 		_ik.set_pole_node(k, _ik.get_path_to(p))
+	# Nogi w niskim fotelu: biodra są ~9 cm nad spodem nadwozia, a poza
+	# z modelu (zwykły fotel) wbijała stopy ~20 cm pod podłogę - widać
+	# z zewnątrz (powtórka wypadku, dachowanie). Kolana wyżej, łydki
+	# bardziej poziomo (kąty z pomiaru kości: tests/dummy_clutch_test.gd).
+	for s in ["L", "R"]:
+		for pair in [["thigh." + s, LEG_THIGH_DEG], ["shin." + s, LEG_SHIN_DEG], ["foot." + s, LEG_FOOT_DEG]]:
+			var bi := skel.find_bone(pair[0])
+			if bi >= 0:
+				skel.set_bone_pose_rotation(bi, skel.get_bone_pose_rotation(bi) * Quaternion(Vector3.RIGHT, deg_to_rad(pair[1])))
+	for s in ["L", "R"]:
+		var ua := skel.find_bone("upper_arm." + s)
+		_upper.append(ua)
+		var fa := skel.find_bone("forearm." + s)
+		var hd := skel.find_bone("hand." + s)
+		_arm_len.append(skel.get_bone_rest(fa).origin.length() + skel.get_bone_rest(hd).origin.length() if fa >= 0 and hd >= 0 else 0.6)
 	_thigh_r = skel.find_bone("thigh.R")
 	_foot_r = skel.find_bone("foot.R")
 	_thigh_l = skel.find_bone("thigh.L")
@@ -119,6 +148,11 @@ func set_replay(on: bool) -> void:
 		replay_hands.clear()
 
 
+## Długość ramienia (bark - nadgarstek, wyprost) [m]; k: 0 lewe, 1 prawe.
+func arm_length(k: int) -> float:
+	return _arm_len[k] if k < _arm_len.size() else 0.0
+
+
 ## clutch: wciśnięcie sprzęgła 0..1 (StuntCar.clutch_pedal, manual).
 func update(throttle: float, brake: float, delta: float, clutch := 0.0) -> void:
 	if skel == null:
@@ -136,6 +170,12 @@ func update(throttle: float, brake: float, delta: float, clutch := 0.0) -> void:
 		# Cel IK: nadgarstek za środkiem dłoni kontrolera.
 		var wrist := cxf * Vector3(0.0, 0.0, WRIST_BACK)
 		_targets[k].global_position = wrist
+		# Za daleko - ramię wydłużone wzdłuż kości (Y), łańcuch wtedy prosty.
+		var ua := _upper[k]
+		if ua >= 0:
+			var shoulder := skel.global_transform * skel.get_bone_global_pose(skel.get_bone_parent(ua)) * skel.get_bone_rest(ua).origin
+			var stretch := clampf(shoulder.distance_to(wrist) / maxf(_arm_len[k], 0.1), 1.0, ARM_STRETCH_MAX)
+			skel.set_bone_pose_scale(ua, Vector3(1.0, stretch, 1.0))
 		# Łokieć w dół i na zewnątrz (strona ręki) - biegun pod barkiem.
 		var side := -1.0 if k == 0 else 1.0
 		_poles[k].global_position = global_transform * Vector3(side * 0.6, 0.0, 0.2)
