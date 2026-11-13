@@ -34,6 +34,7 @@ func _physics_process(delta: float) -> bool:
 	f += 1
 	if f == 5:
 		main.race_state = main.Race.RACING
+		main.seg_rhythm = false             # pierwsze odcinki trasy są "rest" (reżyser)
 		main._traffic_t = 1e9                 # bez zwykłego ruchu
 		main._osk_next_d = 0.0
 	if f <= 5:

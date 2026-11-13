@@ -23,6 +23,7 @@ const MIX_RATE := 22050
 const REF_RPM := 3000.0                # obroty wypalonej próbki silnika
 const LOOP_S := 0.5                    # 25 cykli pół-rzędu przy 3000 obr/min - pętla bez szwu
 const PICK_EVERY := 0.25               # [s] wybór najbliższych aut
+const ACC_MAX := 40.0                 # [m/s²] największa zmiana prędkości do dźwięku
 const ENGINE_DB := -6.0
 const NOISE_DB := -4.0
 
@@ -104,7 +105,12 @@ func update(cars: Array, delta: float) -> void:
 				if s["skip"] > 0:
 					s["skip"] -= 1
 				else:
-					s["vel"] = v if not s["warm"] else (s["vel"] as Vector3).lerp(v, clampf(delta * 10.0, 0.0, 1.0))
+					# Zmiana prędkości najwyżej ACC_MAX: zacięcie klatki (inny
+					# udział kroków fizyki w delta) dawało skoki tonu - test
+					# przy obciążeniu padał od czasu do czasu.
+					var vs: Vector3 = s["vel"]
+					var vn: Vector3 = vs.lerp(v, clampf(delta * 10.0, 0.0, 1.0))
+					s["vel"] = v if not s["warm"] else vs + (vn - vs).limit_length(ACC_MAX * delta)
 					s["warm"] = true
 		s["prev"] = p
 		s["have"] = true

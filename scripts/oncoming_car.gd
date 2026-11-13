@@ -17,6 +17,11 @@ var lane := 0.0              # pas licząc od pasa rozdziału
 var loose := false
 var loose_t := 0.0           # [s] od przejścia na fizykę
 var osk := ""                # rola w scence ("" = poza scenką)
+## Kierowca pod prąd (zdarzenie odcinka): jedzie na gracza NASZĄ jezdnią,
+## lewym (szybkim) pasem. Mijanie bez kontaktu - punkty (min_gap).
+var wrong_way := false
+var min_gap := INF
+var passed := false
 
 
 func _init(c: StuntCar = null, d := 0.0, speed := 0.0, lane_i := 0.0) -> void:

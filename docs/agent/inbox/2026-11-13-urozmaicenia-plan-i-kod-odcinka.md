@@ -1,4 +1,4 @@
-Status: przyjęte (2026-11-13), w toku - etap 1
+Status: zrobione - etap 1 (2026-11-13), bench na Queście czeka na gogle
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-13-plan-urozmaicen.md)
 Decyzje użytkownika: 2026-11-11 - kod odcinka ukryty przed graczem (tylko
@@ -126,4 +126,100 @@ HANDOVER.md.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+Etap 1 wpięty (2026-11-13). Bench na Queście jeszcze niezrobiony:
+użytkownik odłączył gogle.
+
+**SegmentCode w Godocie.** Były 3 poprawki, w GDScript i w symulatorze:
+- wcięcie w `describe`;
+- budowla bez kosztu (podjazd) nie jest wycinana przy przekroczeniu
+  budżetu. Wcześniej zostawał pas dla wolnych bez podjazdu (ziarno 5
+  z pogodą);
+- niezmiennik kosztu w teście dopuszcza przekroczenie tylko wtedy, gdy
+  nie ma już czego ciąć (ulewa po ulewie).
+
+Ziarna 777, 1, 4242, 5, 33, 11 i 2026 są OK w obu implementacjach.
+`segment_code_test 777` jest w `quest.sh test`.
+
+**Kod w trasie.** Jest jeden `SegmentCode` na trasę: ziarno
+`EndlessTrack.plan_seed`, z `WeatherPlan`. W logu pojawia się
+"ODCINEK k ..." i "ZDARZENIE k ...: wynik", bez HUD.
+
+**Wyzwalanie wg przewidywanego spotkania, nie stałe 300 m.** Przed autem
+gracza widać do 2 km (`FAR_VIEW_DIST`). Auto postawione 300-500 m przed
+graczem byłoby więc na widoku, a `_can_vanish` by je odrzucał.
+- Auta przed graczem pojawiają się `HIDE_DIST` = 2100 m przed nim.
+- Przeszkoda jadąca s x prędkości gracza jest doganiana po 2100/(1-s) m.
+  Wyzwalam, gdy spotkanie wypada ~300 m w głąb odcinka
+  (`SegmentEvents.lead_for`).
+- Blokada (0,6) startuje więc ~5 km przed swoim odcinkiem, zasadzka
+  (stoi) ~1,8 km, pod prąd (s = -1) przy ~1 km.
+- Pościg od tyłu startuje przy wjeździe w odcinek, 350-500 m za graczem,
+  przez `_can_vanish`.
+- Korek otwiera okno gęstości ~1,5 km wcześniej.
+
+**Zdarzenia, które wpiąłem:**
+- korek: `TrafficZone.jam_from/jam_to`, gęstość x2 i 0,5-0,7 limitu;
+- pod prąd: `OncomingCar.wrong_way`, auto z naprzeciwka na NASZYM lewym
+  pasie. W odległości 600 m miga długimi i trąbi, a spokojne boty przed
+  graczem zjeżdżają na prawy pas. Punkty za minięcie bez kontaktu
+  (`ExtremistBrain.pass_points`). Awaryjnych świateł nie ma, bo
+  StuntCar ich nie ma;
+- zasadzka: `BotDriver.hold`, auto zamrożone na pasie awaryjnym. Przy
+  60 m rusza w szale ("ambush");
+- pościg: 1 + ev_level aut w szale;
+- blokada: dwa boty obok siebie, 0,6 limitu. Szał ("blockade"), gdy
+  gracz jest 35 m za nimi;
+- waśń: `feud.set_hostile(ga, gb)`, po 1 + ev_level aut z każdego gangu;
+  waśń startuje przez zwykły `_feud_scan`;
+- wolne auto: 0,5 limitu, za nim 1-2 auta wyprzedzające lewym pasem.
+  W `CarStyles` nie ma ciężarówki, więc to zwykły model;
+- auta zdarzeń nie liczą się do gęstości TrafficZone (`drv.event`).
+  Usuwane są poza wzrokiem: 700 m za graczem albo 4 km przed nim.
+
+**Rytm.** Wszystko przez `seg_calm()`:
+- w odcinku "rest" nie ma losowania ekstremisty (co km dalej losuje,
+  ale tylko w build/peak);
+- nie startuje nowa waśń (`_feud_scan`);
+- nie startuje scenka z naprzeciwka.
+
+Limit `EVENT_BOT_CAP` = 16. Zdarzenie ponad limit przepada.
+
+**Znalezisko (zmienia ruch poza zdarzeniami).** `BotDriver` miał
+prędkość spokojnej jazdy zawsze równą limitowi. "Wolne" auta z
+`TrafficZone` (SLOW_SHARE, 0,5-0,7) po chwili jechały więc z limitem.
+- Doszło `BotDriver.speed_k` (trwały mnożnik).
+- Ustawiam go tylko dla korka i aut zdarzeń.
+- Do decyzji: czy włączyć go też dla SLOW_SHARE i doganiających
+  (CHASER_SHARE)? Zmieni to proporcję mijań w całej grze.
+
+**Poprawka sprzed zmian.** Scenka z naprzeciwka (`_update_skirmish`)
+pojawiała się 900 m przed graczem, czyli na widoku. Test to złapał.
+Teraz pojawia się 2100 m przed graczem i sprawdza `_can_vanish`.
+Do `trigger_gap` jedzie zwykłym ruchem.
+
+**Do Was (OncomingSkirmish).** Stan "hidden" chowa auto scenki tuż przy
+graczu (np. `d=-2`, na widoku). Test to wypisuje jako UWAGĘ, nie błąd.
+Czy to zamierzone? Jeśli nie, wolę, żeby auto "wypadało" fizycznie
+albo chowało się dopiero poza wzrokiem.
+
+**Test sceny `tests/segment_event_test.gd`.** Trasa 33, gracz prowadzony
+130 km/h, 20 km. Wymuszone zdarzenia 1..7 co 2 odcinki (co odcinek się
+nakładały i pościg przepadał na limicie botów). Wynik OK:
+- wszystkie 7 zdarzeń postawione;
+- zasadzka ruszyła, pod prąd minął gracza;
+- botów najwyżej 17;
+- pojawień i zniknięć na widoku: 0 (wraki z wybuchem się nie liczą);
+- ekstremista w odcinku rest: 0;
+- mijania na km: w naszą stronę 0,50, z naprzeciwka 0,35. Wcześniej
+  było 1 : 6. To przy wymuszonych zdarzeniach, a bez nich nie mierzyłem.
+
+Test trwa ~12 min, więc nie ma go w `quest.sh test` (limit 300 s na
+test). Uruchamiany ręcznie: `-- 20`.
+
+Koszt w logu PERF (PC): "odcinki" ~8 ms na 5 s, czyli ~0,3% klatki.
+
+**Skutek uboczny.** Pierwsze 3 odcinki są zawsze "rest", więc w pierwszych
+~3,6 km nie ma waśni ani scenki z naprzeciwka. `feud_play_test` i
+`oncoming_play_test` wyłączają rytm (`main.seg_rhythm = false`). Pełny
+`./quest.sh test` OK; `drive_test` bez zmian (24.00-24.17).
+
