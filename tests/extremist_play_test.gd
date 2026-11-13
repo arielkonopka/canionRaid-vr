@@ -16,6 +16,9 @@ var max_brake := 0.0
 var passed := false
 var max_kmh := 0.0
 var pts0 := 0
+var x_heard := false
+var dop_before := 0.0
+var dop_after := 0.0
 
 
 func _initialize() -> void:
@@ -84,6 +87,18 @@ func _physics_process(delta: float) -> bool:
 		max_kmh = maxf(max_kmh, x.speed * 3.6)
 		if drv.dist - main._last_safe_dist > 6.0:
 			passed = true
+		# Dźwięk mijania (TrafficAudio): slot z ekstremistą i Doppler.
+		var ta: TrafficAudio = main._traffic_audio
+		if ta:
+			for sl in ta._slots:
+				if sl["car"] == x and sl["warm"]:
+					x_heard = true
+					var dop := TrafficAudio.doppler_ratio(x.global_position, sl["vel"], ta.listener_pos, ta.listener_vel)
+					var ahead: float = drv.dist - main._last_safe_dist
+					if ahead > -40.0 and ahead < -20.0:
+						dop_before = dop
+					if ahead > 20.0 and ahead < 40.0:
+						dop_after = dop
 
 	if t > 60.0 or (passed and t > 15.0):
 		return _end()
@@ -96,6 +111,9 @@ func _end() -> bool:
 	_check(beam_seen, "mrugał długimi")
 	_check(max_brake < 0.01, "nie hamował (maks. hamulec %.2f)" % max_brake)
 	_check(main._x_passes == 1, "premia za przepuszczenie (%d)" % main._x_passes)
+	_check(x_heard, "słychać ekstremistę (TrafficAudio)")
+	_check(dop_before > 1.1 and dop_after > 0.0 and dop_after < 0.9,
+			"Doppler przed / po minięciu: %.2f / %.2f" % [dop_before, dop_after])
 	# Auto ekstremisty wraca do puli w trakcie mrugania (przegląd chmury
 	# 2026-11-13): następny bot z tego węzła ma zwykłą moc i zgaszone długie.
 	var x: StuntCar = main._extremist

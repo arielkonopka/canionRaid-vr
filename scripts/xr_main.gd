@@ -743,6 +743,8 @@ func _check_origin_shift() -> void:
 	_cine_from.origin -= s
 	_cine_to.origin -= s
 	_rec.shift(s)
+	if _traffic_audio:
+		_traffic_audio.shift(s)
 	if _rain:
 		_rain.restart()
 	print("ŚWIAT: przesunięty o %s (razem %d, offset %.0f, %.0f m)" % [str(s), _origin.shifts, _origin.offset_x, _origin.offset_z])
@@ -2013,6 +2015,7 @@ func _process(delta: float) -> void:
 	_update_rain(delta)
 	_update_weather_look(delta)
 	Perf.add("deszcz", t0)
+	_update_traffic_audio(delta)
 	_log_perf(delta)
 	_ws_arm_t = maxf(_ws_arm_t - delta, 0.0)
 	if race_state == Race.WORKSHOP and _xr_ready:
@@ -2556,6 +2559,28 @@ var _rp_veil: MeshInstance3D
 
 
 ## Klatka gracza do zapisu - w kroku fizyki, tylko w jeździe.
+## Dźwięki innych aut z Dopplerem (TrafficAudio): do 4 najbliższych w 80 m.
+## Słuchacz to głowa gracza, prędkość słuchacza - auta (w jeździe).
+## Bench: "traffic_audio" w liście wyłączeń.
+var _traffic_audio: TrafficAudio
+var _ta_cands: Array = []
+func _update_traffic_audio(delta: float) -> void:
+	if not _endless or not Bench.on("traffic_audio"):
+		return
+	var t0 := Time.get_ticks_usec()
+	if _traffic_audio == null:
+		_traffic_audio = TrafficAudio.new()
+		add_child(_traffic_audio)
+	_traffic_audio.listener_pos = camera.global_position
+	_traffic_audio.listener_vel = car.linear_velocity if (_mode == Mode.DRIVE and race_state == Race.RACING) else Vector3.ZERO
+	_ta_cands.clear()
+	_ta_cands.append_array(_bots)
+	for o in _oncoming:
+		_ta_cands.append(o.car)
+	_traffic_audio.update(_ta_cands, delta)
+	Perf.add("auta_dzwiek", t0)
+
+
 func _record_replay() -> void:
 	if race_state != Race.RACING or _mode != Mode.DRIVE:
 		return
