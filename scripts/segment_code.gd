@@ -279,8 +279,26 @@ static func unpack(code: int) -> Dictionary:
 			"event": (code >> 24) & 7, "ev_level": (code >> 27) & 3, "accent": (code >> 29) & 7}
 
 
+## Rondo w mieście (użytkownik 2026-11-13: "dodać do urozmaiceń rondo?
+## najlepiej w mieście"). Przejazd przez miasto (structure 7) z s_param 0-3
+## ma rondo w połowie odcinka; s_param = indeks promienia ROUNDABOUT_R.
+## s_param 4-7: miasto bez ronda. Zlecenie: inbox 2026-11-13-rondo-w-miescie.md.
+const ROUNDABOUT_R := [22.0, 28.0, 34.0, 40.0]
+const ROUNDABOUT_AT := 0.5
+
+
+## Promień ronda [m] na środku wyspy do osi pierścienia; 0 = brak ronda.
+static func roundabout_r(s: Dictionary) -> float:
+	if int(s["structure"]) != 7 or int(s["s_param"]) >= 4:
+		return 0.0
+	return float(ROUNDABOUT_R[int(s["s_param"])])
+
+
 ## Krótki opis do logu: "k 5 peak 0xCC0FC808 nasyp / 2+2 / brak / pościg od tyłu".
 func describe(k: int) -> String:
 	var s := segment(k)
+	var st: String = STRUCTURES[int(s["structure"])]
+	if roundabout_r(s) > 0.0:
+		st += " z rondem R%.0f" % roundabout_r(s)
 	return "k %d %s 0x%08X %s / %s / %s / %s" % [k, s["phase"], int(s["code"]),
-			STRUCTURES[int(s["structure"])], SECTIONS[int(s["section"])], TRAPS[int(s["trap"])], EVENTS[int(s["event"])]]
+			st, SECTIONS[int(s["section"])], TRAPS[int(s["trap"])], EVENTS[int(s["event"])]]

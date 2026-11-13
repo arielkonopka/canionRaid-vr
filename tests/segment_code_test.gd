@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_invariants(SegmentCode.new(seed_v, WeatherPlan.new(seed_v)), 250, "z pogodą")
 	_order(seed_v)
 	_pack()
+	_roundabout(seed_v)
 	var sc := SegmentCode.new(seed_v)
 	for k in [5, 11, 40, 120]:
 		print("  ", sc.describe(k))
@@ -123,3 +124,23 @@ func _pack() -> void:
 		for key in u:
 			if int(u[key]) != int(s[key]):
 				_fail("unpack %d: %s %d != %d" % [k, key, u[key], s[key]])
+
+
+## Rondo tylko w mieście, od kalendarza miasta, promień z listy.
+func _roundabout(seed_v: int) -> void:
+	var sc := SegmentCode.new(seed_v)
+	var n := 0
+	var cities := 0
+	for k in 500:
+		var s := sc.segment(k)
+		var r := SegmentCode.roundabout_r(s)
+		if int(s["structure"]) == 7:
+			cities += 1
+		if r <= 0.0:
+			continue
+		n += 1
+		if int(s["structure"]) != 7 or not (r in SegmentCode.ROUNDABOUT_R):
+			_fail("rondo poza miastem albo zły promień w %d: %s" % [k, s])
+	if cities > 4 and (n == 0 or n == cities):
+		_fail("rondo w %d z %d odcinków miasta (ma być część)" % [n, cities])
+	print("  ronda: %d na %d odcinków miasta (600 km)" % [n, cities])

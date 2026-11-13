@@ -200,6 +200,16 @@ def pack(s):
     return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
 
 
+ROUNDABOUT_R = [22.0, 28.0, 34.0, 40.0]
+
+
+def roundabout_r(s):
+    """Rondo w mieście: structure 7 i s_param 0-3 (indeks promienia)."""
+    if s["structure"] != 7 or s["s_param"] >= 4:
+        return 0.0
+    return ROUNDABOUT_R[s["s_param"]]
+
+
 def check(sc, n):
     errors = []
     segs = [sc.segment(k) for k in range(n)]
@@ -259,6 +269,8 @@ def main():
         c = Counter(s[f] for s in segs)
         print("  %-9s %s" % (f, dict(sorted(c.items()))))
     distinct = len(set((s["structure"], s["section"], s["trap"], s["event"]) for s in segs))
+    print("  ronda w mieście: %d na %d odcinków miasta" % (
+        sum(1 for s in segs if roundabout_r(s) > 0), sum(1 for s in segs if s["structure"] == 7)))
     print("  różnych układów (bud, prz, puł, zd): %d" % distinct)
     print("SEGMENT_SIM: OK" if not errors else "SEGMENT_SIM: BŁĘDY %d\n  %s" % (len(errors), "\n  ".join(errors[:10])))
     return 0 if not errors else 1
