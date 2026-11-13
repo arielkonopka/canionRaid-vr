@@ -284,6 +284,13 @@ const ABS_SLIP_TARGET := 0.9
 const ABS_GAIN := 2.0
 const ABS_MIN := 0.2
 const ABS_MAX := 1.15
+## TCS: wzmocnienie korekty odchyłką poślizgu (ABS ma ABS_GAIN). Przy 2,0
+## TCS wpadał w cykl graniczny, gdy koło ma małą bezwładność (sprzęgło
+## ślizga się przy ruszaniu, napęd odłączony): koło reaguje szybciej niż
+## krok 120 Hz, mnożnik skakał 0,13 <-> 0,75 i auto stawało pod górę
+## (model 1D, wątek w chmurze 2026-11-10: 700 kW tył 2500 kg na 35% -
+## 14 km/h po 12 s, z 0,5 - 87 km/h; 0-100 700 kW tył 5,07 -> 5,00 s).
+const TCS_GAIN := 0.5
 @export var tcs_enabled: bool = true
 @export var esp_enabled: bool = true
 ## TCS: poślizg tylnych kół (względem przednich), który system dopuszcza.
@@ -299,6 +306,10 @@ const ABS_MAX := 1.15
 ## Moment hamujący ESP na rad/s błędu i jego limit [Nm].
 @export var esp_gain: float = 5000.0
 @export var esp_max_brake: float = 1600.0
+## ESP: próg błędu obrotu [rad/s] i wzmocnienie odcinania napędu przy
+## nadsterowności (osobno od hamowania koła - patrz _update_esp).
+const ESP_CUT_DEADBAND := 0.02
+const ESP_CUT_GAIN := 50.0
 
 @export_group("Kierowanie")
 @export var max_steer_deg: float = 34.0
@@ -388,6 +399,12 @@ var _pending_gear := 1
 var _reverse_hold := 0.0
 var _shift_cooldown := 0.0
 var _clutch_engaged := false
+var _launching := true          # ruszanie: sprzęgło ślizga się do zrównania obrotów
+var _launch_t := 0.0            # czas ślizgania przy ruszaniu [s]
+## Różnica obrotów silnika i skrzyni, przy której ślizgające się sprzęgło się zamyka.
+const CLUTCH_SYNC_RPM := 100.0
+## Najdłuższe ślizganie sprzęgła przy ruszaniu [s].
+const LAUNCH_SLIP_MAX := 2.5
 var _max_fall_speed := 0.0
 var _sphere: SphereShape3D
 var _cast: PhysicsShapeQueryParameters3D
@@ -1333,7 +1350,7 @@ func _traction_cap(w: Wheel, dir: float) -> float:
 	var slip := w.kappa * dir
 	var target := peak_slip_ratio * ABS_SLIP_TARGET
 	return _tire_peak_force(w) * wheel_radius \
-			* clampf(1.0 + ABS_GAIN * (target - slip) / peak_slip_ratio, ABS_MIN, ABS_MAX)
+			* clampf(1.0 + TCS_GAIN * (target - slip) / peak_slip_ratio, ABS_MIN, ABS_MAX)
 
 
 ## Mnożnik rekuperacji od ESP (nadsterowność) i ABS (poślizg kół
@@ -1436,6 +1453,20 @@ func _update_esp(delta: float, grounded: int) -> void:
 			esp_active = true
 			esp_oversteer = true
 			target_factor = beta_cut
+		# Odcięcie napędu przy nadsterowności z osobnym, mniejszym progiem
+		# i mocniejszym wzmocnieniem niż hamowanie koła. Tył na granicy
+		# przyczepności wzdłużnej (700 kW na tył, ~240 km/h) jest kierunkowo
+		# niestabilny - prędkość krytyczna ~85 km/h, obrót podwaja się co
+		# ~0,15 s. Regulator proporcjonalny ustala się na błędzie
+		# ≈ próg + (1 - mnożnik)/wzmocnienie: przy 0,06 i 6 auto jechało
+		# ustalonym dryfem ~0,8 g bez skrętu. Model 2D (wątek w chmurze,
+		# 2026-11-09): 0,02 i 50 -> resztkowy obrót ~0,03 rad/s, bez
+		# oscylacji, w 60-240 km/h.
+		if oversteer and sliding and absf(err) > ESP_CUT_DEADBAND:
+			esp_active = true
+			esp_oversteer = true
+			target_factor = minf(target_factor,
+					clampf(1.0 - (absf(err) - ESP_CUT_DEADBAND) * ESP_CUT_GAIN, 0.2, 1.0))
 		if absf(err) > esp_deadband and sliding:
 			esp_active = true
 			esp_oversteer = oversteer
@@ -1446,7 +1477,6 @@ func _update_esp(delta: float, grounded: int) -> void:
 			var idx: int
 			if oversteer:
 				idx = 0 if brake_left else 1     # przednie - zewnętrzne w zakręcie
-				target_factor = minf(target_factor, clampf(1.0 - (absf(err) - esp_deadband) * 6.0, 0.2, 1.0))
 			else:
 				idx = 2 if brake_left else 3     # tylne - wewnętrzne w zakręcie
 			_esp_brake[idx] = t
@@ -1607,11 +1637,33 @@ func _update_gearbox(delta: float) -> void:
 
 	var wheel_rpm := _wheel_rpm()
 	# Elektryk nie ma sprzęgła: silnik jest zawsze sprzężony z kołami.
-	# PR #28 (sprzęgło zamyka się po zrównaniu obrotów) cofnięty 2026-11-09:
-	# pod górę 35% auto utykało na ~13 km/h ze sprzęgłem ślizgającym się
-	# przy launch_rpm i buksującymi kołami (hill_test) - szczegóły
-	# w inbox/2026-11-09-trakcja-i-sprzeglo.md.
-	_clutch_engaged = gear != 0 and (electric or wheel_rpm >= clutch_engage_rpm)
+	# Ruszanie: sprzęgło ślizga się z silnikiem na launch_rpm i zamyka się
+	# po zrównaniu obrotów silnika i skrzyni - albo po LAUNCH_SLIP_MAX s
+	# (kierowca puszcza sprzęgło, gdy auto nie nadąża, np. stromo pod górę).
+	# Dawniej zamykało się zawsze przy clutch_engage_rpm z kół: silnik
+	# skakał z ~3800 na 1300 obr. (90 kW 0-100: 11,1 -> 10,3 s w modelu 1D).
+	# Pierwsza wersja bez limitu czasu (PR #28) utykała na 35% na 13 km/h -
+	# przyczyną był cykl graniczny TCS przy małej bezwładności koła
+	# (TCS_GAIN), nie samo sprzęgło. Po zmianie biegu - jak dawniej,
+	# od razu (silnik schodzi do obrotów biegu w trakcie zmiany).
+	if gear == 0:
+		_clutch_engaged = false
+	elif electric:
+		_clutch_engaged = true
+	elif wheel_rpm < clutch_engage_rpm:
+		_clutch_engaged = false        # inaczej silnik by zgasł
+		_launching = true
+		_launch_t = 0.0                # nowe ruszanie - pełny czas ślizgania (przegląd PR #35)
+	elif not _clutch_engaged:
+		if not _launching or _drive_pedal() <= 0.02:
+			_clutch_engaged = true
+		else:
+			_launch_t += delta
+			_clutch_engaged = wheel_rpm >= engine_rpm - CLUTCH_SYNC_RPM \
+					or _launch_t >= LAUNCH_SLIP_MAX
+	if _clutch_engaged:
+		_launching = false
+		_launch_t = 0.0
 
 	if dedicated_reverse:
 		# Wsteczny tylko w miejscu - w ruchu skrzynia by się rozsypała.
