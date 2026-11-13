@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-13, sesja 8 - noc (powtórka wypadku, poprawka puli po ekstremiście)
+Ostatnia aktualizacja: 2026-11-13, sesja 8 - noc (powtórka wypadku, dźwięki innych aut z Dopplerem)
 
 ---
 
@@ -1497,11 +1497,28 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   wzdłuż trasy, 4 m nad jezdnią, min. 2,5 m nad autem, pod stropem tunelu
   6 m za autem (promień w górę); sprężyna krytyczna 0,4 s **z prędkością
   celu** - bez niej kamera wisiała 2v/ω ~ 22 m za autem przy 100 km/h.
-  W goglach tylko obrót w poziomie, na PC 25° w dół. Manekin gracza:
+  W goglach tylko obrót w poziomie, na PC 25° w dół. Obrót kół: `lerp_angle`
+  (zawinięty do ±π), powyżej 40 m/s z drogi auta (zapis 60 Hz aliasuje).
+  Spust/B pomija dopiero po 0,8 s od ściemnienia (gaz na spuście po
+  uderzeniu). Auta, które przed śmiercią wróciły do puli, nie ruszane. Manekin gracza:
   `PlayerDummy.set_replay` (głowa i dłonie widoczne, ręce z zapisu
   kontrolerów). Spust/B pomija. Potem `_begin_explosion(reason, true)` -
   wybuch na żywo z miejsca kamery. "nowe auto", paliwo, utknięcie - bez
   powtórki. Przesunięcie świata: `_rec.shift`, w powtórce wstrzymane.
+- **Dźwięki innych aut z Dopplerem** (`TrafficAudio`, od 2026-11-13; inbox
+  kierownica-decyzje-kolejnosc pkt 4): do 4 najbliższych aut w 80 m
+  (wybór co 0,25 s, auto zostaje w swoim slocie) dostaje 2 odtwarzacze
+  3D: pętlę silnika i pętlę szumu (opony + wiatr, głośność ~v² - "świst"
+  mijania). Próbki wypalane raz przy starcie wzorami z `CarAudio`
+  (~10 ms na PC), dalej tylko `pitch_scale` (obroty / 3000 x Doppler)
+  i głośność - bez syntezy w GDScript na auto. Doppler liczony samemu
+  z prędkości (wbudowany `doppler_tracking` bierze różnicę pozycji, a
+  przesunięcie świata to skok o kilometry), prędkość aut z różnicy
+  pozycji (boty na szynie nie mają fizyki) z `shift()` przy przesunięciu
+  świata. Obroty: z silnika bota z fizyką, inaczej umowne z prędkości
+  (5 biegów co 13 m/s). Pierwszy pomiar prędkości wprost - przy
+  wygładzaniu od zera każde nowe auto "przełączało biegi" (skok tonu).
+  Tylko trasa bez końca; bench: `traffic_audio` na liście wyłączeń.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały
@@ -2249,7 +2266,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   `replay_play_test` (w `quest.sh test`), zrzuty `tests/replay_shot.gd`
   -> `renders/2026-11-13-powtorka/`. Pełny `./quest.sh test` OK,
   `drive_test` soft 24.00/24.05, sport 24.06/24.07, stiff 24.10/24.17
-  (auto/manual) - bez zmian.
+  (auto/manual) - bez zmian. Po przeglądzie PR #84 (koła, opóźnienie
+  pominięcia, auta z puli) - znów pełny zestaw OK, `drive_test` te same czasy.
+- **Dźwięki innych aut z Dopplerem (2026-11-13)**: `TrafficAudio` (sekcja 5),
+  `traffic_audio_test` (Doppler zgodny z teorią: 1,132 / 0,896 przy
+  40 m/s; przejazd obok słuchacza: ton przed / po minięciu 1,23x, bez
+  skoku przy przesunięciu świata), `extremist_play_test`: ekstremista
+  słyszalny, Doppler 1,15 / 0,88 przed / po minięciu gracza.
 - **Pula botów po ekstremiście (przegląd chmury)**: `_take_bot` przywraca
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.
@@ -2273,7 +2296,10 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
    outbox `kierownica-wibracje-dzwieki`)**: (1) sterowanie "kierownicą
    w powietrzu" (obie ręce), (2) wibracje kontrolerów (zderzenia,
    nawierzchnia, ABS/TCS), (3) dźwięki innych aut z efektem Dopplera
-   i szumem mijania. Czekać na odpowiedź chmury z kolejnością.
+   i szumem mijania. Stan: (1) i (2) zrobione, (3) zrobione 2026-11-13
+   (`TrafficAudio`, sekcja 5) - **do zrobienia: bench audio na goglach**
+   (`Perf` "auta_dzwiek" i spadek kl./s przy 4 autach; poniżej ~50 kl./s
+   zmniejszyć `MAX_CARS` do 2) i ocena brzmienia przez użytkownika.
    Kierownica: użytkownik potwierdził ("jako opcja sterowania zamiast
    manetką") i poprosił o przekazanie chmurze - szkic `scripts/air_wheel.gd`
    - chmura poprawiła API (`update(hands, center, right, up, delta)`)

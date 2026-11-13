@@ -2,7 +2,7 @@ extends SceneTree
 ## Powtórka wypadku w grze (inbox powtorka-wypadku): autostrada, gracz jedzie
 ## ~100 km/h z botem obok. "auto rozbite" -> REPLAY (boty wyłączone, auto
 ## z zapisu, kamera nad autem) -> EXPLODING -> RACING. "nowe auto" - od razu
-## wybuch. Spust pomija powtórkę.
+## wybuch. Spust pomija powtórkę (nie w pierwszych 0,8 s po ściemnieniu).
 ##   godot --headless --xr-mode off -s res://tests/replay_play_test.gd </dev/null
 
 var main
@@ -18,6 +18,7 @@ var bot_disabled := false
 var cam_above := true
 var car_moved := false
 var xf_crash: Transform3D
+var early_checked := false
 
 
 func _initialize() -> void:
@@ -123,10 +124,16 @@ func _physics_process(delta: float) -> bool:
 				phase = 6
 				phase_t = 0.0
 		6:
+			# Spust w pierwszych 0,8 s po ściemnieniu (gaz po uderzeniu) - nic.
 			if phase_t > 0.6 and phase_t < 0.62:
 				main._on_xr_button("trigger_click", true)
+			if phase_t > 0.9 and not early_checked:
+				early_checked = true
+				_check(main.race_state == main.Race.REPLAY, "spust zaraz po ściemnieniu nie pomija")
+			if phase_t > 1.3 and phase_t < 1.32:
+				main._on_xr_button("trigger_click", true)
 			if main.race_state == main.Race.EXPLODING:
-				_check(phase_t < 1.0, "spust pomija powtórkę (%.2f s)" % phase_t)
+				_check(phase_t > 1.3 and phase_t < 1.6, "spust pomija powtórkę (%.2f s)" % phase_t)
 				return _end()
 			if phase_t > 5.0:
 				_check(false, "pominięcie nie zadziałało")

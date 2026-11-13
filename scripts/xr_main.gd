@@ -277,7 +277,10 @@ func _on_xr_button(button: String, is_right: bool) -> void:
 	if race_state == Race.REPLAY:
 		# Spust albo B pomija powtórkę; reszta przycisków nic nie robi.
 		if button == "trigger_click" or (is_right and button == "by_button"):
-			_rp_skip = true
+			# Nie w pierwszych chwilach: gracz po uderzeniu puszcza i znów
+			# wciska gaz na spuście (przegląd PR #84).
+			if _rp_fade > REPLAY_FADE + REPLAY_SKIP_DELAY:
+				_rp_skip = true
 		return
 	if _pause and _pause.is_open():
 		# W pauzie: lewe menu wraca do jazdy, A albo spust zatwierdza w menu
@@ -740,6 +743,8 @@ func _check_origin_shift() -> void:
 	_cine_from.origin -= s
 	_cine_to.origin -= s
 	_rec.shift(s)
+	if _traffic_audio:
+		_traffic_audio.shift(s)
 	if _rain:
 		_rain.restart()
 	print("ŚWIAT: przesunięty o %s (razem %d, offset %.0f, %.0f m)" % [str(s), _origin.shifts, _origin.offset_x, _origin.offset_z])
@@ -2010,6 +2015,7 @@ func _process(delta: float) -> void:
 	_update_rain(delta)
 	_update_weather_look(delta)
 	Perf.add("deszcz", t0)
+	_update_traffic_audio(delta)
 	_log_perf(delta)
 	_ws_arm_t = maxf(_ws_arm_t - delta, 0.0)
 	if race_state == Race.WORKSHOP and _xr_ready:
@@ -2522,10 +2528,14 @@ const REPLAY_SPRING := 0.4            # [s] czas reakcji sprężyny kamery
 const REPLAY_YAW_T := 0.5             # [s] wygładzenie kierunku trasy
 const REPLAY_PITCH := 25.0            # [°] w dół, tylko bez gogli
 const REPLAY_OTHERS_R := 120.0        # [m] boty w zapisie
+const REPLAY_SKIP_DELAY := 0.8        # [s] po ściemnieniu - wcześniej spust nie pomija
 var _rec := ReplayRecorder.new()
 var _rec_frame := PackedFloat32Array()
 var _rec_ids := PackedInt64Array()
 var _rec_poses := PackedFloat32Array()
+var _rec_cands: Array[StuntCar] = []  # bez alokacji przy każdej klatce zapisu
+var _rp_live := {}                    # instance_id aut żywych w chwili śmierci
+var _rp_prev_pos := Vector3.ZERO      # obrót kół w powtórce z drogi auta
 var _rec_hit := 0.0                   # najmocniejszy impuls od ostatniej klatki zapisu
 var _rp_t := 0.0                      # czas zapisu odtwarzanej klatki
 var _rp_key := 0.0
@@ -2549,6 +2559,28 @@ var _rp_veil: MeshInstance3D
 
 
 ## Klatka gracza do zapisu - w kroku fizyki, tylko w jeździe.
+## Dźwięki innych aut z Dopplerem (TrafficAudio): do 4 najbliższych w 80 m.
+## Słuchacz to głowa gracza, prędkość słuchacza - auta (w jeździe).
+## Bench: "traffic_audio" w liście wyłączeń.
+var _traffic_audio: TrafficAudio
+var _ta_cands: Array = []
+func _update_traffic_audio(delta: float) -> void:
+	if not _endless or not Bench.on("traffic_audio"):
+		return
+	var t0 := Time.get_ticks_usec()
+	if _traffic_audio == null:
+		_traffic_audio = TrafficAudio.new()
+		add_child(_traffic_audio)
+	_traffic_audio.listener_pos = camera.global_position
+	_traffic_audio.listener_vel = car.linear_velocity if (_mode == Mode.DRIVE and race_state == Race.RACING) else Vector3.ZERO
+	_ta_cands.clear()
+	_ta_cands.append_array(_bots)
+	for o in _oncoming:
+		_ta_cands.append(o.car)
+	_traffic_audio.update(_ta_cands, delta)
+	Perf.add("auta_dzwiek", t0)
+
+
 func _record_replay() -> void:
 	if race_state != Race.RACING or _mode != Mode.DRIVE:
 		return
@@ -2587,8 +2619,9 @@ func _record_replay() -> void:
 	# Inne auta w promieniu REPLAY_OTHERS_R (pierwsze MAX_OTHERS).
 	var n := 0
 	var p := xf.origin
-	var cands: Array[StuntCar] = []
-	cands.assign(_bots)
+	var cands := _rec_cands
+	cands.clear()
+	cands.append_array(_bots)
 	for o in _oncoming:
 		cands.append(o.car)
 	for b in cands:
@@ -2636,6 +2669,7 @@ func _start_replay(reason: String) -> void:
 	car.throttle = 0.0
 	car.brake = 0.0
 	_rp_saved.clear()
+	_rp_live.clear()
 	var others: Array[StuntCar] = []
 	others.assign(_bots)
 	for o in _oncoming:
@@ -2643,6 +2677,7 @@ func _start_replay(reason: String) -> void:
 	for b in others:
 		if is_instance_valid(b):
 			_rp_saved.append([b, b.global_transform, b.linear_velocity, b.angular_velocity, b.process_mode, b.visible])
+			_rp_live[b.get_instance_id()] = true
 			b.process_mode = Node.PROCESS_MODE_DISABLED
 	_result_label.visible = false
 	print("POWTÓRKA: %s, %.1f s, kluczowa chwila %.2f s przed końcem" % [reason, _rp_end - _rp_t, _rp_end - _rp_key])
@@ -2659,8 +2694,9 @@ func _replay_physics(delta: float) -> void:
 	if _rp_skip or _rp_t >= _rp_end:
 		_end_replay()
 		return
+	var rt0 := _rp_t
 	_rp_t = minf(ReplayRecorder.advance(_rp_t, delta, _rp_key), _rp_end)
-	_apply_replay_frame()
+	_apply_replay_frame(_rp_t - rt0)
 
 
 ## Pierwsza klatka po ściemnieniu: przejście do powtórki (kamera od razu
@@ -2684,13 +2720,22 @@ func _rp_veil_switch() -> bool:
 	return true
 
 
-func _apply_replay_frame() -> void:
+## rec_dt: krok czasu zapisu od poprzedniej klatki (0 = pierwsza klatka).
+func _apply_replay_frame(rec_dt := 0.0) -> void:
 	var fr := _rec.player_at(_rp_t)
 	car.global_transform = _get_xf(fr, 0)
+	# Szybko (> ~40 m/s) obrót z zapisu 60 Hz aliasuje (> π na próbkę przy
+	# ~62 m/s) - koła kręcone z drogi auta (przegląd PR #84).
+	var ds := (car.global_position - _rp_prev_pos).dot(-car.global_basis.z)
+	var from_motion := rec_dt > 0.0 and absf(ds) / rec_dt > 40.0
+	_rp_prev_pos = car.global_position
 	for i in range(mini(car.wheels.size(), 4)):
 		var w: StuntCar.Wheel = car.wheels[i]
 		w.steer_angle = fr[ReplayRecorder.I_WHEELS + i * 3]
-		w.spin = fr[ReplayRecorder.I_WHEELS + i * 3 + 1]
+		if from_motion:
+			w.spin = wrapf(w.spin + ds / car.wheel_radius, -PI, PI)
+		else:
+			w.spin = fr[ReplayRecorder.I_WHEELS + i * 3 + 1]
 		w.spring_len = fr[ReplayRecorder.I_WHEELS + i * 3 + 2]
 		w.omega = 0.0
 	car.steering_wheel_deg = fr[ReplayRecorder.I_WHEEL_DEG]
@@ -2707,6 +2752,9 @@ func _apply_replay_frame() -> void:
 		if is_instance_valid(sb):
 			sb.visible = others.has(sb.get_instance_id())
 	for id in others:
+		# Auto, które przed śmiercią wróciło do puli - zostaje w puli.
+		if not _rp_live.has(id):
+			continue
 		var b := instance_from_id(id) as StuntCar
 		if b == null or not is_instance_valid(b):
 			continue
