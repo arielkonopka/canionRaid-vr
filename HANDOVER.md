@@ -2294,7 +2294,8 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 - **Manekin gracza po jeździe użytkownika (2026-11-13)**: "dłonie odrywają
   się od rąk" - dłoń jedzie z kontrolerem, a bark manekina siedzi przy
   fotelu; gdy kontroler dalej niż ramię, `PlayerDummy` wydłuża ramię
-  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6) -
+  (skala kości upper_arm wzdłuż Y, do `ARM_STRETCH_MAX` 1,6; dłoń
+  z odwrotną skalą, bo dziedziczy - inaczej w powtórce rosła z ręką) -
   `dummy_arm_test`: przerwa 0 do 1,3 ramienia. **Pułapka**:
   `get_bone_global_pose` poza sygnałem `Skeleton3D.skeleton_updated`
   zwraca pozę **bez** modyfikatorów (TwoBoneIK3D) - test czyta w sygnale.
