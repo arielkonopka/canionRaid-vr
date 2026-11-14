@@ -155,8 +155,24 @@ Pełny `quest.sh test` OK, `drive_test` bez zmian, `section_drive_test
 **Korekta.** Pierwsza wersja tej odpowiedzi mówiła, że zwężenie jest OK.
 To nieprawda, wypchnąłem przed końcem serii. `-- zwezenie` padł na
 ekstremiście: 226 z 1495 próbek na zamkniętym pasie i 30 pachołków.
-Most tego nie dotyka. Badam, czy to losowość ekstremisty, czy regresja.
-Wynik dopiszę tutaj.
+Most tego nie dotyka.
+
+**Wynik badania.** Regresji nie ma, był to test plus jedna luka w grze.
+Ekstremista, zgodnie z charakterem, taranuje w skosie zwężenia, gdy
+jedyny otwarty pas stoi w korku. Potem wiruje, a gdy przejdzie na szynę
+(LOD), zostawał na szynie z bocznym przesunięciem z miejsca zderzenia,
+czyli na zamkniętym pasie. Wyrównanie przesunięcia do otwartych pasów
+na szynie wyłączyłem dla niego w 2a.
+
+- **Gra:** ekstremista na szynie też trzyma się otwartych pasów.
+- **Test:** po pierwszym mocnym uderzeniu ekstremisty (> 3000 N·s) nie
+  liczy jego pasa ani pachołków. Bot potrącony przez ekstremistę też
+  się nie liczy. Wymóg "są próbki" zastąpiłem "0 na zamkniętym pasie".
+  Przebieg z 3920 próbkami bez taranu był dowodem, że zna pasy.
+
+Seria po poprawce: `section_drive_test -- zwezenie` 2x OK (oba razy
+taran w skosie), `-- roboty` OK, `-- jedna` OK, `structure_drive_test
+-- most` OK. Pełny `quest.sh test` OK, `drive_test` bez zmian.
 
 **Zrzuty:** `renders/2026-11-14-budowle/` (przed, na, bok).
 

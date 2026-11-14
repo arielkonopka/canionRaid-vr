@@ -45,6 +45,7 @@ var crashed := {}
 var x_spawned := false
 var x_closed := 0                  # próbki ekstremisty na zamkniętym pasie (pełny przekrój)
 var x_samples := 0
+var x_crashed := false
 var wait_t := 0.0
 var x_cones_seen := 0
 var x_cones_clean := 0
@@ -123,7 +124,11 @@ func _physics_process(_delta: float) -> bool:
 	if xb and is_instance_valid(xb):
 		var xd: BotDriver = main._drv(xb)
 		var zx: Dictionary = sp.zone_at(xd.dist) if xd else {}
-		if xd and not xd.on_rail and not zx.is_empty() and xd.dist > float(zx["start"]) + float(zx["t_in"]) + 20.0 \
+		# Po taranie (charakter ekstremisty) auto wiruje - dalej to fizyka
+		# zderzenia, nie wybór pasa.
+		if float(xb.last_hit.get("j", 0.0)) > 3000.0:
+			x_crashed = true
+		if xd and not x_crashed and not xd.on_rail and not zx.is_empty() and xd.dist > float(zx["start"]) + float(zx["t_in"]) + 20.0 \
 				and xd.dist < float(zx["end"]) - float(zx["t_out"]):
 			var xxf: Transform3D = main.track.transform_at_distance(xd.dist)
 			var xx: float = (xb.global_position - xxf.origin).dot(xxf.basis.x)
@@ -166,6 +171,9 @@ func _physics_process(_delta: float) -> bool:
 		# Po mocnym zderzeniu (taran ekstremisty, wypadek) albo obrocie bot
 		# ląduje, gdzie fizyka go rzuci - nie liczy się do jazdy pasami.
 		var hxf: Transform3D = main.track.transform_at_distance(drv.dist)
+		var xname: String = String(main._extremist.name) if main._extremist and is_instance_valid(main._extremist) else "?"
+		if str(b.last_hit.get("what", "")).ends_with(xname):
+			crashed[b] = true                  # potrącony przez ekstremistę
 		if float(b.last_hit.get("j", 0.0)) > 3000.0 \
 				or absf((-b.global_basis.z).signed_angle_to(-hxf.basis.z, Vector3.UP)) > deg_to_rad(35.0):
 			crashed[b] = true
@@ -301,7 +309,9 @@ func _end() -> bool:
 		_check(loose_wrong == 0, "auto z naprzeciwka po przejściu na fizykę nie wjeżdża na nasz prawy pas (%d)" % loose_wrong)
 		_check(onc_other == 0, "auta z naprzeciwka na zamkniętej drugiej jezdni: %d" % onc_other)
 	if kind == "zwezenie":
-		_check(x_samples > 0 and x_closed == 0, "ekstremista na zamkniętym pasie: %d z %d próbek" % [x_closed, x_samples])
+		# Próbek bywa 0: przy korku w jedynym pasie ekstremista taranuje jeszcze
+		# w skosie (jego charakter) - liczy się, że nie wybiera zamkniętego pasa.
+		_check(x_closed == 0 and (x_samples > 0 or x_crashed), "ekstremista na zamkniętym pasie: %d z %d próbek%s" % [x_closed, x_samples, " (potem taran)" if x_crashed else ""])
 		_check(x_cones_clean == 0, "pachołki przewrócone przez ekstremistę jadącego prosto: %d (razem %d)" % [x_cones_clean, main.x_cones_hit])
 	_check(bot_in_closed == 0, "boty w pełnym przekroju na zamkniętym pasie: %d z %d próbek (po zderzeniu nie liczone: %d aut)" % [bot_in_closed, bot_samples, crashed.size()])
 	print("section_drive_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])

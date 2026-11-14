@@ -1622,7 +1622,8 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   **Ekstremista zna otwarte pasy** (decyzja użytkownika 2026-11-14:
   "Tak, zna otwarte pasy"): pas zamknięty w ciągu 400 m to dla jego
   mózgu stojąca przeszkoda (`_x_ctx`), zamknięty prawy pas odcina
-  pobocze; jedzie otwartym, ucieka na pobocze albo taranuje. **Bot zgubiony po zejściu z szyny
+  pobocze; jedzie otwartym, ucieka na pobocze albo taranuje (przy korku
+  w jedynym pasie zwykle w skosie). Na szynie też po otwartych pasach. **Bot zgubiony po zejściu z szyny
   (naprawione 2026-11-14)**: na szynie okno trasy (`_window`) się nie
   odświeża, a `dist` rośnie o setki metrów; po powrocie na fizykę
   najbliższa próbka starego okna cofała `dist`, cel w poprzek wychodził
