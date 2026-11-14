@@ -1595,7 +1595,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
   ocena użytkownika w goglach (wartości startowe).
 - **Przekroje jezdni (etap 2 urozmaiceń, od 2026-11-14; inbox
-  etap2-przekroje) - 2a zwężenie i 2b roboty zrobione**: `SectionPlan` (chmura) i
+  etap2-przekroje) - 2a zwężenie, 2b roboty, 2c 1+1 zrobione**: `SectionPlan` (chmura) i
   `SegmentCode` tworzone w `EndlessTrack._ready` (`track.segcode`,
   `track.sections` - generator potrzebuje ich przy budowie;
   `SegmentEvents` bierze ten sam kod). `HighwayGenerator`: podział
@@ -1619,11 +1619,19 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Test `tests/section_drive_test.gd` (trasa 33, zwężenie 10,8-12 km,
   ~12 min, poza `quest.sh`; z KATALOGIEM - zrzuty): 2x OK, 0 próbek
   botów na zamkniętym pasie. Zrzuty `renders/2026-11-14-przekroje/`.
-  Ekstremista przez pachołki: zostaje (chmura: zgodne z "nigdy nie
-  hamuje"); jeśli użytkownik w goglach uzna, że głupio - lista otwartych
-  pasów do `ExtremistBrain`. **Otwarte**: pojedyncze obroty botów
-  400-600 m za graczem przy 190-200 km/h (poza wzrokiem) - podejrzenie:
-  przejście szyna -> fizyka przy dużej prędkości.
+  **Ekstremista zna otwarte pasy** (decyzja użytkownika 2026-11-14:
+  "Tak, zna otwarte pasy"): pas zamknięty w ciągu 400 m to dla jego
+  mózgu stojąca przeszkoda (`_x_ctx`), zamknięty prawy pas odcina
+  pobocze; jedzie otwartym, ucieka na pobocze albo taranuje. **Bot zgubiony po zejściu z szyny
+  (naprawione 2026-11-14)**: na szynie okno trasy (`_window`) się nie
+  odświeża, a `dist` rośnie o setki metrów; po powrocie na fizykę
+  najbliższa próbka starego okna cofała `dist`, cel w poprzek wychodził
+  ~ -1200 m i bot jechał na ślepo prosto (dryf z drogi; prawdopodobnie też
+  dawne "obroty botów 400-600 m za graczem"). Teraz okno odświeżane od
+  razu przy zejściu z szyny, a gdy auto jest > 30 m od najbliższej próbki
+  okna - `dist` z `track.nearest_sample`. Boty w szale i ekstremista
+  jeżdżą po swojemu także zamkniętym pasem - pachołki od nich lecą
+  (`_knock_cones`, tylko auta z fizyką w strefie).
   **2b roboty (zrobione 2026-11-14)**: `SectionPlan.crossovers` /
   `onc_cross` / `median_gap` / `works_at` (dodatek agenta lokalnego) -
   auta z naprzeciwka przejeżdżają przez przerwę w barierce na nasz lewy
@@ -1636,7 +1644,14 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   inaczej przy każdym minięciu jechało bez kierowcy prosto na nasze
   pasy); scenka z naprzeciwka nie startuje, gdy na jej drodze jest taka
   strefa. Test `section_drive_test -- roboty`.
-  Dalej 2c 1+1, 2d 2+1, 2e 3+3.
+  **2c 1+1 (zrobione 2026-11-14)**: `SectionPlan.width_marks` (generator
+  dzieli odcinki, szerokość z `lanes_at` na końcu odcinka), przejazdy aut
+  z naprzeciwka dla sekcji 6/4/3 (`ONC_ON_OURS`, `onc_x`), shader zwykłej
+  drogi (`road_color`: COLOR.g 1 = 1+1, 0,5 = 2+1, COLOR.b granica
+  kierunków). Barierka betonowa po lewej zostaje (druga jezdnia "w budowie"
+  tuż obok). Test `section_drive_test -- jedna` (46,8-48,3 km). Test nie
+  liczy botów po mocnym zderzeniu (4-8 aut na przejazd - pościgi, waśnie,
+  taran ekstremisty). Dalej 2d 2+1, 2e 3+3.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały

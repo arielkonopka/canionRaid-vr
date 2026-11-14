@@ -78,6 +78,23 @@ void fragment() {
 		works = layout == 1 ? COLOR.r : 0.0;
 		div = max(div, step(0.5, works) * step(abs(uu - 4.5), 0.075));
 		paint = max(max(edge_l, edge_r), div) * (0.85 + 0.15 * grain);
+		// Zwykła droga 1+1 / 2+1 (COLOR.g, etap 2c-2d): krawędzie 0,5 m od
+		// brzegu, pasy co 3,5 m od granicy kierunków (COLOR.b), granica na
+		// 1+1 przerywana (wolno wyprzedzać), na 2+1 podwójna ciągła.
+		float single = layout == 1 ? COLOR.g : 0.0;
+		if (single > 0.25) {
+			float bx = COLOR.b * 16.0 - 8.0 + hw;      // granica kierunków od lewej krawędzi
+			float e1 = step(0.35, uu) * step(uu, 0.5);
+			float e2 = step(w - 0.5, uu) * step(uu, w - 0.35);
+			float dash = step(mod(v, 12.0), 4.0);
+			float d0 = abs(uu - bx);
+			float bnd = single > 0.75 ? step(d0, 0.075) * dash
+					: step(abs(d0 - 0.12), 0.06);
+			// Linie między pasami tego samego kierunku (2+1): co 3,5 m od granicy.
+			float lanes = step(abs(mod(uu - bx + 1.75, 3.5) - 1.75), 0.075) * step(1.0, d0) * dash
+					* step(0.6, uu) * step(uu, w - 0.6);
+			paint = max(max(e1, e2), max(bnd, lanes)) * (0.85 + 0.15 * grain);
+		}
 	} else if (layout == 3) {
 		// Wielka skocznia: biało-czerwone pasy poprzeczne co 2 m na całej
 		// szerokości - widoczna z daleka.

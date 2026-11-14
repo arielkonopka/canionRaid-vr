@@ -1260,11 +1260,12 @@ func _update_segments(delta: float) -> void:
 ## Przejechanie pachołków i słupków przekroju (etap 2): tylko w strefie,
 ## auto gracza (boty omijają je pasami). Stuknięcie w głośniku auta.
 var cones_hit := 0
+var x_cones_hit := 0                  # pachołki przewrócone przez ekstremistę (test)
 func _knock_cones() -> void:
 	if not (_endless and track.autostrada and track.sections) or race_state != Race.RACING:
 		return
 	var d := _last_safe_dist
-	if track.sections.zone_at(d).is_empty() and _extremist == null:
+	if track.sections.zone_at(d).is_empty() and _bots.is_empty():
 		return
 	var xf: Transform3D = track.transform_at_distance(d)
 	var x := (car.global_position - xf.origin).dot(xf.basis.x)
@@ -1274,14 +1275,19 @@ func _knock_cones() -> void:
 		cones_hit += n
 		if car.get_node_or_null("Audio"):
 			car.get_node("Audio").thud(0.15)
-	# Ekstremista jedzie zamkniętym pasem przez pachołki (jego mózg nie
-	# zna przekrojów - "nigdy nie hamuje") - niech lecą (jedno auto, tanio).
-	var xdrv: BotDriver = _drv(_extremist) if _extremist and is_instance_valid(_extremist) else null
-	if xdrv and not xdrv.on_rail:
-		var xd: float = xdrv.dist
-		if not track.sections.zone_at(xd).is_empty():
-			var xxf: Transform3D = track.transform_at_distance(xd)
-			track.knock_items(xd, (_extremist.global_position - xxf.origin).dot(xxf.basis.x), 0.95, absf(_extremist.speed), 0.0)
+	# Ekstremista i boty w szale jadą po swojemu, także zamkniętym pasem
+	# przez pachołki (plan szału goni gracza, nie zna przekrojów) - niech
+	# lecą. Tylko auta z fizyką w strefie (kilka naraz, tanio).
+	for b in _bots:
+		var bd: BotDriver = _drv(b)
+		if bd == null or bd.on_rail or not (bd.rage > 0.05 or bd.persona == "extremist"):
+			continue
+		if track.sections.zone_at(bd.dist).is_empty():
+			continue
+		var bxf: Transform3D = track.transform_at_distance(bd.dist)
+		var nk: int = track.knock_items(bd.dist, (b.global_position - bxf.origin).dot(bxf.basis.x), 0.95, absf(b.speed), 0.0)
+		if bd.persona == "extremist":
+			x_cones_hit += nk
 
 
 ## Odcinek "rest" (oddech w rytmie reżysera): nic nowego wrogiego.
@@ -1292,7 +1298,7 @@ func seg_calm() -> bool:
 	return seg_rhythm and segments != null and segments.calm_at(_last_safe_dist)
 
 
-## Roboty (etap 2b): ruch z naprzeciwka naszym lewym pasem - 2-3 auta
+## Roboty, 1+1, 2+1 (etap 2b-2d): ruch z naprzeciwka naszą jezdnią - 2-3 auta
 ## postawione za końcem strefy (poza wzrokiem), gdy gracz jest ~2 km przed
 ## nią; bez tego przy rzadkim ruchu między miastami strefa bywała pusta.
 var _works_done := {}
@@ -1301,7 +1307,7 @@ func _works_traffic() -> void:
 		return
 	var p := _last_safe_dist
 	for z in track.sections.zones(p, p + 2600.0):
-		if int(z["section"]) != 6 or _works_done.has(int(z["k"])) or p < float(z["start"]) - 2600.0:
+		if not (int(z["section"]) in SectionPlan.ONC_ON_OURS) or _works_done.has(int(z["k"])) or p < float(z["start"]) - 2600.0:
 			continue
 		# Trasa za strefą musi już być (bez szyny auto od razu wraca do puli).
 		if track.rail_at(float(z["end"]) + 450.0).is_empty():
@@ -3390,8 +3396,9 @@ func _update_oncoming(delta: float) -> void:
 		# Roboty (etap 2b): przejazd przez pas rozdziału na nasz lewy pas.
 		if not o.wrong_way and track.sections:
 			var fx: float = track.sections.onc_cross(d2)
-			if fx > 0.0:
-				var ours := _wrong_way_pose(rail[0], c.wheel_radius)
+			var ox: float = track.sections.onc_x(d2, int(o.lane))
+			if fx > 0.0 and not is_nan(ox):
+				var ours := _wrong_way_pose(rail[0], c.wheel_radius, ox)
 				var xf2 := c.global_transform
 				# Skos w przejeździe: kurs w stronę ruchu w poprzek (pochodna
 				# smoothstep po d, ~ 13 m / 120 m).
@@ -3705,10 +3712,10 @@ func _oncoming_xf(d: float, lane: float, wheel_r := 0.33) -> Transform3D:
 
 
 ## Kierowca pod prąd: nasza jezdnia, lewy pas, przodem do gracza.
-func _wrong_way_pose(xf: Transform3D, wheel_r: float) -> Transform3D:
+func _wrong_way_pose(xf: Transform3D, wheel_r: float, x := NAN) -> Transform3D:
 	var p := _oncoming_pose(xf, 14.8, 0.0, wheel_r)
 	var b := xf.basis.rotated(xf.basis.y, PI)
-	var o := xf.origin + xf.basis.x * hwy_lane_off(1)
+	var o := xf.origin + xf.basis.x * (hwy_lane_off(1) if is_nan(x) else x)
 	# Wysokość jak auta z naprzeciwka (koła na jezdni): z ich pozy.
 	return Transform3D(b, o + xf.basis.y * (p.origin - xf.origin).dot(xf.basis.y))
 

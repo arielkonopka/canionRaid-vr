@@ -1,4 +1,4 @@
-Status: w toku - 2a i 2b zrobione (2026-11-14), dalej 2c 1+1
+Status: w toku - 2a, 2b, 2c zrobione (2026-11-14), dalej 2d 2+1
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap2-przekroje-rozpoznanie.md)
 Decyzje użytkownika: 2026-11-13 21:42 UTC kolejność etapów "Przekroje,
@@ -250,3 +250,47 @@ etapu 2: 2 z 21 przebiegów na bafe130. Opisane w HANDOVER, pułapki.
 
 **Dalej:** 2c (1+1, zmienna szerokość, linia środkowa, druga jezdnia
 "w budowie").
+
+
+**2c 1+1: zrobione (2026-11-14).**
+
+- **Generator.** `SectionPlan.width_marks` dzieli odcinki w 4 punktach
+  strefy. `_seg` bierze szerokość z `lanes_at` na końcu odcinka,
+  a StuntTrack przechodzi płynnie (smoothstep).
+- **Przejazdy.** `crossovers` i `onc_cross` dotyczą teraz sekcji 6, 4
+  i 3 (`ONC_ON_OURS`). `onc_x(d, lane)` daje oś auta z naprzeciwka
+  z pełnego przekroju: lane 0, czyli ich wolny pas, to nasz skrajny lewy.
+  `_works_traffic` stawia auta także pod 1+1 i 2+1.
+- **Shader.** `SectionPlan.road_color` -> COLOR: g = 1 dla 1+1 i 0,5
+  dla 2+1, b = oś granicy kierunków. Krawędzie są 0,5 m od brzegu,
+  granica kierunków na 1+1 przerywana (wolno wyprzedzać), na 2+1
+  podwójna ciągła, linie między pasami co 3,5 m. Zrzut
+  `przekroj_jedna_srodek`: 8 m, przerywana środkowa, krawędziowe.
+- **Barierka betonowa** po lewej zostaje, z przerwami w przejazdach.
+  Druga jezdnia "w budowie" stoi tuż obok, a bez barierki dało się na
+  nią wjechać. Jeśli wolicie bez - jedna zmiana w `_build_highway`.
+
+**Znalezisko (stary błąd).** Bot po zejściu z szyny miał okno trasy
+sprzed szyny. Najbliższa próbka cofała jego `dist`, cel w poprzek
+wychodził ~ -1200 m i bot jechał na ślepo prosto z drogi. To pewnie też
+dawne "obroty 400-600 m za graczem". Teraz okno odświeża się przy
+zejściu z szyny. Zabezpieczenie: gdy auto jest > 30 m od najbliższej
+próbki okna, `dist` bierze się z `nearest_sample`.
+
+**Testy.** `section_drive_test -- jedna` (46,8-48,3 km) i `-- roboty`
+przeszły 2x po kolei, a `-- zwezenie` 1x. Auta z naprzeciwka jadą
+naszą jezdnią, na zamkniętej drugiej jezdni nie ma żadnego, 0 botów na
+zamkniętym pasie.
+
+Test pomija teraz boty po mocnym zderzeniu (impuls > 3000 N·s albo
+obrót > 35°), bo tam fizyka je rzuca. Takich aut było 4-8 na przejazd
+30-47 km (pościgi, waśnie, blokady, taranujący ekstremista). Jeśli to
+za dużo na Waszą ocenę, sprawdzę, kto je rozbija.
+
+Rzadki przypadek z robót: auto z naprzeciwka po przejściu na fizykę na
+naszym prawym pasie, 1 z ~4 przebiegów. Test ma wypis "LUŹNE: ...",
+żeby go złapać, kiedy się powtórzy. Pełny `quest.sh test` OK,
+`drive_test` bez zmian.
+
+**Dalej:** 2d (2+1). Kod jest już w dużej części wspólny (`road_color`,
+`onc_x` z fazą).
