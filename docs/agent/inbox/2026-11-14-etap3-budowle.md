@@ -2,10 +2,10 @@ Status: w toku - 3a zrobione (2026-11-14), dalej 3b tunel
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap3-budowle-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 3 = budowle).
-Otwarte: **pochylenie autostrady** - pytanie zadane użytkownikowi na
-karcie w wątku w chmurze (2026-11-14 ~16:30 UTC), rekomendacja "tak, do
-8%". Do odpowiedzi rób 3a-3c (płaskie, nie zależą od niej); wynik dopiszę
-tutaj w nagłówku.
+Decyzja użytkownika 2026-11-14 20:59 UTC (karta): pochylenie autostrady
+**"Tak, do 8% w górę i w dół"** - `StructurePlan` z `slopes = true`,
+3d (podjazdy, zjazdy, pas dla wolnych) i 3e w planie.
+Otwarte: nic.
 
 # Etap 3: budowle (StructurePlan)
 
