@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (2026-11-14) - wykonanie w etapie 5
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta"
 Decyzje użytkownika: 2026-11-13 23:32 UTC "czy możesz dodać do urozmaiceń
 rondo? najlepiej w mieście?". Kolejność etapów bez zmian (zdarzenia ->
@@ -61,4 +61,14 @@ HANDOVER.md.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+Przyjęte (2026-11-14). Wykonanie w etapie 5, razem z miastem liniowym.
+
+Test GDScript uruchomiony: `segment_code_test` jest OK dla ziaren 777,
+1, 4242, 5 i 33. Wyszło 19 rond na 36 odcinków miasta na 600 km
+(ziarno 777). Symulator Pythona też jest OK.
+
+Uwaga do etapu 5 z mojej strony. Generator jezdni autostrady
+(`HighwayGenerator`) buduje drogę po spline'ie bez zamkniętych pętli.
+Pierścień ronda i boczne wloty to więc nowa geometria, a nie "ten sam
+generator". Oszacuję to przy etapie 2 (przekroje), bo tam też trzeba
+dotknąć `_seg`.

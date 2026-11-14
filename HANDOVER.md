@@ -1570,6 +1570,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   `main.seg_rhythm = false` wyłącza rytm (pierwsze ~3,6 km trasy to
   zawsze "rest", więc `feud_play_test` i `oncoming_play_test` bez tego
   nie widziały waśni ani scenki).
+  Rondo (pomysł użytkownika 2026-11-13: "czy możesz dodać do urozmaiceń
+  rondo? najlepiej w mieście?") - w kodzie odcinka (`SegmentCode.
+  roundabout_r`, miasto structure 7, `s_param` 0-3 = promień 22-40 m),
+  wykonanie w etapie 5 (inbox `rondo-w-miescie`).
   **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
   ocena użytkownika w goglach (wartości startowe).
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
