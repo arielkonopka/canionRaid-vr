@@ -677,6 +677,11 @@ zawiera tylko notę, pełny tekst trzeba dograć).
   (MIT, ~82 MB binarek) jest w repo, żeby klon się budował; `build/`
   i `android/` są w `.gitignore`.
 
+- **Pochylenie autostrady (decyzja 2026-11-14, karta w wątku chmury):
+  "Tak, do 8% w górę i w dół"** - podjazdy, zjazdy z serpentynami, pas
+  dla wolnych i estakady (etap 3d/3e). Do czasu 3d `EndlessTrack.
+  STRUCT_SLOPES` = false (generator jeszcze nie pochyla jezdni).
+
 ## 3. Środowisko (sprawdzone 2026-11-07)
 
 | co | stan |
