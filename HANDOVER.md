@@ -725,6 +725,11 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 - **Pętla `until ! pgrep -f "nazwa_testu"` nigdy się nie kończy** → sama
   pętla ma tę nazwę w swojej linii poleceń. Szukać procesu godot
   (`pgrep -f "godot.*nazwa"`) albo czekać na `wait`.
+- **`horn_control_test` (wąwóz) pada co kilka przebiegów** (obrót bota
+  80-140°, przewrotki, a_bok ~850 m/s² - zderzenie botów w szale) → stara
+  niestabilność, nie regresja: na commicie bafe130 2 z 21 przebiegów,
+  po etapie 2 podobnie. Przy pojedynczym BŁĘDZIE w `quest.sh test` puścić
+  go jeszcze raz osobno, zanim zacznie się szukać przyczyny w zmianach.
 - **`pkill -f "wzorzec"` kończy własną komendę (kod 144, nic dalej się nie
   wykonało)** → wzorzec jest też w linii poleceń powłoki, która go woła
   (ta sama przyczyna co przy pgrep). Procesy w tle zabijać po PID-ach
@@ -1577,7 +1582,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
   ocena użytkownika w goglach (wartości startowe).
 - **Przekroje jezdni (etap 2 urozmaiceń, od 2026-11-14; inbox
-  etap2-przekroje) - 2a zwężenie zrobione**: `SectionPlan` (chmura) i
+  etap2-przekroje) - 2a zwężenie i 2b roboty zrobione**: `SectionPlan` (chmura) i
   `SegmentCode` tworzone w `EndlessTrack._ready` (`track.segcode`,
   `track.sections` - generator potrzebuje ich przy budowie;
   `SegmentEvents` bierze ten sam kod). `HighwayGenerator`: podział
@@ -1601,8 +1606,24 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Test `tests/section_drive_test.gd` (trasa 33, zwężenie 10,8-12 km,
   ~12 min, poza `quest.sh`; z KATALOGIEM - zrzuty): 2x OK, 0 próbek
   botów na zamkniętym pasie. Zrzuty `renders/2026-11-14-przekroje/`.
-  Dalej 2b roboty (żółte linie w shaderze, ruch z naprzeciwka na naszym
-  lewym pasie), 2c 1+1, 2d 2+1, 2e 3+3.
+  Ekstremista przez pachołki: zostaje (chmura: zgodne z "nigdy nie
+  hamuje"); jeśli użytkownik w goglach uzna, że głupio - lista otwartych
+  pasów do `ExtremistBrain`. **Otwarte**: pojedyncze obroty botów
+  400-600 m za graczem przy 190-200 km/h (poza wzrokiem) - podejrzenie:
+  przejście szyna -> fizyka przy dużej prędkości.
+  **2b roboty (zrobione 2026-11-14)**: `SectionPlan.crossovers` /
+  `onc_cross` / `median_gap` / `works_at` (dodatek agenta lokalnego) -
+  auta z naprzeciwka przejeżdżają przez przerwę w barierce na nasz lewy
+  pas (szyna w `_update_oncoming`) i wracają; żółte linie tymczasowe
+  (COLOR.r siatki naszej jezdni, `road.gdshader`); `_works_traffic` -
+  2-3 auta z naprzeciwka pod strefę (`OncomingCar.works`, TrafficZone
+  ich nie usuwa; stawiane dopiero, gdy trasa za strefą istnieje - bez
+  szyny auto od razu wraca do puli); na naszej jezdni auto z naprzeciwka
+  przechodzi na fizykę tylko przy nachodzeniu w poprzek (`_onc_beside`;
+  inaczej przy każdym minięciu jechało bez kierowcy prosto na nasze
+  pasy); scenka z naprzeciwka nie startuje, gdy na jej drodze jest taka
+  strefa. Test `section_drive_test -- roboty`.
+  Dalej 2c 1+1, 2d 2+1, 2e 3+3.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały

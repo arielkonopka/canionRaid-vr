@@ -272,8 +272,11 @@ func _drive_step(delta: float) -> void:
 		_tgt_off_s = offset
 		_tgt_ok = true
 	if _side_block and rage < 0.05 and not extremist:
-		# Czeka z wjazdem na zajęty pas i odpuszcza, żeby wjechać za tamtym.
-		target_kmh *= 0.85
+		# Czeka z wjazdem na zajęty pas i odpuszcza, żeby wjechać za tamtym;
+		# blisko końca pasa (pachołki ~50 m przed) - mocniej, żeby nie
+		# przejechać przez nie (przegląd PR #94).
+		var end_near := absf(main.hwy_lane_at(lane, dist + 50.0) - offset) > 1.5 if main._endless and main.track.autostrada else false
+		target_kmh *= 0.4 if end_near else 0.85
 	else:
 		_tgt_off_s = move_toward(_tgt_off_s, target_off,
 				(ExtremistBrain.LAT_RATE if extremist else LAT_RATE) * delta)
@@ -356,11 +359,11 @@ func _find_lead() -> void:
 	var fwd := -car.global_basis.z
 	var my_x := car.global_position.dot(right)
 	var tgt_x := my_x + (_tgt_off_s - (car.global_position - (_window[mini(_win_hint, _window.size() - 1)]["pos"] as Vector3)).dot(right))
-	var others: Array = main._bots.duplicate()
-	if player:
-		others.append(player)
-	for o in others:
-		if o == car or not is_instance_valid(o) or not (o as Node3D).visible:
+	# Boty i gracz bez kopiowania listy (co 0,15 s na każdego bota).
+	var n_bots: int = main._bots.size()
+	for oi in range(n_bots + 1):
+		var o = player if oi == n_bots else main._bots[oi]
+		if o == null or o == car or not is_instance_valid(o) or not (o as Node3D).visible:
 			continue
 		var rel: Vector3 = (o as Node3D).global_position - car.global_position
 		var ahead := rel.dot(fwd)

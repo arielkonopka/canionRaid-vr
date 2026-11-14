@@ -1,4 +1,4 @@
-Status: w toku - 2a zrobione (2026-11-14), dalej 2b roboty
+Status: w toku - 2a i 2b zrobione (2026-11-14), dalej 2c 1+1
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap2-przekroje-rozpoznanie.md)
 Decyzje użytkownika: 2026-11-13 21:42 UTC kolejność etapów "Przekroje,
@@ -194,3 +194,59 @@ Pełny `quest.sh test` OK, `drive_test` bez zmian (24.00-24.17).
 **Bench na Queście:** czeka na gogle.
 
 **Dalej:** 2b (roboty).
+
+
+**2b roboty: zrobione (2026-11-14).**
+
+**Przejazd przez pas rozdziału** (dodatek w `SectionPlan`, opisany jako
+agenta lokalnego, bez zmian w części z ziarna):
+- `crossovers(z)`: dwa odcinki po `CROSS_LEN` 120 m wewnątrz pełnego
+  przekroju. Wjazd na naszą jezdnię przed `end - t_out`, zjazd za
+  `start + t_in`. Nasz lewy pas jest tam i tak zamknięty;
+- `onc_cross(d)` 0..1 (smoothstep), `median_gap(d)`, `works_at(d)`.
+
+**Wpięcie w grę:**
+- Szyna aut z naprzeciwka (`_update_oncoming`) miesza położenie: ich pas
+  -> nasz lewy pas. Kurs w przejeździe jest skośny.
+- `StuntTrack._build_highway`: przerwa w barierce betonowej w przejazdach.
+  Test promieniem: przerwa jest, a 300 m przed strefą bariera stoi.
+- **Żółte linie** w `road.gdshader`. COLOR.r siatki naszej jezdni = 1
+  w strefie robót: linie żółte, linia między kierunkami ciągła. To
+  pierwsza zmiana shadera, koszt zerowy.
+
+**Znaleziska i poprawki:**
+1. Auto z naprzeciwka przechodziło na fizykę przy każdym minięciu.
+   Na robotach jedzie 3,75 m obok gracza, a `LOOSE_R` = 5,5. Bez
+   kierowcy jechało dalej prosto, przez koniec strefy na nasze pasy,
+   a boty się z nim zderzały. `_onc_beside`: na naszej jezdni przechodzi
+   na fizykę dopiero przy nachodzeniu w poprzek (< 2,4 m). Test to
+   sprawdza.
+2. W 2a blokowałem spawn aut z naprzeciwka przy `other_closed`, a na
+   robotach mają one właśnie jechać naszym pasem. Blokada zdjęta.
+3. Ruch między miastami bywa rzadki i strefa robót była pusta.
+   `_works_traffic`: 2-3 auta z naprzeciwka za końcem strefy, gdy gracz
+   jest ~2,6 km przed nią i trasa tam już stoi (bez szyny auto od razu
+   wracało do puli). `OncomingCar.works` - TrafficZone ich nie usuwa.
+   Log: "ROBOTY: strefa ... auta: N".
+4. Scenka z naprzeciwka (`OncomingSkirmish`) jechała przez strefę na
+   zamkniętej jezdni. Teraz nie startuje, jeśli na całej jej drodze do
+   gracza (co 100 m) jest strefa z ruchem na naszej jezdni.
+
+**Test `section_drive_test -- roboty`** (trasa 33, 28,5-29,4 km) OK:
+- 59 elementów, ograniczenie 80;
+- 0 pachołków przy jeździe otwartym pasem;
+- ~4-6 tys. próbek aut z naprzeciwka na naszym lewym pasie, 0 na
+  zamkniętej jezdni;
+- 0 aut po przejściu na fizykę na naszym prawym pasie;
+- 0 botów na zamkniętym pasie;
+- przerwa w barierce jest.
+
+Wariant `-- zwezenie` OK. Pełny `quest.sh test` OK poza znaną
+niestabilnością `horn_control_test` (wąwóz). Pada też na kodzie sprzed
+etapu 2: 2 z 21 przebiegów na bafe130. Opisane w HANDOVER, pułapki.
+`drive_test` bez zmian.
+
+**Zrzuty:** `renders/2026-11-14-przekroje/przekroj_roboty_*.png`.
+
+**Dalej:** 2c (1+1, zmienna szerokość, linia środkowa, druga jezdnia
+"w budowie").

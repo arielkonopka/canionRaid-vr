@@ -1249,6 +1249,7 @@ var segments: SegmentEvents
 func _update_segments(delta: float) -> void:
 	if not (_endless and track.autostrada) or race_state != Race.RACING:
 		return
+	_works_traffic()
 	if segments == null:
 		segments = SegmentEvents.new(track.segcode, self, track.plan_seed)
 	var t0 := Time.get_ticks_usec()
@@ -1289,6 +1290,34 @@ func _knock_cones() -> void:
 var seg_rhythm := true
 func seg_calm() -> bool:
 	return seg_rhythm and segments != null and segments.calm_at(_last_safe_dist)
+
+
+## Roboty (etap 2b): ruch z naprzeciwka naszym lewym pasem - 2-3 auta
+## postawione za końcem strefy (poza wzrokiem), gdy gracz jest ~2 km przed
+## nią; bez tego przy rzadkim ruchu między miastami strefa bywała pusta.
+var _works_done := {}
+func _works_traffic() -> void:
+	if not track.sections:
+		return
+	var p := _last_safe_dist
+	for z in track.sections.zones(p, p + 2600.0):
+		if int(z["section"]) != 6 or _works_done.has(int(z["k"])) or p < float(z["start"]) - 2600.0:
+			continue
+		# Trasa za strefą musi już być (bez szyny auto od razu wraca do puli).
+		if track.rail_at(float(z["end"]) + 450.0).is_empty():
+			continue
+		_works_done[int(z["k"])] = true
+		var lim := float(z["limit"])
+		var n0 := _oncoming.size()
+		for i in range(2 + _bot_rng.randi() % 2):
+			var d := float(z["end"]) + 150.0 + i * 140.0
+			var xf: Transform3D = _oncoming_xf(d, 0.0)
+			if _can_vanish(xf.origin):
+				var n := _oncoming.size()
+				_spawn_oncoming(d, 0, lim * _bot_rng.randf_range(0.9, 1.05))
+				if _oncoming.size() > n:
+					(_oncoming[-1] as OncomingCar).works = true
+		print("ROBOTY: strefa %.0f-%.0f, auta z naprzeciwka za nią: %d" % [z["start"], z["end"], _oncoming.size() - n0])
 
 
 func _traffic_ensure() -> void:
@@ -3309,7 +3338,8 @@ func _update_oncoming(delta: float) -> void:
 	for o in _oncoming.duplicate():
 		var c: StuntCar = o.car
 		if is_instance_valid(c) and not o.loose and c.visible \
-				and (c.global_position - car.global_position).length_squared() < LOOSE_R * LOOSE_R:
+				and (c.global_position - car.global_position).length_squared() < LOOSE_R * LOOSE_R \
+				and not _onc_beside(o, c):
 			_loosen_oncoming(o)
 		if o.loose:
 			# Swobodne auto (po zbliżeniu gracza): sama fizyka, do puli daleko
@@ -3347,6 +3377,22 @@ func _update_oncoming(delta: float) -> void:
 			continue
 		c.global_transform = _wrong_way_pose(rail[0], c.wheel_radius) if o.wrong_way \
 				else _oncoming_pose(rail[0], rail[1], o.lane, c.wheel_radius)
+		# Roboty (etap 2b): przejazd przez pas rozdziału na nasz lewy pas.
+		if not o.wrong_way and track.sections:
+			var fx: float = track.sections.onc_cross(d2)
+			if fx > 0.0:
+				var ours := _wrong_way_pose(rail[0], c.wheel_radius)
+				var xf2 := c.global_transform
+				# Skos w przejeździe: kurs w stronę ruchu w poprzek (pochodna
+				# smoothstep po d, ~ 13 m / 120 m).
+				var dx: float = track.sections.onc_cross(d2 - 1.0) - fx
+				var lat: float = (ours.origin - xf2.origin).dot(rail[0].basis.x) * dx
+				xf2.origin = xf2.origin.lerp(ours.origin, fx)
+				# Znak: auto jedzie w stronę malejącego d (przodem +Z toru);
+				# obrót o +atan daje ruch w stronę zmiany x (przejście na
+				# fizykę przy graczu jechało w drugą stronę - na nasz pas).
+				xf2.basis = ours.basis.rotated(ours.basis.y, atan(lat))
+				c.global_transform = xf2
 		for w in c.wheels:
 			# Auto obrócone o PI jedzie swoim przodem - kręcenie do przodu.
 			w.omega = o.v / c.wheel_radius
@@ -3387,6 +3433,15 @@ func _update_skirmish(delta: float) -> void:
 					or not track.plan.city_at(d - k).is_empty():
 				_osk_next_d = _last_safe_dist + 200.0
 				return
+		# Scenka jedzie od startu do gracza - na całej drodze bez strefy
+		# przekroju z ruchem z naprzeciwka na naszej jezdni (roboty itp.).
+		if track.sections:
+			var dd := _last_safe_dist
+			while dd < d + 400.0:
+				if bool(track.sections.lanes_at(dd)["other_closed"]) or track.sections.onc_cross(dd) > 0.0:
+					_osk_next_d = _last_safe_dist + 300.0
+					return
+				dd += 100.0
 		_osk = OncomingSkirmish.random(_bot_rng)
 		_osk_started = false
 		_osk_v = _bot_rng.randf_range(110.0, 140.0) / 3.6
@@ -3551,7 +3606,7 @@ func _update_traffic(delta: float) -> void:
 	for o in _oncoming:
 		var oc: StuntCar = o.car
 		cars.append({"id": oc.get_instance_id(), "dist": o.dist, "lane": int(o.lane), "oncoming": true,
-				"raging": o.osk != "" or o.wrong_way, "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
+				"raging": o.osk != "" or o.wrong_way or o.works, "visible": TrafficZone.visible(head, hf, cf, oc.global_position)})
 	var r: Dictionary = _traffic.step(_last_safe_dist, cars, _bot_rng)
 	for id in r["despawn"]:
 		for b in _bots.duplicate():
@@ -3564,12 +3619,11 @@ func _update_traffic(delta: float) -> void:
 	for sp in r["spawn"]:
 		var d: float = sp["dist"]
 		var lane: int = sp["lane"]
-		# Przekrój (etap 2): tylko otwarte pasy; druga jezdnia zamknięta -
-		# bez ruchu z naprzeciwka.
+		# Przekrój (etap 2): nasz ruch tylko na otwartych pasach. Ruch
+		# z naprzeciwka zostaje - na robotach jedzie naszym lewym pasem
+		# (onc_cross w _update_oncoming).
 		if track.sections:
 			var la: Dictionary = track.sections.lanes_at(d)
-			if sp["oncoming"] and bool(la["other_closed"]):
-				continue
 			if not sp["oncoming"] and lane >= (la["fwd"] as Array).size():
 				lane = 0
 		var pos: Vector3
@@ -3620,6 +3674,16 @@ func _spawn_clear(pos: Vector3, v: float) -> bool:
 
 func _is_highway_at(d: float) -> bool:
 	return track.has_method("is_highway_at") and track.is_highway_at(d)
+
+
+## Auto z naprzeciwka na naszej jezdni (roboty, etap 2b) mija gracza obok
+## - bez nachodzenia w poprzek nie przechodzi na fizykę. Inaczej przy
+## każdym minięciu (3,75 m obok, LOOSE_R 5,5) jechało dalej bez kierowcy
+## prosto przez koniec strefy na nasze pasy.
+func _onc_beside(o: OncomingCar, c: StuntCar) -> bool:
+	if not track.sections or track.sections.onc_cross(o.dist) <= 0.0:
+		return false
+	return absf((c.global_position - car.global_position).dot(car.global_basis.x)) > 2.4
 
 
 ## Położenie auta z naprzeciwka: druga jezdnia (w lewo o szerokość jezdni
