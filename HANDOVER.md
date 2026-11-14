@@ -1675,7 +1675,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   ziemi tylko w pobliżu mostu (-0,8..+1,5 km) - `discard` wyłącza na
   Queście wczesny test głębi dla całej ziemi. Kolizja ziemi to dalej
   płaszczyzna y = 0, więc `_check_river_fall`: auto nad pasem rzeki
-  niżej niż pomost - 0,4 m = "upadek". Dekoracje (`HighwayScenery`,
+  niżej niż pomost - 0,4 m = "upadek"; boty z fizyką i luźne auta
+  z naprzeciwka w rzece - do puli (bot w szale jak rozbity). Wariant
+  shadera rozgrzewany na starcie (`_warm_river_shader`, quad 1 cm przed
+  kamerą przez 5 kroków). Filary - wspólny BoxMesh na wysokość. Dekoracje (`HighwayScenery`,
   `Scenery.scatter`) pomijają strefę mostu (stały nad dziurą). Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
