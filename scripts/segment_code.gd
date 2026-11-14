@@ -80,6 +80,9 @@ const TRAP_SECTION := {8: 4, 13: 6, 9: 4}
 const COST_STRUCT := {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 1, 6: 1, 7: 2}
 const COST_EVENT := {0: 0, 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 0}
 const COST_RAIN := 2
+## Szansa [%] przekroju innego niż 2+2 w fazie (pułapka i tak go wymusza;
+## etap 2, 2026-11-14: bez tego ~70% trasy miało inny przekrój).
+const SECTION_P := {"build": 35, "peak": 50, "fade": 25, "rest": 15}
 ## Opad liczony jako ulewa (droższe krople, mgła) - WeatherPlan: 2 ulewa.
 const HEAVY_RAIN := 1.5
 const NARROW := [4, 7]
@@ -192,6 +195,8 @@ func _make(k: int) -> Dictionary:
 	var section := _h(k, 8) % 8
 	if UNLOCK_SECTION[section] > km or k < FIRST_CALM:
 		section = 0
+	if section != 0 and _h(k, 14) % 100 >= int(SECTION_P[ph]):
+		section = 0                      # przekrój to wyjątek, nie reguła (etap 2)
 	if section == 1 and structure != 4:
 		section = 0
 	if TRAP_STRUCT.has(trap):

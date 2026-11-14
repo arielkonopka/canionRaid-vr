@@ -32,6 +32,11 @@ const KEEP_BEHIND := 1
 var plan: HighwayPlan
 var weather: WeatherPlan          # null = zawsze sucho (opcja) albo wąwóz
 var plan_seed := 0                 # ziarno planu (HighwayPlan, WeatherPlan, SegmentCode)
+## Kod odcinka (urozmaicenia; jeden na trasę - ten sam w SegmentEvents)
+## i przekroje jezdni z niego (etap 2, SectionPlan) - potrzebne już
+## generatorowi, więc tworzone tu, nie w scenie jazdy.
+var segcode: SegmentCode
+var sections: SectionPlan
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""
@@ -63,6 +68,9 @@ func _ready() -> void:
 		if gs == null or gs.get("weather") != "dry":
 			weather = WeatherPlan.new(sv, plan)
 			_hgen.weather = weather
+		segcode = SegmentCode.new(sv, weather)
+		sections = SectionPlan.new(segcode, plan)
+		_hgen.sections = sections
 	for i in range(1 + AHEAD):
 		_add_section()
 
@@ -121,6 +129,7 @@ func _add_highway_chunk() -> void:
 	chunk.canyon = false
 	chunk.scenery = false
 	chunk.hwy_plan = plan
+	chunk.hwy_sections = sections
 	chunk.start_state = loc["state"]
 	chunk.build_lines = false
 	chunk.road_material = road_material
@@ -217,6 +226,13 @@ func _chunk_index(dist: float) -> int:
 
 func _chunk_for(dist: float) -> StuntTrack:
 	return _chunks[_chunk_index(dist)]
+
+
+## Przejechanie pachołków / słupków przekroju (StuntTrack.knock_items).
+func knock_items(d: float, x: float, half_w: float, speed: float, side: float) -> int:
+	if _chunks.is_empty():
+		return 0
+	return _chunk_for(d).knock_items(d, x, half_w, speed, side)
 
 
 ## Numer sekcji (od 1) na dystansie `dist`.

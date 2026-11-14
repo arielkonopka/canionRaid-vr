@@ -97,6 +97,7 @@ const LINE_DEPTH := 1.5
 ## Tryb Autostrada: plan trasy - po _build_highway kawałek dokłada słupki,
 ## obiekty biomów i zabudowę miast (HighwayScenery), tablice miejscowości.
 var hwy_plan: HighwayPlan
+var hwy_sections: SectionPlan        # przekroje (etap 2): pachołki, znaki
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
 ## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
@@ -206,6 +207,9 @@ func build() -> void:
 				HighwayScenery.edges_for(float(_samples[0]["width"]))):
 			_adopt(n)
 		Perf.add("hwy_scenery", t0)
+		if not await _slice():
+			return
+		_build_section_items()
 		if not await _slice():
 			return
 	if scenery and not canyon:
@@ -2255,3 +2259,192 @@ func _grass_material() -> Material:
 			m.set_shader_parameter("dirt", (pa[2] as Color).lerp(pb[2], t))
 		_shared_mats[key] = m
 	return _shared_mats[key]
+
+
+# --------------------------------------------------------------------------
+# Przekroje (etap 2 urozmaiceń, SectionPlan.items): pachołki i słupki jako
+# MultiMesh na kawałek toru (najwyżej ~200 sztuk), tablica ze strzałką
+# z kolizją (wjazd w nią to wypadek), znaki z _road_sign. Pachołki bez
+# kolizji fizycznej - pachołek waży kilka kg (zlecenie etap2-przekroje
+# pkt 3); przejechany odlatuje i kładzie się obok (knock_item).
+# --------------------------------------------------------------------------
+
+var _cones: MultiMeshInstance3D
+var _cone_bands: MultiMeshInstance3D
+var _posts_mm: MultiMeshInstance3D
+## Elementy do przewracania: [d, x, multimesh, indeks, przewrócony]
+var _knock: Array = []
+
+
+func _build_section_items() -> void:
+	if hwy_sections == null or _samples.is_empty():
+		return
+	var d0 := float(_samples[0]["dist"])
+	var d1 := float(_samples[-1]["dist"])
+	var its: Array = hwy_sections.items(d0, d1)
+	if its.is_empty():
+		return
+	var inv := global_transform.affine_inverse()
+	var cones: Array[Transform3D] = []
+	var posts: Array[Transform3D] = []
+	for it in its:
+		var d: float = it["d"]
+		var x: float = it["x"]
+		var kind: String = it["kind"]
+		var xf := inv * transform_at_distance(d)
+		var p := xf.origin + xf.basis.x * x
+		# Stoi pionowo (jezdnia bywa przechylona), obrócony wzdłuż drogi.
+		var fwd_h := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
+		var up_xf := Transform3D(Basis.looking_at(fwd_h, Vector3.UP), p)
+		match kind:
+			"cone":
+				_knock.append([d, x, "cone", cones.size(), false])
+				cones.append(_item_xf("cone", up_xf))
+			"post":
+				_knock.append([d, x, "post", posts.size(), false])
+				posts.append(_item_xf("post", up_xf))
+			"arrow_board":
+				_arrow_board(up_xf, x)
+			"A-12", "A-14":
+				_road_sign(d, kind)
+			"D-10":
+				_road_sign(d, "highway_end")
+			"carriageway_closed":
+				_closed_barrier(up_xf)
+	if not cones.is_empty():
+		_cones = _mm("Cones", _cone_mesh(), cones)
+		_cone_bands = _mm("ConeBands", _cone_band_mesh(), cones)
+	if not posts.is_empty():
+		_posts_mm = _mm("Posts", _post_mesh(), posts)
+
+
+func _mm(n: String, mesh: Mesh, xfs: Array[Transform3D]) -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xfs.size()
+	for i in range(xfs.size()):
+		mm.set_instance_transform(i, xfs[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.name = n
+	mi.multimesh = mm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_adopt(mi)
+	return mi
+
+
+func _cone_mesh() -> Mesh:
+	if not _shared_mats.has("cone_mesh"):
+		var c := CylinderMesh.new()
+		c.top_radius = 0.03
+		c.bottom_radius = 0.17
+		c.height = 0.72
+		c.radial_segments = 10
+		c.rings = 1
+		c.material = _flat_mat("cone_orange", Color(1.0, 0.35, 0.05), 0.6)
+		_shared_mats["cone_mesh"] = c
+	return _shared_mats["cone_mesh"]
+
+
+## Biały pas odblaskowy pachołka (ten sam MultiMesh transformów).
+func _cone_band_mesh() -> Mesh:
+	if not _shared_mats.has("cone_band"):
+		var c := CylinderMesh.new()
+		c.top_radius = 0.085
+		c.bottom_radius = 0.11
+		c.height = 0.14
+		c.radial_segments = 10
+		c.rings = 1
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.95, 0.95, 0.95)
+		m.emission_enabled = true
+		m.emission = Color(0.5, 0.5, 0.5)
+		c.material = m
+		_shared_mats["cone_band"] = c
+	return _shared_mats["cone_band"]
+
+
+func _post_mesh() -> Mesh:
+	if not _shared_mats.has("post_mesh"):
+		var c := CylinderMesh.new()
+		c.top_radius = 0.05
+		c.bottom_radius = 0.07
+		c.height = 1.0
+		c.radial_segments = 8
+		c.rings = 1
+		c.material = _flat_mat("post_red", Color(0.85, 0.12, 0.08), 0.6)
+		_shared_mats["post_mesh"] = c
+	return _shared_mats["post_mesh"]
+
+
+## Siatki pachołka mają środek w połowie wysokości - przesunięcie w górę.
+func _item_xf(kind: String, xf: Transform3D) -> Transform3D:
+	var h := 0.36 if kind == "cone" else 0.5
+	return xf.translated_local(Vector3(0, h, 0))
+
+
+## Tablica ze strzałką na przyczepie (kolizja: wjazd w nią to wypadek).
+func _arrow_board(xf: Transform3D, x: float) -> void:
+	var root := Node3D.new()
+	root.name = "ArrowBoard"
+	_adopt(root)
+	root.transform = xf
+	var mats := _sign_mats()
+	_sign_box(root, Vector3(1.8, 0.6, 2.4), Vector3(0, 0.5, 0), _flat_mat("trailer", Color(0.85, 0.75, 0.1), 0.7))
+	_sign_box(root, Vector3(1.9, 1.4, 0.08), Vector3(0, 1.6, 1.15), mats["black"])
+	# Strzałka w stronę otwartego pasa (pas zamknięty z prawej -> w lewo).
+	var dir := -1.0 if x > -1.0 else 1.0
+	var shaft := _sign_box(root, Vector3(0.9, 0.16, 0.02), Vector3(-0.1 * dir, 1.6, 1.2), mats["yellow"])
+	for k in [-1.0, 1.0]:
+		var head := _sign_box(root, Vector3(0.42, 0.13, 0.02), Vector3(0.38 * dir, 1.6 + 0.12 * k, 1.2), mats["yellow"])
+		head.rotation = Vector3(0, 0, 0.8 * k * dir)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(1.9, 2.2, 2.4)
+	cs.shape = bs
+	cs.position = Vector3(0, 1.1, 0)
+	body.add_child(cs)
+	root.add_child(body)
+
+
+## Zapora zamkniętej drugiej jezdni (biało-czerwona belka, bez kolizji).
+func _closed_barrier(xf: Transform3D) -> void:
+	var root := Node3D.new()
+	root.name = "ClosedBarrier"
+	_adopt(root)
+	root.transform = xf
+	var mats := _sign_mats()
+	for i in range(5):
+		_sign_box(root, Vector3(1.6, 0.3, 0.12), Vector3(-3.2 + i * 1.6, 0.9, 0), mats["red"] if i % 2 == 0 else mats["white"])
+	for sx in [-4.0, 4.0]:
+		_sign_box(root, Vector3(0.1, 1.0, 0.1), Vector3(sx, 0.5, 0), mats["post"])
+
+
+## Przejechanie pachołków / słupków: auto w d, w poprzek x (od osi naszej
+## jezdni), pół szerokości half_w, długość ~4,5 m. Zwraca ile przewrócono.
+func knock_items(d: float, x: float, half_w: float, speed: float, side: float) -> int:
+	var n := 0
+	for it in _knock:
+		if it[4] or absf(float(it[0]) - d) > 2.4 or absf(float(it[1]) - x) > half_w + 0.15:
+			continue
+		it[4] = true
+		n += 1
+		var mi: MultiMeshInstance3D = _cones if it[2] == "cone" else _posts_mm
+		var idx: int = it[3]
+		var from: Transform3D = mi.multimesh.get_instance_transform(idx)
+		# Leży obok, kilka metrów dalej, obrócony - lot ~0,6 s po łuku.
+		var fly := clampf(speed * 0.12, 1.5, 9.0)
+		var off := Vector3(signf(float(it[1]) - x + 0.01) * 1.2 + side * 0.5, 0.0, -fly)
+		var to_b := from.basis * Basis(Vector3.RIGHT, PI * 0.5) * Basis(Vector3.UP, randf() * TAU)
+		var to := Transform3D(to_b, from.origin + from.basis * off - Vector3(0, 0.25, 0))
+		var tw := create_tween()
+		var bands := _cone_bands if it[2] == "cone" else null
+		tw.tween_method(func(t: float):
+			var xf := from.interpolate_with(to, t)
+			xf.origin.y += sin(t * PI) * 1.2
+			if is_instance_valid(mi):
+				mi.multimesh.set_instance_transform(idx, xf)
+			if bands and is_instance_valid(bands):
+				bands.multimesh.set_instance_transform(idx, xf), 0.0, 1.0, 0.6)
+	return n

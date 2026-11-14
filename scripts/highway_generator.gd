@@ -48,6 +48,9 @@ const EASE := 60.0               # wejście / wyjście z przechyłki [m]
 const MIN_MODULE := 120.0
 
 var plan: HighwayPlan
+## Przekroje jezdni (etap 2 urozmaiceń): ograniczenie w strefach
+## i szerokość w skosach. null - zawsze 2+2 (testy generatora).
+var sections: SectionPlan
 ## Pogoda (WeatherPlan): mokra jezdnia w strefach opadu - odcinki dzielone
 ## w punktach zmiany nawierzchni (zlecenie warstwa-pogody). null = sucho.
 var weather: WeatherPlan
@@ -114,6 +117,10 @@ func _next_mark(d: float) -> Dictionary:
 	for m in plan.limit_changes(d + 0.5, d + 6000.0):
 		if float(m[0]) < float(best["dist"]):
 			best = {"dist": float(m[0]), "kind": "limit"}
+	if sections:
+		for m in sections.limit_marks(d + 0.5, d + 6000.0):
+			if float(m[0]) < float(best["dist"]):
+				best = {"dist": float(m[0]), "kind": "limit"}
 	for j in plan.jumps_between(d + 0.5, d + 6000.0):
 		if float(j["start"]) > d + 0.5 and float(j["start"]) < float(best["dist"]):
 			best = {"dist": float(j["start"]), "kind": "detour", "jump": j}
@@ -228,8 +235,11 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 				_seg(out, state, length - cut, curve, bank, {}, width, limit)
 				return
 	var surf := weather.surface(d + 0.25) if weather else "dry"
+	var lim := limit if limit > 0.0 else plan.limit_at(d + 0.25)
+	if sections and limit <= 0.0:
+		lim = minf(lim, sections.limit_at(d + 0.25))
 	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
-			"width": width, "surface": surf, "limit": limit if limit > 0.0 else plan.limit_at(d + 0.25)}
+			"width": width, "surface": surf, "limit": lim}
 	if not meta.is_empty():
 		seg["meta"] = meta.duplicate()
 		meta.clear()
