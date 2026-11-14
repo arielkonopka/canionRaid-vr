@@ -76,7 +76,10 @@ static func edges_for(width: float, median := TrackGenerator.HIGHWAY_MEDIAN) -> 
 # Budowa
 # --------------------------------------------------------------------------
 
-static func build(samples: Array, plan: HighwayPlan, rng: RandomNumberGenerator, edges: Vector2) -> Array:
+## structures (etap 3): bez dekoracji nad rzeką pod mostem (stały na
+## poziomie ziemi nad dziurą w niej).
+static func build(samples: Array, plan: HighwayPlan, rng: RandomNumberGenerator, edges: Vector2,
+		structures: StructurePlan = null) -> Array:
 	var out := []
 	if samples.size() < 2:
 		return out
@@ -90,7 +93,7 @@ static func build(samples: Array, plan: HighwayPlan, rng: RandomNumberGenerator,
 		out.append(_sidewalks(samples, maxf(float(c["start"]), d0), minf(float(c["end"]), d1), edges))
 	_posts(samples, plan, edges, d0, d1, kinds)
 	_noise_walls(samples, plan, edges, d0, d1, kinds)
-	_biome_props(samples, plan, edges, d0, d1, rng, kinds)
+	_biome_props(samples, plan, edges, d0, d1, rng, kinds, structures)
 	for kind in kinds:
 		out.append(_multimesh(kind, kinds[kind]))
 	if not boxes.is_empty():
@@ -218,11 +221,13 @@ const PROP_STEP := 6.0           # co tyle metrów losujemy obiekty po obu stron
 
 
 static func _biome_props(samples: Array, plan: HighwayPlan, edges: Vector2, d0: float, d1: float,
-		rng: RandomNumberGenerator, kinds: Dictionary) -> void:
+		rng: RandomNumberGenerator, kinds: Dictionary, structures: StructurePlan = null) -> void:
 	var d := d0
 	while d < d1:
 		d += PROP_STEP
 		if not plan.city_at(d).is_empty():
+			continue
+		if structures and int(structures.zone_at(d).get("structure", 0)) == 2:
 			continue
 		var bl := plan.biome_blend(d)
 		var biome: String = bl["b"] if rng.randf() < float(bl["t"]) else bl["a"]

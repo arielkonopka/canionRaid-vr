@@ -37,6 +37,10 @@ var plan_seed := 0                 # ziarno planu (HighwayPlan, WeatherPlan, Seg
 ## generatorowi, więc tworzone tu, nie w scenie jazdy.
 var segcode: SegmentCode
 var sections: SectionPlan
+## Budowle (etap 3, StructurePlan): mosty, tunele, wiadukty... Pochylenia
+## (slopes) czekają na decyzję użytkownika - na razie płasko.
+var structures: StructurePlan
+const STRUCT_SLOPES := false
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""
@@ -71,6 +75,8 @@ func _ready() -> void:
 		segcode = SegmentCode.new(sv, weather)
 		sections = SectionPlan.new(segcode, plan)
 		_hgen.sections = sections
+		structures = StructurePlan.new(segcode, plan, STRUCT_SLOPES)
+		_hgen.structures = structures
 	for i in range(1 + AHEAD):
 		_add_section()
 
@@ -130,6 +136,7 @@ func _add_highway_chunk() -> void:
 	chunk.scenery = false
 	chunk.hwy_plan = plan
 	chunk.hwy_sections = sections
+	chunk.hwy_structures = structures
 	chunk.start_state = loc["state"]
 	chunk.build_lines = false
 	chunk.road_material = road_material

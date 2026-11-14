@@ -642,6 +642,7 @@ func _physics_process(delta: float) -> void:
 	update_race(delta)
 	_record_replay()
 	_knock_cones()
+	_check_river_fall()
 	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
 		_watch_track(delta)
@@ -655,6 +656,59 @@ func _physics_process(delta: float) -> void:
 		Perf.add("naprzeciw", t0)
 	else:
 		Perf.add("boty_mgr", t0)
+
+
+## Most nad rzeką (etap 3a): ziemia pod mostem ma dziurę na rzekę - wariant
+## shadera z discard tylko w pobliżu mostu (na Queście discard wyłącza
+## wczesny test głębi dla całej ziemi). Spadnięcie z mostu = upadek
+## (kolizja ziemi to płaszczyzna y = 0 - auto "leżałoby" nad wodą).
+const _GROUND_SH := preload("res://shaders/ground.gdshader")
+const _GROUND_RIVER_SH := preload("res://shaders/ground_river.gdshader")
+var _river := {}                      # {c: Vector2, t: Vector2, hw, road_y} albo pusty
+func _update_river() -> void:
+	if not (_endless and track.autostrada and track.structures):
+		return
+	var mat := ($Ground/GroundMesh as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+	if mat == null:
+		return
+	var p := _last_safe_dist
+	var found := {}
+	for z in track.structures.zones(p - 800.0, p + 1500.0):
+		if int(z["structure"]) == 2:
+			found = z
+			break
+	if found.is_empty():
+		if mat.shader != _GROUND_SH:
+			mat.shader = _GROUND_SH
+		_river = {}
+		return
+	var r0 := float(found["start"]) + StructurePlan.BRIDGE_BANK
+	var r1 := r0 + float(found["river"])
+	var mid := (r0 + r1) * 0.5
+	var xf: Transform3D = track.transform_at_distance(mid)
+	var fwd := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
+	var right := fwd.cross(Vector3.UP).normalized()
+	var smp: Dictionary = track.sample_at(mid)
+	var w := 11.25 if smp.is_empty() else float(smp["width"])
+	var c := xf.origin - right * ((w + TrackGenerator.HIGHWAY_MEDIAN) * 0.5)
+	if mat.shader != _GROUND_RIVER_SH:
+		mat.shader = _GROUND_RIVER_SH
+	mat.set_shader_parameter("river_c", Vector2(c.x, c.z))
+	mat.set_shader_parameter("river_t", Vector2(fwd.x, fwd.z))
+	mat.set_shader_parameter("river_hw", (r1 - r0) * 0.5)
+	mat.set_shader_parameter("river_reach", StuntTrack.RIVER_REACH)
+	_river = {"c": Vector2(c.x, c.z), "t": Vector2(fwd.x, fwd.z), "hw": (r1 - r0) * 0.5, "road_y": xf.origin.y}
+
+
+func _check_river_fall() -> void:
+	if _river.is_empty() or race_state != Race.RACING:
+		return
+	var p := car.global_position
+	var rv := Vector2(p.x, p.z) - (_river["c"] as Vector2)
+	var t: Vector2 = _river["t"]
+	if absf(rv.dot(t)) < float(_river["hw"]) and absf(rv.dot(Vector2(-t.y, t.x))) < StuntTrack.RIVER_REACH \
+			and p.y < float(_river["road_y"]) - 0.4:
+		lose_life("upadek")
 
 
 ## Tryb Autostrada, etap 2: sceneria z planu (HighwayPlan.biome_blend
@@ -2327,6 +2381,7 @@ func _watch_track(delta: float) -> void:
 		track.update_progress(maxf(float(s["dist"]), _last_safe_dist))
 		# Biom: przejście trwa 2,8 km - 5 razy na sekundę wystarczy (było co klatkę).
 		_update_biome()
+		_update_river()
 		var sec: int = track.section_at(_last_safe_dist)
 		if sec > _last_section:
 			_last_section = sec

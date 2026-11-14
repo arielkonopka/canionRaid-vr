@@ -51,6 +51,9 @@ var plan: HighwayPlan
 ## Przekroje jezdni (etap 2 urozmaiceń): ograniczenie w strefach
 ## i szerokość w skosach. null - zawsze 2+2 (testy generatora).
 var sections: SectionPlan
+## Budowle (etap 3): granice stref dzielą odcinki, ograniczenie (tunel 100,
+## zjazd 80), meta "structure" na pierwszym odcinku budowli.
+var structures: StructurePlan
 ## Pogoda (WeatherPlan): mokra jezdnia w strefach opadu - odcinki dzielone
 ## w punktach zmiany nawierzchni (zlecenie warstwa-pogody). null = sucho.
 var weather: WeatherPlan
@@ -126,6 +129,11 @@ func _next_mark(d: float) -> Dictionary:
 		for m in sections.width_marks(d + 0.5, d + 6000.0):
 			if m < float(best["dist"]):
 				best = {"dist": m, "kind": "section"}
+	if structures:
+		for z in structures.zones(d + 0.5, d + 6000.0):
+			for m in [float(z["start"]), float(z["end"])]:
+				if m > d + 0.5 and m < float(best["dist"]):
+					best = {"dist": m, "kind": "structure"}
 	for j in plan.jumps_between(d + 0.5, d + 6000.0):
 		if float(j["start"]) > d + 0.5 and float(j["start"]) < float(best["dist"]):
 			best = {"dist": float(j["start"]), "kind": "detour", "jump": j}
@@ -247,6 +255,8 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 	var lim := limit if limit > 0.0 else plan.limit_at(d + 0.25)
 	if sections and limit <= 0.0:
 		lim = minf(lim, sections.limit_at(d + 0.25))
+	if structures and limit <= 0.0:
+		lim = minf(lim, structures.limit_at(d + 0.25))
 	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
 			"width": width, "surface": surf, "limit": lim}
 	if not meta.is_empty():

@@ -628,8 +628,9 @@ func _update_rail(delta: float) -> bool:
 	dist += _rail_v * delta
 	var xf: Transform3D = track.transform_at_distance(dist)
 	var lane := clampf(_lane_off, -float(smp2["width"]) * 0.5 + 1.0, float(smp2["width"]) * 0.5 - 1.0)
-	if persona != "extremist" and main._endless and main.track.autostrada and main.track.sections:
-		# Na szynie też po otwartych pasach przekroju (płynnie, 3 m/s w bok).
+	if main._endless and main.track.autostrada and main.track.sections:
+		# Na szynie też po otwartych pasach przekroju (płynnie, 3 m/s w bok;
+		# także ekstremista - zna otwarte pasy, decyzja użytkownika 2026-11-14).
 		_lane_off = move_toward(_lane_off, main.hwy_lane_at(self.lane, dist + 60.0), 3.0 * delta)
 		lane = _lane_off
 	car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.62)
