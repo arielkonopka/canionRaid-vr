@@ -64,10 +64,12 @@ func _physics_process(_delta: float) -> bool:
 	var p: float = main._last_safe_dist
 	var sp: SectionPlan = main.track.sections
 	var v := 70.0 if p < ZONE_FROM - 600.0 else 26.0
-	# Drugi przejazd: zamknięty pas (lewy) przez 150 m - pachołki lecą.
+	# Drugi przejazd: po linii pachołków przez 150 m - pachołki lecą.
 	var x_goal: float = main.hwy_lane_at(0, p + 30.0)
 	if phase == 2:
-		x_goal = main.hwy_lane_off(1)
+		# Po linii pachołków (między pasami, co 18 m) - przecięcie jej
+		# w poprzek trwa ~0,3 s i trafienie było losowe.
+		x_goal = (main.hwy_lane_off(0) + main.hwy_lane_off(1)) * 0.5
 	var cxf: Transform3D = main.track.transform_at_distance(p + 2.0)
 	var off: float = (main.car.global_position - cxf.origin).dot(cxf.basis.x) - x_goal
 	main.car.global_basis = cxf.basis

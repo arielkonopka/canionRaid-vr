@@ -1601,6 +1601,11 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Test `tests/section_drive_test.gd` (trasa 33, zwężenie 10,8-12 km,
   ~12 min, poza `quest.sh`; z KATALOGIEM - zrzuty): 2x OK, 0 próbek
   botów na zamkniętym pasie. Zrzuty `renders/2026-11-14-przekroje/`.
+  Ekstremista przez pachołki: zostaje (chmura: zgodne z "nigdy nie
+  hamuje"); jeśli użytkownik w goglach uzna, że głupio - lista otwartych
+  pasów do `ExtremistBrain`. **Otwarte**: pojedyncze obroty botów
+  400-600 m za graczem przy 190-200 km/h (poza wzrokiem) - podejrzenie:
+  przejście szyna -> fizyka przy dużej prędkości.
   Dalej 2b roboty (żółte linie w shaderze, ruch z naprzeciwka na naszym
   lewym pasie), 2c 1+1, 2d 2+1, 2e 3+3.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
