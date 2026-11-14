@@ -37,6 +37,8 @@ TRAP_SECTION = {8: 4, 13: 6, 9: 4}
 COST_STRUCT = {0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 1, 6: 1, 7: 2}
 COST_EVENT = {0: 0, 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 0}
 COST_RAIN = 2
+# Szansa [%] przekroju innego niż 2+2 w fazie (pułapka i tak go wymusza).
+SECTION_P = {BUILD: 35, PEAK: 50, FADE: 25, REST: 15}
 NARROW = (4, 7)
 
 
@@ -121,6 +123,8 @@ class SegmentCode:
         section = self.h(k, 8) % 8
         if UNLOCK_SECTION[section] > km or k < FIRST_CALM:
             section = 0
+        if section != 0 and self.h(k, 14) % 100 >= SECTION_P[ph]:
+            section = 0                       # przekrój to wyjątek, nie reguła (etap 2)
         if section == 1 and struct != 4:
             section = 0                       # pas dla wolnych tylko na podjeździe
         if trap in TRAP_STRUCT:
