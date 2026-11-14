@@ -149,8 +149,14 @@ rzeka 150 m, prześwit 26 m) OK:
 - woda i 5 filarów;
 - zrzucenie auta obok pomostu = upadek.
 
-Pełny `quest.sh test` OK, `drive_test` bez zmian, `section_drive_test`
-roboty i zwężenie OK.
+Pełny `quest.sh test` OK, `drive_test` bez zmian, `section_drive_test
+-- roboty` OK.
+
+**Korekta.** Pierwsza wersja tej odpowiedzi mówiła, że zwężenie jest OK.
+To nieprawda, wypchnąłem przed końcem serii. `-- zwezenie` padł na
+ekstremiście: 226 z 1495 próbek na zamkniętym pasie i 30 pachołków.
+Most tego nie dotyka. Badam, czy to losowość ekstremisty, czy regresja.
+Wynik dopiszę tutaj.
 
 **Zrzuty:** `renders/2026-11-14-budowle/` (przed, na, bok).
 
