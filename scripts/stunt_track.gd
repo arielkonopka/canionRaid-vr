@@ -1231,9 +1231,21 @@ func _tunnel_arc(c: Vector3, r_h: Vector3, rad: float) -> Array:
 ## `twin` (niepusty): dwie nitki - rura nad każdą połową szerokiej jezdni
 ## (road_w każda, między nimi wyspa island_w); wspólna ściana czołowa
 ## z dwoma otworami (każda rura domyka ją do osi między nitkami).
-func _build_tunnel(d0: float, length: float, twin := {}) -> void:
-	const PEAK := 74.0              # grań góry nad jezdnią
+## hwy (etap 3b, autostrada): {"off": przesunięcie drugiej jezdni w lewo,
+## "a"/"b": prawdziwe końce tunelu (kawałek toru buduje swoją część - wloty
+## i stok tylko przy prawdziwych końcach), "peak": grań nad jezdnią,
+## "lit": oświetlony (inaczej co trzecie światło)}.
+func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
+	var PEAK := 74.0                # grań góry nad jezdnią
 	const RISE := 45.0              # stok od wylotu do pełnej wysokości [m]
+	var t_a := d0
+	var t_b := d0 + length
+	var hoff := 0.0
+	if not hwy.is_empty():
+		hoff = float(hwy["off"])
+		t_a = float(hwy["a"])
+		t_b = float(hwy["b"])
+		PEAK = float(hwy.get("peak", PEAK))
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var mount := SurfaceTool.new()
@@ -1256,7 +1268,10 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 		var hw := float(smp["width"]) * 0.5 + 1.2
 		# Rury: [środek jezdni pod rurą, półszerokość rury].
 		var tubes: Array = [[c, hw]]
-		if not twin.is_empty():
+		if hoff > 0.0:
+			# Autostrada: rura nad każdą jezdnią (nasza na osi, druga w lewo).
+			tubes = [[c - r_h * hoff, hw], [c, hw]]
+		elif not twin.is_empty():
 			var rw: float = twin["road_w"]
 			var off: float = rw * 0.5 + float(twin["island_w"]) * 0.5
 			var thw := rw * 0.5 + 1.0
@@ -1265,16 +1280,28 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 		var crown := rad * (1.0 + TUNNEL_YC)
 		hp = crown + 2.5
 		# Wysokość grani: stok od obu wylotów, trochę nierówna.
-		var e := minf(d - d0, d0 + length - d)
+		var e := minf(d - t_a, t_b - d)
 		var rise := smoothstep(0.0, RISE, e)
 		var hc := hp + (PEAK - hp + 8.0 * sin(d * 0.05)) * rise
 		var prof: Array = []
-		for pt in [[-(hw + 45.0), 0.3], [-(hw + 15.0), 0.75], [0.0, 1.0], [hw + 15.0, 0.8], [hw + 45.0, 0.35]]:
-			prof.append(c + r_h * pt[0] + Vector3.UP * (hp + (hc - hp) * pt[1]))
+		var pts := [[-(hw + 45.0), 0.3], [-(hw + 15.0), 0.75], [0.0, 1.0], [hw + 15.0, 0.8], [hw + 45.0, 0.35]]
+		if hoff > 0.0:
+			# Zbocze szerokie jak góra wysoka (przy grani 140 m i ±45 m
+			# wychodziła "głowa cukru").
+			var sw := maxf(45.0, PEAK * 1.3)
+			# Skrajne punkty na ziemi (-1: poziom terenu) - inaczej dolna
+			# krawędź zbocza wisiała kilkadziesiąt metrów nad ziemią.
+			pts = [[-(hoff + hw + sw * 1.6), -1.0], [-(hoff + hw + sw), 0.3], [-(hoff + hw + sw * 0.35), 0.75], [-hoff * 0.5, 1.0],
+					[hw + sw * 0.35, 0.8], [hw + sw, 0.35], [hw + sw * 1.6, -1.0]]
+		for pt in pts:
+			if float(pt[1]) < 0.0:
+				prof.append(c + r_h * pt[0] + Vector3.UP * -HighwayGenerator.ROAD_Y)
+			else:
+				prof.append(c + r_h * pt[0] + Vector3.UP * (hp + (hc - hp) * pt[1]))
 		var arcs: Array = []
 		for t in tubes:
 			arcs.append(_tunnel_arc(t[0], r_h, rad))
-		var p := {"arcs": arcs, "tubes": tubes, "c": c, "r": r_h, "hw": hw,
+		var p := {"d": d, "arcs": arcs, "tubes": tubes, "c": c, "r": r_h, "hw": hw,
 				"rad": rad, "crown": crown, "prof": prof}
 		if first.is_empty():
 			first = p
@@ -1288,9 +1315,24 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 					# Ściana rury patrzy do środka koła.
 					_quad_facing(st, faces, pa[k], ca[k], ca[k + 1], pa[k + 1], center - (ca[k] as Vector3))
 			# Stoki góry między przekrojami.
-			for k in range(4):
+			for k in range(prof.size() - 1):
 				_quad_facing(mount, dummy, prev["prof"][k], p["prof"][k], p["prof"][k + 1],
 						prev["prof"][k + 1], Vector3.UP)
+			# Autostrada: chodnik (krawężnik) między krawędzią jezdni a ścianą
+			# rury - inaczej szczelina 1,2 m do ziemi pod spodem.
+			if hoff > 0.0:
+				var rw2 := float(smp["width"]) * 0.5
+				for ti in range(tubes.size()):
+					var tp: Vector3 = prev["tubes"][ti][0]
+					var tcur: Vector3 = tubes[ti][0]
+					var rp: Vector3 = prev["r"]
+					for sgn in [-1.0, 1.0]:
+						var a1: Vector3 = tp + rp * (sgn * rw2) + Vector3.UP * 0.15
+						var a2: Vector3 = tp + rp * (sgn * float(prev["hw"])) + Vector3.UP * 0.15
+						var b1: Vector3 = tcur + r_h * (sgn * rw2) + Vector3.UP * 0.15
+						var b2: Vector3 = tcur + r_h * (sgn * hw) + Vector3.UP * 0.15
+						_quad_facing(st, faces, a1, b1, b2, a2, Vector3.UP)
+						_quad_facing(st, faces, a1 - Vector3.UP * 0.2, b1 - Vector3.UP * 0.2, b1, a1, r_h * -sgn)
 			# Pas jarzeniówek: wąski, świecący, w szczycie każdej rury.
 			for ti in range(tubes.size()):
 				var la: Vector3 = (prev["tubes"][ti][0] as Vector3) + Vector3.UP * (float(prev["crown"]) - 0.08)
@@ -1300,7 +1342,8 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 		if d >= light_next and Bench.on("tunnel_lights"):
 			# Co 80 m (było 40): renderer mobilny płaci za każde światło na
 			# każdym oświetlanym obiekcie; jarzeniówka i tak świeci.
-			light_next = d + 80.0
+			# Ciemny tunel autostrady (etap 3b) - co trzecie.
+			light_next = d + (80.0 if bool(hwy.get("lit", true)) else 240.0)
 			for t in tubes:
 				var ol := OmniLight3D.new()
 				ol.light_color = Color(0.85, 0.95, 1.0)
@@ -1316,7 +1359,12 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 	# okrągłym otworem - każdy odcinek łuku łączony z punktem na brzegu
 	# prostokąta w tym samym kierunku od środka koła; w rogach dokładane
 	# trójkąty do narożnika. Na krawędzi otworu betonowy pierścień.
-	for end in [first, last]:
+	var ends := []
+	if hwy.is_empty() or absf(float(first["d"]) - t_a) < 3.0:
+		ends.append(first)
+	if hwy.is_empty() or absf(float(last["d"]) - t_b) < 3.0:
+		ends.append(last)
+	for end in ends:
 		var e: Dictionary = end
 		var r: Vector3 = e["r"]
 		var fwd_e := Vector3.UP.cross(r)                          # kierunek jazdy
@@ -1332,13 +1380,25 @@ func _build_tunnel(d0: float, length: float, twin := {}) -> void:
 			# +big (prawa nitka); pojedyncza - całą szerokość.
 			var xmin := -big if (tubes_e.size() == 1 or ti == 0) else 0.0
 			var xmax := big if (tubes_e.size() == 1 or ti == 1) else 0.0
+			if hoff > 0.0:
+				# Autostrada: granica między rurami w połowie pasa rozdziału.
+				xmin = -(hoff + big) if ti == 0 else -hoff * 0.5
+				xmax = -hoff * 0.5 if ti == 0 else big
 			_tunnel_facade(st, faces, tc, r, rad, tx, xmin, xmax, hp, (e["arcs"] as Array)[ti], out_dir)
 		# Przednia krawędź stoku góry - domyka przekrój od ściany czołowej w górę.
-		var lo_l: Vector3 = c - r * big
+		var lo_l: Vector3 = c - r * (big + hoff)
 		var pr: Array = e["prof"]
-		for k in range(4):
+		for k in range(pr.size() - 1):
 			_quad_facing(mount, dummy, lo_l + Vector3.UP * hp if k == 0 else pr[k], pr[k + 1],
 					pr[k + 1], pr[k], out_dir)
+		if hoff > 0.0:
+			# Czoło góry od ziemi do wysokości portalu po obu stronach ściany
+			# czołowej (zbocze sięga ziemi dalej niż ściana).
+			var g := Vector3.UP * -HighwayGenerator.ROAD_Y
+			var gl: Vector3 = c - r * (big + hoff) + g
+			var gr: Vector3 = c + r * big + g
+			_quad_facing(mount, dummy, pr[0], gl, gl + Vector3.UP * (hp + HighwayGenerator.ROAD_Y), pr[1], out_dir)
+			_quad_facing(mount, dummy, gr, pr[pr.size() - 1], pr[pr.size() - 2], gr + Vector3.UP * (hp + HighwayGenerator.ROAD_Y), out_dir)
 	st.generate_normals()
 	st.set_material(_concrete_material())
 	mount.generate_normals()
@@ -2147,6 +2207,9 @@ func _build_highway() -> void:
 			_quad_facing(concrete, faces, q2["jb_r0"], p["jb_r0"], p["jb_r1"], q2["jb_r1"], rh)
 			_quad_facing(concrete, faces, q2["jb_l1"], p["jb_l1"], p["jb_r1"], q2["jb_r1"], Vector3.UP)
 			_quad_facing(grass, faces, q2["md_r"], p["md_r"], p["md_l"], q2["md_l"], Vector3.UP)
+		elif not prev.is_empty() and hwy_structures and int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) == 1:
+			# Tunel (3b): bez barier, pasa rozdziału i nasypu - jezdnie w rurach.
+			pass
 		elif not prev.is_empty():
 			var q := prev
 			# Przerwa w barierce: przejazd aut z naprzeciwka na roboty (2b).
@@ -2505,11 +2568,21 @@ func _build_structures() -> void:
 					b.material = concrete
 					_shared_mats[hk] = b
 				mi.mesh = _shared_mats[hk]
+				hgt = round(hgt * 2.0) * 0.5          # pozycja z tej samej wysokości co siatka
 				mi.transform = Transform3D(Basis.looking_at((-xf.basis.z * Vector3(1, 0, 1)).normalized(), Vector3.UP),
 						xf.origin + xf.basis.x * (cx + sx * w) + Vector3.DOWN * (hgt * 0.5 + 0.6))
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				_adopt(mi)
 	for z in hwy_structures.zones(d0, d1):
+		if int(z["structure"]) == 1:
+			# Tunel (3b): ta część, która wypada w kawałku.
+			var ta := maxf(float(z["start"]), d0)
+			var tb := minf(float(z["end"]), d1)
+			if tb - ta > 1.0:
+				var w0 := float(_sample_near(ta)["width"])
+				_build_tunnel(ta, tb - ta, {}, {"off": w0 + med, "a": float(z["start"]), "b": float(z["end"]),
+						"peak": maxf(float(z.get("cover", 60.0)), 20.0), "lit": bool(z.get("lit", true))})
+			continue
 		if int(z["structure"]) != 2:
 			continue
 		var r0 := float(z["start"]) + StructurePlan.BRIDGE_BANK

@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1]}
 var kind := "most"
 var main
 var f := 0
@@ -22,6 +22,10 @@ var water_seen := false
 var piers_seen := 0
 var fell := false
 var river_bot: StuntCar
+var roof_hits := 0
+var roof_probes := 0
+var lim_in := INF
+var dry_in := true
 var fall_t := 0.0
 var cam: Camera3D
 var shots: Array = []
@@ -71,6 +75,8 @@ func _physics_process(delta: float) -> bool:
 		var s0 := float(z["start"])
 		var e0 := float(z["end"])
 		shots = [["przed", s0 - 120.0, "road"], ["na", s0 + 40.0, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
+		if kind == "tunel":
+			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["srodek", (s0 + e0) * 0.5, "road"], ["bok", s0 + 100.0, "side"]]
 	if f < 8:
 		return false
 	var p: float = main._last_safe_dist
@@ -90,7 +96,22 @@ func _physics_process(delta: float) -> bool:
 			var mat := (main.get_node("Ground/GroundMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 			if mat.shader == main._GROUND_RIVER_SH:
 				river_shader_on = true
-		if p > s0 and p < e0:
+		if kind == "tunel" and p > s0 + 20.0 and p < e0 - 20.0:
+			# Dach nad jezdnią (rura) - promień w górę od auta.
+			var q := PhysicsRayQueryParameters3D.create(main.car.global_position + Vector3.UP * 1.0, main.car.global_position + Vector3.UP * 20.0)
+			q.exclude = [main.car.get_rid()]
+			roof_probes += 1
+			if not main.car.get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+				roof_hits += 1
+			var sm: Dictionary = main.track.sample_at(p)
+			if not sm.is_empty():
+				lim_in = minf(lim_in, float(sm["limit"]))
+				if String(sm.get("surface", "dry")) != "dry":
+					dry_in = false
+			if main.race_state == main.Race.EXPLODING:
+				lives_lost += 1
+			main._grace_t = 0.0
+		if kind == "most" and p > s0 and p < e0:
 			var ch: StuntTrack = main.track._chunk_for(p)
 			for n in ch.get_children():
 				if n.name.begins_with("River"):
@@ -99,6 +120,8 @@ func _physics_process(delta: float) -> bool:
 			main._grace_t = 0.0                # na moście bez ochrony - nie może stracić życia
 			if main.race_state == main.Race.EXPLODING:
 				lives_lost += 1
+		if kind == "tunel" and p > e0 + 60.0 and pending == "":
+			return _end()
 		if p > e0 + 60.0 and pending == "":
 			phase = 1
 			# Zrzut auta obok pomostu nad wodą: ma być upadek.
@@ -152,7 +175,12 @@ func _physics_process(delta: float) -> bool:
 
 
 func _end() -> bool:
-	if not z.is_empty():
+	if not z.is_empty() and kind == "tunel":
+		_check(lives_lost == 0, "przejazd tunelem bez utraty życia")
+		_check(roof_probes > 0 and roof_hits * 10 >= roof_probes * 9, "dach nad jezdnią (%d z %d próbek)" % [roof_hits, roof_probes])
+		_check(lim_in <= 100.0, "ograniczenie w tunelu %.0f" % lim_in)
+		_check(dry_in, "w tunelu sucho")
+	elif not z.is_empty():
 		_check(lives_lost == 0, "przejazd po moście bez utraty życia")
 		_check(river_shader_on, "ziemia z dziurą na rzekę przy moście")
 		_check(water_seen, "woda pod mostem")

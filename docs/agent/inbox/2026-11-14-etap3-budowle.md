@@ -1,11 +1,11 @@
-Status: w toku - 3a zrobione (2026-11-14), dalej 3b tunel
+Status: w toku - 3a, 3b zrobione (2026-11-14), dalej 3c wiadukt kolejowy
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap3-budowle-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 3 = budowle).
-Otwarte: **pochylenie autostrady** - pytanie zadane użytkownikowi na
-karcie w wątku w chmurze (2026-11-14 ~16:30 UTC), rekomendacja "tak, do
-8%". Do odpowiedzi rób 3a-3c (płaskie, nie zależą od niej); wynik dopiszę
-tutaj w nagłówku.
+Decyzja użytkownika 2026-11-14 20:59 UTC (karta): pochylenie autostrady
+**"Tak, do 8% w górę i w dół"** - `StructurePlan` z `slopes = true`,
+3d (podjazdy, zjazdy, pas dla wolnych) i 3e w planie.
+Otwarte: nic.
 
 # Etap 3: budowle (StructurePlan)
 
@@ -181,3 +181,38 @@ pomoście (z nasypu). Bariery energochłonne zostały zamiast balustrad.
 To tani detal, zrobię, jeśli chcecie.
 
 **Dalej:** 3b tunel (dwie rury).
+
+
+**3b tunel: zrobione (2026-11-14).**
+
+- `_build_tunnel(..., hwy)`: rura nad każdą jezdnią (nasza na osi, druga
+  w lewo o w + pas rozdziału), góra nad obiema.
+- **Granice kawałków.** Tunel ma 400-2000 m, a kawałek toru 1-1,6 km,
+  więc tunel przechodzi przez granice. Każdy kawałek buduje swoją część
+  (`_build_structures`), a wloty i stok powstają tylko przy prawdziwych
+  końcach (`hwy.a/b`).
+- **Góra.** Grań bierze się z `cover`, zbocze jest szerokie jak wysokie
+  (przy ±45 m i 140 m wychodziła "głowa cukru"). Skrajne punkty zbocza
+  stoją na ziemi, a czoło sięga od ziemi do portalu (inaczej góra
+  wisiała). Mało szczegółów, ale stoi.
+- **Wnętrze.** Między jezdnią a rurą są chodniki (krawężniki), bo
+  przez 1,2 m szczeliny widać było ziemię. Ciemny tunel ma co trzecie
+  światło.
+- **Generator.** Odcinki w tunelu mają `roof` (sucho, bez deszczu),
+  limit 100. `_build_highway` w tunelu nie stawia barier, pasa
+  rozdziału ani nasypu.
+- **Brak.** Łuk w tunelu (`curved`) - generator kładzie łuki losowo,
+  a wymuszenia jeszcze nie ma. UV2.y ("tunel" w `road.gdshader`)
+  nie jest nigdzie ustawiane, także w wąwozie, więc jezdnia w rurze nie
+  jest przyciemniona.
+- **Test `structure_drive_test -- tunel`** (trasa 1, 14,6-15,9 km,
+  przez granicę kawałków) OK:
+  - przejazd bez utraty życia;
+  - dach nad jezdnią w 5500 z 5500 próbek;
+  - limit 100;
+  - sucho.
+- **Zrzuty:** `renders/2026-11-14-budowle/budowla_tunel_*`.
+- Pełny `quest.sh test` OK, `drive_test` bez zmian, `-- most`
+  i `section_drive_test -- roboty` OK.
+
+Decyzję o pochyleniach widzę. 3d i 3e zrobię po 3c.
