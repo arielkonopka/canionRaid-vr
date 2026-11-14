@@ -212,6 +212,14 @@ func _drive_step(delta: float) -> void:
 				break
 			bi += dir
 			bd = nd
+	# Zabezpieczenie: auto dalej niż 30 m od najbliższej próbki okna - okno
+	# nie pasuje (np. po przeskoku); dist od trasy, nie od starego okna.
+	if bd > 900.0:
+		var ns: Dictionary = track.nearest_sample(car.global_position)
+		if not ns.is_empty():
+			dist = float(ns["dist"])
+		_window_timer = 0.0
+		return
 	_win_hint = bi
 	var best: Dictionary = _window[bi]
 	dist = float(best["dist"])
@@ -262,7 +270,7 @@ func _drive_step(delta: float) -> void:
 	if extremist:
 		_x_out = _extremist_step(delta, best, right)
 		var ln := int(_x_out["lane"])
-		target_off = _x_shoulder_off() if ln == ExtremistBrain.SHOULDER else main.hwy_lane_off(ln)
+		target_off = _x_shoulder_off() if ln == ExtremistBrain.SHOULDER else main.hwy_lane_at(ln, dist + maxf(car.speed, 10.0) * 0.5)
 	elif rage > 0.05 and _foe():
 		_onset_t += delta
 		_aggr = clampf((_onset_t - RAGE_REACT) / RAGE_RAMP, 0.0, 1.0)
@@ -593,6 +601,12 @@ func _update_rail(delta: float) -> bool:
 		for w in car.wheels:
 			w.omega = _rail_v / car.wheel_radius
 		_tgt_ok = false                   # cel toru od miejsca, gdzie stoi
+		# Okno trasy jest sprzed szyny (na szynie się nie odświeża, a dist
+		# rósł o setki metrów) - od razu nowe. Inaczej najbliższa próbka
+		# starego okna cofała dist, cel w poprzek wychodził ~ -1200 m i bot
+		# jechał na ślepo prosto (section_drive_test, 1+1; obroty botów
+		# 400-600 m za graczem po zejściu z szyny).
+		_window_timer = 0.0
 		return false
 	# Daleko od gracza 30 Hz wystarcza (szukanie na trasie jest drogie).
 	_rail_acc += delta
@@ -759,6 +773,33 @@ func _extremist_step(delta: float, best: Dictionary, right: Vector3) -> Dictiona
 				e["gap"] = gap
 				e["v"] = (o as RigidBody3D).linear_velocity.dot(fwd)
 		var sh: Dictionary = shoulder if main.track.autostrada else {}
+		# Przekroje (decyzja użytkownika 2026-11-14: "Tak, zna otwarte pasy"):
+		# pas, który w ciągu 400 m wypada z otwartych, to dla mózgu stojąca
+		# przeszkoda w miejscu zamknięcia - zjedzie albo wepchnie się (TTC,
+		# klakson, długie). Zamknięty prawy pas odcina też pobocze.
+		if main.track.autostrada and main.track.sections:
+			var sp: SectionPlan = main.track.sections
+			var k := 0.0
+			while k <= 400.0:
+				var la: Dictionary = sp.lanes_at(dist + k)
+				var fwd_x: Array = la["fwd"]
+				for li in range(2):
+					if float(lanes[li]["gap"]) <= k:
+						continue
+					var lx: float = main.hwy_lane_off(li)
+					var open := false
+					for fx in fwd_x:
+						if absf(float(fx) - lx) < 1.3:
+							open = true
+					var cl: float = la["closing"]
+					if not is_nan(cl) and absf(cl - lx) < 1.3:
+						open = false
+					if not open:
+						lanes[li]["gap"] = k
+						lanes[li]["v"] = 0.0
+						if li == 0:
+							sh = {}
+				k += 20.0
 		_x_ctx = {"lanes": lanes, "shoulder": sh}
 	var ctx := _x_ctx.duplicate()
 	ctx["v"] = car.speed

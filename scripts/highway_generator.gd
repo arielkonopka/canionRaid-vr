@@ -121,6 +121,11 @@ func _next_mark(d: float) -> Dictionary:
 		for m in sections.limit_marks(d + 0.5, d + 6000.0):
 			if float(m[0]) < float(best["dist"]):
 				best = {"dist": float(m[0]), "kind": "limit"}
+		# Punkty zmiany szerokości strefy (2c-2e: skos wejścia i wyjścia) -
+		# szerokość odcinka liczona na jego końcu (_seg).
+		for m in sections.width_marks(d + 0.5, d + 6000.0):
+			if m < float(best["dist"]):
+				best = {"dist": m, "kind": "section"}
 	for j in plan.jumps_between(d + 0.5, d + 6000.0):
 		if float(j["start"]) > d + 0.5 and float(j["start"]) < float(best["dist"]):
 			best = {"dist": float(j["start"]), "kind": "detour", "jump": j}
@@ -235,6 +240,10 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 				_seg(out, state, length - cut, curve, bank, {}, width, limit)
 				return
 	var surf := weather.surface(d + 0.25) if weather else "dry"
+	# Przekrój (etap 2c-2e): szerokość na końcu odcinka (StuntTrack przechodzi
+	# płynnie od poprzedniej), odcinki dzielone w punktach strefy.
+	if sections and is_equal_approx(width, WIDTH):
+		width = float(sections.lanes_at(d + length - 0.25)["width"])
 	var lim := limit if limit > 0.0 else plan.limit_at(d + 0.25)
 	if sections and limit <= 0.0:
 		lim = minf(lim, sections.limit_at(d + 0.25))

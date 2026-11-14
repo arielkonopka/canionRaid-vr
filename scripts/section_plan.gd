@@ -336,9 +336,11 @@ func _zone_items(z: Dictionary) -> Array:
 const CROSS_LEN := 120.0
 
 
-## Odcinki [d0, d1] przejazdów przez pas rozdziału strefy z (tylko roboty).
+## Odcinki [d0, d1] przejazdów przez pas rozdziału strefy z: roboty (6),
+## 1+1 (4) i 2+1 (3) - wszędzie tam ruch z naprzeciwka jedzie naszą jezdnią.
+const ONC_ON_OURS := [6, 4, 3]
 static func crossovers(z: Dictionary) -> Array:
-	if z.is_empty() or int(z["section"]) != 6:
+	if z.is_empty() or not (int(z["section"]) in ONC_ON_OURS):
 		return []
 	var b0 := float(z["start"]) + float(z["t_in"])
 	var b1 := float(z["end"]) - float(z["t_out"])
@@ -375,3 +377,65 @@ func median_gap(d: float) -> bool:
 func works_at(d: float) -> bool:
 	var z := zone_at(d)
 	return not z.is_empty() and int(z["section"]) == 6
+
+
+
+# --------------------------------------------------------------------------
+# Dodatek agenta lokalnego (etap 2c, 2026-11-14): szerokość w generatorze,
+# oś pasów z naprzeciwka na naszej jezdni i znaczniki do shadera.
+# --------------------------------------------------------------------------
+
+## Punkty zmiany szerokości stref w [d0, d1): początek i koniec skosu
+## wejścia i wyjścia (sekcje ze zmienną szerokością: 4, 3, 2).
+func width_marks(d0: float, d1: float) -> Array:
+	var out := []
+	for z in zones(d0, d1):
+		if not (int(z["section"]) in [4, 3, 2]):
+			continue
+		var a := float(z["start"])
+		var e := float(z["end"])
+		for m in [a, a + float(z["t_in"]), e - float(z["t_out"]), e]:
+			if m >= d0 and m < d1:
+				out.append(m)
+	out.sort()
+	return out
+
+
+## Oś pasa auta z naprzeciwka (`lane` 0 - ich wolny, czyli nasz skrajny
+## lewy) na naszej jezdni w strefie z - z pełnego przekroju (w przejazdach
+## oś z najbliższego jego końca). NAN poza strefą z ruchem na naszej jezdni.
+func onc_x(d: float, lane: int) -> float:
+	var z := zone_at(d)
+	var cr := crossovers(z)
+	if cr.is_empty():
+		return NAN
+	var dd := clampf(d, float(cr[0][0]) + 1.0, float(cr[1][1]) - 1.0)
+	var onc: Array = lanes_at(dd)["onc"]
+	if onc.is_empty():
+		onc = lanes_at(clampf(dd, float(cr[0][1]) + 1.0, float(cr[1][0]) - 1.0))["onc"]
+	if onc.is_empty():
+		return NAN
+	# onc od prawej (naszej) strony: ostatni = skrajny lewy = ich wolny pas.
+	return float(onc[maxi(onc.size() - 1 - lane, 0)])
+
+
+## Znaczniki shadera jezdni (COLOR wierzchołka): r - żółte linie robót,
+## g - zwykła droga (1 = 1+1, 0,5 = 2+1), b - oś granicy kierunków (x + 8) / 16.
+func road_color(d: float) -> Color:
+	var z := zone_at(d)
+	if z.is_empty():
+		return Color(0, 0, 0)
+	var s := int(z["section"])
+	if s == 6:
+		return Color(1, 0, 0)
+	if s == 4 or s == 3:
+		var la := lanes_at(d)
+		if not bool(la["single"]) or float(la["width"]) > WIDTH - 0.5:
+			return Color(0, 0, 0)
+		var fwd: Array = la["fwd"]
+		var onc: Array = la["onc"]
+		var bx := 0.0
+		if not onc.is_empty():
+			bx = (float(fwd.min()) + float(onc.max())) * 0.5
+		return Color(0, 1.0 if s == 4 else 0.5, (bx + 8.0) / 16.0)
+	return Color(0, 0, 0)

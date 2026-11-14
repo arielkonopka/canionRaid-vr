@@ -487,11 +487,11 @@ func _build_mesh(road_faces: Dictionary) -> ArrayMesh:
 
 		# góra (po niej się jeździ) - UV dla shadera: poprzecznie [m], wzdłuż [m],
 		# UV2.x = szerokość (linie pasów zależą od niej).
-		var wa := 1.0 if (_road_layout == 1 and hwy_sections and hwy_sections.works_at(ad)) else 0.0
-		var wb := 1.0 if (_road_layout == 1 and hwy_sections and hwy_sections.works_at(bd)) else 0.0
+		var ca := hwy_sections.road_color(ad) if (_road_layout == 1 and hwy_sections) else Color(0, 0, 0)
+		var cb := hwy_sections.road_color(bd) if (_road_layout == 1 and hwy_sections) else Color(0, 0, 0)
 		_quad_uv(st, [al, bl, br, ar],
 				[Vector2(-aw * 0.5, ad), Vector2(-bw * 0.5, bd), Vector2(bw * 0.5, bd), Vector2(aw * 0.5, ad)],
-				[aw, bw, bw, aw], [wa, wb, wb, wa])
+				[aw, bw, bw, aw], [ca, cb, cb, ca])
 		road_faces[surf].append_array(_quad_faces(al, bl, br, ar))
 		# spód i krawędzie boczne - beton (widać je przy spadaniu z toru)
 		_quad(deck, al + a_down, ar + a_down, br + b_down, bl + b_down)
@@ -583,12 +583,13 @@ static func obox(st: SurfaceTool, c: Vector3, right: Vector3, fwd: Vector3, size
 	_quad(st, v[3], v[0], v[4], v[7])
 
 
-func _quad_uv(st: SurfaceTool, p: Array, uv: Array, w: Array, works := [0.0, 0.0, 0.0, 0.0]) -> void:
+func _quad_uv(st: SurfaceTool, p: Array, uv: Array, w: Array, cols := []) -> void:
 	for idx in [0, 1, 2, 0, 2, 3]:
 		st.set_uv(uv[idx])
 		st.set_uv2(Vector2(w[idx], 0.0))
-		# COLOR.r: żółte linie tymczasowe robót (etap 2b, road.gdshader).
-		st.set_color(Color(works[idx], 0.0, 0.0))
+		# COLOR: przekrój dla road.gdshader (SectionPlan.road_color: r roboty,
+		# g zwykła droga 1+1 / 2+1, b granica kierunków).
+		st.set_color(cols[idx] if not cols.is_empty() else Color(0, 0, 0))
 		st.add_vertex(p[idx])
 
 
