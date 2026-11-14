@@ -2496,10 +2496,15 @@ func _build_structures() -> void:
 		for cx in [0.0, -(w + med)]:
 			for sx in [-0.3, 0.3]:
 				var mi := MeshInstance3D.new()
-				var b := BoxMesh.new()
-				b.size = Vector3(1.4, hgt, 1.4)
-				b.material = concrete
-				mi.mesh = b
+				# Wspólna siatka na wysokość (co 0,5 m) - 20 filarów na most
+				# to 20 osobnych BoxMesh (przegląd PR #101).
+				var hk := "pier_%d" % int(round(hgt * 2.0))
+				if not _shared_mats.has(hk):
+					var b := BoxMesh.new()
+					b.size = Vector3(1.4, round(hgt * 2.0) * 0.5, 1.4)
+					b.material = concrete
+					_shared_mats[hk] = b
+				mi.mesh = _shared_mats[hk]
 				mi.transform = Transform3D(Basis.looking_at((-xf.basis.z * Vector3(1, 0, 1)).normalized(), Vector3.UP),
 						xf.origin + xf.basis.x * (cx + sx * w) + Vector3.DOWN * (hgt * 0.5 + 0.6))
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

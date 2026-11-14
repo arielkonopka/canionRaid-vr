@@ -701,14 +701,54 @@ func _update_river() -> void:
 
 
 func _check_river_fall() -> void:
+	_warm_river_shader()
 	if _river.is_empty() or race_state != Race.RACING:
 		return
-	var p := car.global_position
+	if _in_river(car.global_position):
+		lose_life("upadek")
+	# Boty i auta z naprzeciwka z fizyką, które spadły z mostu, "stały" na
+	# niewidzialnej płaszczyźnie kolizji nad wodą (przegląd PR #101) - do
+	# puli; bot w pościgu liczy się jak rozbity.
+	for b in _bots.duplicate():
+		var bd: BotDriver = _drv(b)
+		if bd and not bd.on_rail and _in_river(b.global_position):
+			if bd.rage > 0.05:
+				score_chase_close(b, "wreck")
+			_bots.erase(b)
+			_retire_bot(b, true)
+	for o in _oncoming.duplicate():
+		if o.loose and is_instance_valid(o.car) and _in_river(o.car.global_position):
+			_pool_oncoming(o)
+
+
+func _in_river(p: Vector3) -> bool:
 	var rv := Vector2(p.x, p.z) - (_river["c"] as Vector2)
 	var t: Vector2 = _river["t"]
-	if absf(rv.dot(t)) < float(_river["hw"]) and absf(rv.dot(Vector2(-t.y, t.x))) < StuntTrack.RIVER_REACH \
-			and p.y < float(_river["road_y"]) - 0.4:
-		lose_life("upadek")
+	return absf(rv.dot(t)) < float(_river["hw"]) and absf(rv.dot(Vector2(-t.y, t.x))) < StuntTrack.RIVER_REACH \
+			and p.y < float(_river["road_y"]) - 0.4
+
+
+## Wariant ziemi z dziurą kompiluje się przy pierwszym rysowaniu - na
+## Queście zacięcie klatki ~1 km przed pierwszym mostem (przegląd PR #101).
+## Maleńka siatka z tym shaderem przed kamerą przez pierwsze klatki jazdy.
+var _river_warm: MeshInstance3D
+var _river_warm_n := 0
+func _warm_river_shader() -> void:
+	if _river_warm_n > 5 or not (_endless and track.autostrada):
+		return
+	_river_warm_n += 1
+	if _river_warm == null:
+		_river_warm = MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(0.01, 0.01)
+		_river_warm.mesh = q
+		var m := ShaderMaterial.new()
+		m.shader = _GROUND_RIVER_SH
+		_river_warm.material_override = m
+		_river_warm.position = Vector3(0, 0, -0.5)
+		camera.add_child(_river_warm)
+	elif _river_warm_n > 5:
+		_river_warm.queue_free()
 
 
 ## Tryb Autostrada, etap 2: sceneria z planu (HighwayPlan.biome_blend

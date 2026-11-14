@@ -21,6 +21,7 @@ var river_shader_on := false
 var water_seen := false
 var piers_seen := 0
 var fell := false
+var river_bot: StuntCar
 var fall_t := 0.0
 var cam: Camera3D
 var shots: Array = []
@@ -105,6 +106,12 @@ func _physics_process(delta: float) -> bool:
 			var mid := r0 + float(z["river"]) * 0.5
 			var mxf: Transform3D = main.track.transform_at_distance(mid)
 			main.car.global_position = mxf.origin + mxf.basis.x * 12.0 + Vector3.UP * 1.0
+			# Bot zrzucony do rzeki (z fizyką) - ma wrócić do puli.
+			main._spawn_bot(mid + 30.0, 0, 50.0)
+			if not main._bots.is_empty():
+				river_bot = main._bots[-1]
+				main._drv(river_bot).lod = BotLod.NEAR
+				river_bot.global_position = mxf.origin + mxf.basis.x * 20.0 - mxf.basis.z * 5.0 + Vector3.UP * 0.5
 			main.car.linear_velocity = Vector3.ZERO
 			main._last_safe_dist = mid
 			main._grace_t = 0.0
@@ -151,6 +158,7 @@ func _end() -> bool:
 		_check(water_seen, "woda pod mostem")
 		_check(piers_seen > 0, "filary mostu (%d)" % piers_seen)
 		_check(fell, "spadnięcie z mostu do rzeki = upadek")
+		_check(river_bot != null and not main._bots.has(river_bot), "bot w rzece wraca do puli")
 	print("structure_drive_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails else 0)
 	return true
