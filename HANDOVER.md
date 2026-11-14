@@ -1660,6 +1660,25 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Testy `section_drive_test -- zwezenie|roboty|jedna|dwa|trzy` (dwa:
   trasa 77). **Do zrobienia**: bench na Queście w strefie robót, ocena
   użytkownika; rzadko (1/5) ~1 s bota na zamkniętym pasie w 1+1.
+- **Budowle (etap 3 urozmaiceń, od 2026-11-14; inbox etap3-budowle)
+  - W TOKU, 3a most nad rzeką**: `StructurePlan` (chmura) w
+  `EndlessTrack._ready` (`track.structures`, `STRUCT_SLOPES` false -
+  **pochylenia czekają na decyzję użytkownika**, karta w wątku chmury).
+  Generator dzieli odcinki na granicach budowli, ograniczenie min(plan,
+  przekroje, budowle). Most: filary z `piers` pod obiema jezdniami,
+  woda + ściany brzegów (`StuntTrack._build_structures`, w kawałku ze
+  środkiem rzeki), bez nasypu pod pomostem. **Ziemia ma pod mostem
+  dziurę**: wariant `ground_river.gdshader` (wspólna treść
+  `ground_body.gdshaderinc`, `#define RIVER_HOLE` -> `discard` w pasie
+  rzeki); `xr_main._update_river` (5 Hz) przełącza `shader` materiału
+  ziemi tylko w pobliżu mostu (-0,8..+1,5 km) - `discard` wyłącza na
+  Queście wczesny test głębi dla całej ziemi. Kolizja ziemi to dalej
+  płaszczyzna y = 0, więc `_check_river_fall`: auto nad pasem rzeki
+  niżej niż pomost - 0,4 m = "upadek". Dekoracje (`HighwayScenery`,
+  `Scenery.scatter`) pomijają strefę mostu (stały nad dziurą). Test
+  `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
+  `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
+  bez zmian.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały

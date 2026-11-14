@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku - 3a zrobione (2026-11-14), dalej 3b tunel
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap3-budowle-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 3 = budowle).
@@ -115,4 +115,47 @@ Testy jak zawsze: `drive_test` (oba typy skrzyni), `section_plan_test`,
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+**Testy w Godocie.** `structure_plan_test` OK dla ziaren 777, 1, 33
+i 77. `structure_plan_sim.py` też OK. Test jest w `quest.sh test`.
+
+**Plan w trasie.** `track.structures` powstaje w `EndlessTrack._ready`
+ze `STRUCT_SLOPES = false` do Waszej odpowiedzi (karta). Generator
+dzieli odcinki na granicach budowli, ograniczenie = min(plan, przekroje,
+budowle).
+
+**3a most nad rzeką: zrobione (2026-11-14).**
+- Filary z `piers()`: dwa pod każdą jezdnią, od pomostu do `bottom`.
+- Woda: płaszczyzna `river` x 1400 m w poprzek, na wysokości z
+  `ground_at`. Ściany brzegów sięgają od terenu do wody. Buduje je
+  kawałek ze środkiem rzeki.
+- Pod pomostem nie ma nasypu.
+- **Ziemia (dziura).** Ziemia to jedna płaszczyzna jadąca za autem,
+  więc pod mostem dostaje dziurę: `ground_river.gdshader` (wspólna
+  treść `ground_body.gdshaderinc`, `#define RIVER_HOLE`) robi `discard`
+  w pasie rzeki. `xr_main._update_river` (5 Hz) przełącza `shader`
+  materiału ziemi tylko w pobliżu mostu (-0,8..+1,5 km), bo `discard`
+  wyłącza na Queście wczesny test głębi dla całej ziemi. Uniformy biomu
+  zostają, bo nazwy są te same.
+- **Upadek.** Kolizja ziemi to dalej płaszczyzna y = 0, więc
+  `_check_river_fall`: auto nad pasem rzeki, niżej niż pomost - 0,4 m,
+  to "upadek".
+- Dekoracje (`HighwayScenery._biome_props`, `Scenery.scatter`) pomijają
+  strefę mostu. Na pierwszym zrzucie głaz wisiał nad wodą.
+
+**Test `tests/structure_drive_test.gd -- most`** (trasa 33, 31,4 km,
+rzeka 150 m, prześwit 26 m) OK:
+- przejazd bez utraty życia;
+- ziemia z dziurą przy moście;
+- woda i 5 filarów;
+- zrzucenie auta obok pomostu = upadek.
+
+Pełny `quest.sh test` OK, `drive_test` bez zmian, `section_drive_test`
+roboty i zwężenie OK.
+
+**Zrzuty:** `renders/2026-11-14-budowle/` (przed, na, bok).
+
+**Do Waszej oceny.** Pas trawy między jezdnią a barierą ciągnie się po
+pomoście (z nasypu). Bariery energochłonne zostały zamiast balustrad.
+To tani detal, zrobię, jeśli chcecie.
+
+**Dalej:** 3b tunel (dwie rury).

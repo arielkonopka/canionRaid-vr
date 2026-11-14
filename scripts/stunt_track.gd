@@ -98,6 +98,7 @@ const LINE_DEPTH := 1.5
 ## obiekty biomów i zabudowę miast (HighwayScenery), tablice miejscowości.
 var hwy_plan: HighwayPlan
 var hwy_sections: SectionPlan        # przekroje (etap 2): pachołki, znaki
+var hwy_structures: StructurePlan    # budowle (etap 3): mosty, tunele, wiadukty
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
 ## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
@@ -204,7 +205,7 @@ func build() -> void:
 		var hrng := RandomNumberGenerator.new()
 		hrng.seed = hash([hwy_plan.seed_value, int(float(_samples[0]["dist"]))])
 		for n in HighwayScenery.build(_samples, hwy_plan, hrng,
-				HighwayScenery.edges_for(float(_samples[0]["width"]))):
+				HighwayScenery.edges_for(float(_samples[0]["width"])), hwy_structures):
 			_adopt(n)
 		Perf.add("hwy_scenery", t0)
 		if not await _slice():
@@ -212,10 +213,17 @@ func build() -> void:
 		_build_section_items()
 		if not await _slice():
 			return
+		_build_structures()
+		if not await _slice():
+			return
 	if scenery and not canyon:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name) ^ int(float(_samples[0]["dist"]))
-		for node in Scenery.scatter(_samples, rng):
+		# Bez drzew i głazów nad rzeką pod mostem (etap 3a).
+		var sc_samples := _samples
+		if hwy_structures:
+			sc_samples = _samples.filter(func(sm): return int(hwy_structures.zone_at(float(sm["dist"])).get("structure", 0)) != 2)
+		for node in Scenery.scatter(sc_samples, rng):
 			_adopt(node)
 	# Bramy punktów kontrolnych i znaki przed skokami (trasa generowana).
 	var n_meta := 0
@@ -2154,9 +2162,13 @@ func _build_highway() -> void:
 			_quad_facing(metal, faces, q["gl0"], p["gl0"], p["gl1"], q["gl1"], rh)
 			_quad_facing(metal, none, q["gl0"], p["gl0"], p["gl1"], q["gl1"], -rh)
 			_quad_facing(grass, faces, q["sr0"], p["sr0"], p["er0"], q["er0"], Vector3.UP)
-			_quad_facing(grass, none, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
+			# Pod mostem (etap 3a) bez nasypu - pod pomostem rzeka i filary.
+			var on_bridge := hwy_structures != null and int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) == 2
+			if not on_bridge:
+				_quad_facing(grass, none, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
 			_quad_facing(grass, faces, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)
-			_quad_facing(grass, none, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
+			if not on_bridge:
+				_quad_facing(grass, none, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
 			none.clear()
 		prev = p
 	concrete.generate_normals()
@@ -2455,3 +2467,81 @@ func knock_items(d: float, x: float, half_w: float, speed: float, side: float) -
 			if bands and is_instance_valid(bands):
 				bands.multimesh.set_instance_transform(idx, xf), 0.0, 1.0, 0.6)
 	return n
+
+
+# --------------------------------------------------------------------------
+# Budowle (etap 3, StructurePlan). 3a most nad rzeką: filary z piers() pod
+# obiema jezdniami, woda i ściany brzegów (ziemia ma pod mostem dziurę -
+# ground_river.gdshader, włącza xr_main), bez nasypu pod pomostem
+# (_build_highway). Pułapka "wąski most" - etap 4.
+# --------------------------------------------------------------------------
+
+const RIVER_REACH := 700.0           # [m] rzeka w poprzek drogi w każdą stronę
+
+
+func _build_structures() -> void:
+	if hwy_structures == null or _samples.is_empty():
+		return
+	var d0 := float(_samples[0]["dist"])
+	var d1 := float(_samples[-1]["dist"])
+	var inv := global_transform.affine_inverse()
+	var med := TrackGenerator.HIGHWAY_MEDIAN
+	var concrete := _concrete_material()
+	for pr in hwy_structures.piers(d0, d1):
+		var d: float = pr["d"]
+		var xf := inv * transform_at_distance(d)
+		var w := float(_sample_near(d)["width"])
+		var hgt := maxf(float(pr["top"]) - float(pr["bottom"]), 1.0)
+		# Dwa filary pod każdą jezdnią (nasza: oś toru; druga: w lewo).
+		for cx in [0.0, -(w + med)]:
+			for sx in [-0.3, 0.3]:
+				var mi := MeshInstance3D.new()
+				var b := BoxMesh.new()
+				b.size = Vector3(1.4, hgt, 1.4)
+				b.material = concrete
+				mi.mesh = b
+				mi.transform = Transform3D(Basis.looking_at((-xf.basis.z * Vector3(1, 0, 1)).normalized(), Vector3.UP),
+						xf.origin + xf.basis.x * (cx + sx * w) + Vector3.DOWN * (hgt * 0.5 + 0.6))
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				_adopt(mi)
+	for z in hwy_structures.zones(d0, d1):
+		if int(z["structure"]) != 2:
+			continue
+		var r0 := float(z["start"]) + StructurePlan.BRIDGE_BANK
+		var r1 := r0 + float(z["river"])
+		var mid := (r0 + r1) * 0.5
+		if mid < d0 or mid >= d1:
+			continue                       # woda w kawałku ze środkiem rzeki
+		var gy := float(hwy_structures.ground_at(mid)["y"])
+		var xf := inv * transform_at_distance(mid)
+		var fwd := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
+		var right := fwd.cross(Vector3.UP).normalized()
+		var road_y: float = xf.origin.y
+		var water_y := road_y - (float(hwy_structures.height_at(mid)) - gy)
+		var c := Vector3(xf.origin.x, water_y, xf.origin.z) - right * ((float(_sample_near(mid)["width"]) + med) * 0.5)
+		var water := MeshInstance3D.new()
+		water.name = "River"
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(RIVER_REACH * 2.0, r1 - r0 + 2.0)
+		water.mesh = pm
+		var wm := StandardMaterial3D.new()
+		wm.albedo_color = Color(0.12, 0.22, 0.26)
+		wm.roughness = 0.08
+		wm.metallic = 0.2
+		water.material_override = wm
+		water.transform = Transform3D(Basis(right, Vector3.UP, -fwd), c)
+		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_adopt(water)
+		# Ściany brzegów: od ziemi (y terenu przy drodze ~ ROAD_Y - 1) do wody.
+		var ground_y := road_y - HighwayGenerator.ROAD_Y
+		var bank := _flat_mat("river_bank", Color(0.36, 0.30, 0.22), 1.0)
+		for side in [-1.0, 1.0]:
+			var wall := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(RIVER_REACH * 2.0, ground_y - water_y + 0.5, 0.4)
+			bm.material = bank
+			wall.mesh = bm
+			wall.transform = Transform3D(Basis(right, Vector3.UP, -fwd),
+					c + fwd * (side * (r1 - r0) * 0.5) + Vector3.UP * ((ground_y - water_y) * 0.5 - 0.25))
+			wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_adopt(wall)
