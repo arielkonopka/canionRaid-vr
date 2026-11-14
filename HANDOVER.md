@@ -725,11 +725,24 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
 - **Pętla `until ! pgrep -f "nazwa_testu"` nigdy się nie kończy** → sama
   pętla ma tę nazwę w swojej linii poleceń. Szukać procesu godot
   (`pgrep -f "godot.*nazwa"`) albo czekać na `wait`.
-- **`horn_control_test` (wąwóz) pada co kilka przebiegów** (obrót bota
-  80-140°, przewrotki, a_bok ~850 m/s² - zderzenie botów w szale) → stara
-  niestabilność, nie regresja: na commicie bafe130 2 z 21 przebiegów,
-  po etapie 2 podobnie. Przy pojedynczym BŁĘDZIE w `quest.sh test` puścić
-  go jeszcze raz osobno, zanim zacznie się szukać przyczyny w zmianach.
+- **`horn_control_test` (wąwóz) padał co kilka przebiegów** (przewrotka
+  bota, a_bok ~700 m/s²) → przyczyna znaleziona 2026-11-14 (ziarna testu:
+  `-- seed=N track=M debug`; powtarzalnie `seed=1 track=7`): spokojny bot
+  postawiony na **środkowym pasie tuż przed wyspą rozwidlenia** wąwozu
+  (`TrackGenerator._split`, czoło wyspy 45 m za początkiem rozszerzenia)
+  wjeżdżał w jej czoło - nie ma związku z klaksonem. Sterowanie boczne
+  bota przy ~100 km/h jest łagodne (kilka sekund na 3 m). Poprawki:
+  `_spawn_bot` daje prawy pas, gdy w 200 m jest wyspa (albo już jest
+  rozszerzenie); `BotDriver` widzi wyspę ~5 s wcześniej (skok szerokości
+  w oknie) - cel >= ISLAND_W/2 + 2,2 m od osi i zwalnia do 60 km/h,
+  dopóki nie jest po swojej stronie. **Druga przyczyna** (`seed=71877
+  track=67412`): spokojny bot jechał rozbiegiem skoczni wąwozu
+  z ograniczeniem (znak + 10 km/h), lądował za zeskokiem na płaskim
+  i dachował - `BotDriver._find_jump`: u podstawy rampy prędkość
+  `meta.jump.v_bottom` (+3%), dojazd z hamowaniem 5 m/s² (wszystkie boty
+  poza ekstremistą). Test zawsze losuje i USTAWIA oba ziarna i wypisuje
+  je w linii BŁĄD - błąd z `quest.sh` da się odtworzyć. Po poprawkach:
+  20 losowych przebiegów 20/20 OK, pełny zestaw OK.
 - **`pkill -f "wzorzec"` kończy własną komendę (kod 144, nic dalej się nie
   wykonało)** → wzorzec jest też w linii poleceń powłoki, która go woła
   (ta sama przyczyna co przy pgrep). Procesy w tle zabijać po PID-ach

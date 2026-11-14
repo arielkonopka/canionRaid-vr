@@ -1463,6 +1463,16 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 		bot.set_paint(gs.PAINTS[_gang_paint(g)])
 	# Prawy albo środkowy pas - przy wielu autach nie wszystkie jednym torem.
 	var lane := lane_w if _bot_rng.randf() < 0.65 else 0.0
+	# Wąwóz: wyspa rozwidlenia w ciągu 200 m - środkiem prosto na jej czoło
+	# (horn_control_test, trasa 7: bot postawiony na środku tuż przed wyspą).
+	if lane == 0.0 and lane_i < 0:
+		var w0 := float(smp["width"])
+		if w0 > 18.0:
+			lane = lane_w                  # już w rozszerzeniu przed wyspą
+		for s2 in track.samples_from(d, 200.0, 10):
+			if float(s2["width"]) - w0 > TrackGenerator.ISLAND_W + 3.0:
+				lane = lane_w
+				break
 	if lane_i >= 0:
 		lane = hwy_lane_at(lane_i, d)
 	bot.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))

@@ -107,6 +107,10 @@ var _lead_gap := INF
 var _lead_v := 0.0
 ## Auto obok na pasie, na który bot zjeżdża - czeka z ruchem w bok.
 var _side_block := false
+## Skocznia wąwozu przed botem: dystans początku rampy i prędkość potrzebna
+## u jej podstawy (meta.jump.v_bottom) [m/s]; INF - brak w oknie.
+var _jump_d := INF
+var _jump_v := 0.0
 var hold := false
 var event := ""
 var brain: ExtremistBrain
@@ -192,6 +196,7 @@ func _drive_step(delta: float) -> void:
 		_window = track.samples_from(dist - 15.0, WINDOW_AHEAD + 15.0)
 		_build_profile()
 		_find_lead()
+		_find_jump()
 		_win_hint = mini(15, _window.size() - 1)
 	if _window.is_empty():
 		return
@@ -266,6 +271,36 @@ func _drive_step(delta: float) -> void:
 		# Limit szału: ograniczenie + przekroczenie z menu; łuki hamują zawsze.
 		var cap := 400.0 if overspeed <= 0.0 else float(best["limit"]) + overspeed
 		target_kmh = lerpf(target_kmh, clampf(plan.y, 0.0, minf(cap, _curve_speed())), rage * _aggr)
+	# Skocznia: u podstawy rampy prędkość ze znaku (v_bottom, +3%), dojazd
+	# z hamowaniem 5 m/s²; na rampie i w locie bez dodawania gazu ponad nią.
+	if _jump_d < INF and _jump_v > 0.0 and not extremist:
+		var kj := maxf(_jump_d - dist, 0.0)
+		var vj := _jump_v * 1.03
+		target_kmh = minf(target_kmh, sqrt(vj * vj + 2.0 * 5.0 * kj) * 3.6)
+	# Wyspa rozwidlenia przed botem (wąwóz: jezdnia rozszerza się o ~w + 5 m,
+	# 45 m za początkiem rozszerzenia czoło wyspy na osi). Bot jadący środkiem
+	# nie zdążał zjechać (LAT_RATE) i rozbijał się na czole przy ~100 km/h -
+	# horn_control_test, trasa 7 (stara niestabilność testu). Cel co najmniej
+	# ISLAND_W/2 + 2,2 m od osi po swojej stronie, ~5 s wcześniej.
+	if not (main and main._endless and main.track.autostrada) and not extremist:
+		var w_lo := INF
+		var w_hi := 0.0
+		var look_i := maxf(absf(car.speed) * 5.0, 60.0)
+		for wi in range(_win_hint, _window.size()):
+			if float(_window[wi]["dist"]) - dist > look_i:
+				break
+			w_lo = minf(w_lo, float(_window[wi]["width"]))
+			w_hi = maxf(w_hi, float(_window[wi]["width"]))
+		if w_hi - w_lo > TrackGenerator.ISLAND_W + 3.0:
+			var side := 1.0 if (target_off if absf(target_off) > 0.5 else offset) >= 0.0 else -1.0
+			var need := TrackGenerator.ISLAND_W * 0.5 + 2.2
+			if absf(target_off) < need or signf(target_off) != side:
+				target_off = side * need
+			# Sterowanie boczne przy ~100 km/h jest łagodne (kilka sekund na
+			# 3 m) - dopóki nie jest po swojej stronie, zwalnia jak kierowca
+			# przed rozwidleniem.
+			if absf(offset) < need - 0.6:
+				target_kmh = minf(target_kmh, 60.0)
 	# Cel w poprzek drogi przesuwa się płynnie (było: skok o pas przy szale,
 	# zmianie taktyki albo przejściu gracza na drugą stronę).
 	if not _tgt_ok:
@@ -342,6 +377,20 @@ func _drive_step(delta: float) -> void:
 		car.throttle = 0.0
 		car.brake = 0.0
 	flipped_time = flipped_time + delta if car.global_basis.y.y < 0.3 else 0.0
+
+
+## Najbliższa rampa skoczni w oknie (od 40 m za botem - jest jeszcze na
+## rampie). Spokojny bot jechał rozbiegiem z ograniczeniem (znak + 10 km/h),
+## lądował za zeskokiem na płaskim i dachował (horn_control_test,
+## seed=71877 track=67412).
+func _find_jump() -> void:
+	_jump_d = INF
+	for smp in _window:
+		var m: Dictionary = smp.get("meta", {})
+		if m.has("jump") and float(smp["dist"]) > dist - 40.0:
+			_jump_d = float(smp["dist"])
+			_jump_v = float((m["jump"] as Dictionary).get("v_bottom", 0.0))
+			return
 
 
 func extremist_persona() -> bool:
