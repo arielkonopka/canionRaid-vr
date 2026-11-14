@@ -641,6 +641,7 @@ func _physics_process(delta: float) -> void:
 	_watch_incident(delta)
 	update_race(delta)
 	_record_replay()
+	_knock_cones()
 	var t0 := Time.get_ticks_usec()
 	if race_state != Race.FINISHED:
 		_watch_track(delta)
@@ -1249,11 +1250,37 @@ func _update_segments(delta: float) -> void:
 	if not (_endless and track.autostrada) or race_state != Race.RACING:
 		return
 	if segments == null:
-		var sv: int = track.plan_seed
-		segments = SegmentEvents.new(SegmentCode.new(sv, track.weather), self, sv)
+		segments = SegmentEvents.new(track.segcode, self, track.plan_seed)
 	var t0 := Time.get_ticks_usec()
 	segments.step(delta)
 	Perf.add("odcinki", t0)
+
+
+## Przejechanie pachołków i słupków przekroju (etap 2): tylko w strefie,
+## auto gracza (boty omijają je pasami). Stuknięcie w głośniku auta.
+var cones_hit := 0
+func _knock_cones() -> void:
+	if not (_endless and track.autostrada and track.sections) or race_state != Race.RACING:
+		return
+	var d := _last_safe_dist
+	if track.sections.zone_at(d).is_empty() and _extremist == null:
+		return
+	var xf: Transform3D = track.transform_at_distance(d)
+	var x := (car.global_position - xf.origin).dot(xf.basis.x)
+	var side := signf(car.linear_velocity.dot(xf.basis.x))
+	var n: int = track.knock_items(d, x, 0.95, absf(car.speed), side)
+	if n > 0:
+		cones_hit += n
+		if car.get_node_or_null("Audio"):
+			car.get_node("Audio").thud(0.15)
+	# Ekstremista jedzie zamkniętym pasem przez pachołki (jego mózg nie
+	# zna przekrojów - "nigdy nie hamuje") - niech lecą (jedno auto, tanio).
+	var xdrv: BotDriver = _drv(_extremist) if _extremist and is_instance_valid(_extremist) else null
+	if xdrv and not xdrv.on_rail:
+		var xd: float = xdrv.dist
+		if not track.sections.zone_at(xd).is_empty():
+			var xxf: Transform3D = track.transform_at_distance(xd)
+			track.knock_items(xd, (_extremist.global_position - xxf.origin).dot(xxf.basis.x), 0.95, absf(_extremist.speed), 0.0)
 
 
 ## Odcinek "rest" (oddech w rytmie reżysera): nic nowego wrogiego.
@@ -1375,6 +1402,18 @@ func hwy_lane_off(lane: int) -> float:
 	return HighwayGenerator.lane_center(lane)
 
 
+## Oś pasu `lane` w miejscu d z przekrojem (SectionPlan, etap 2): pasy
+## naszego kierunku od prawego, indeks przycięty do liczby pasów (zwężenie:
+## oba pasy jadą jedynym otwartym). Bez przekrojów - hwy_lane_off.
+func hwy_lane_at(lane: int, d: float) -> float:
+	if not (_endless and track.autostrada and track.sections):
+		return hwy_lane_off(lane)
+	var fwd: Array = track.sections.lanes_at(d)["fwd"]
+	if fwd.is_empty():
+		return hwy_lane_off(lane)
+	return float(fwd[clampi(lane, 0, fwd.size() - 1)])
+
+
 func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	if track.is_gap_at(d) or d > track.total_length() - 20.0:
 		return
@@ -1396,7 +1435,7 @@ func _spawn_bot(d: float, lane_i := -1, speed_kmh := -1.0) -> void:
 	# Prawy albo środkowy pas - przy wielu autach nie wszystkie jednym torem.
 	var lane := lane_w if _bot_rng.randf() < 0.65 else 0.0
 	if lane_i >= 0:
-		lane = hwy_lane_off(lane_i)
+		lane = hwy_lane_at(lane_i, d)
 	bot.place(Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.9))
 	bot._settle_t = 0.0         # place() zjadałby prędkość przepisową startu
 	var v := (speed_kmh if speed_kmh > 0.0 else lim) / 3.6
@@ -3525,6 +3564,14 @@ func _update_traffic(delta: float) -> void:
 	for sp in r["spawn"]:
 		var d: float = sp["dist"]
 		var lane: int = sp["lane"]
+		# Przekrój (etap 2): tylko otwarte pasy; druga jezdnia zamknięta -
+		# bez ruchu z naprzeciwka.
+		if track.sections:
+			var la: Dictionary = track.sections.lanes_at(d)
+			if sp["oncoming"] and bool(la["other_closed"]):
+				continue
+			if not sp["oncoming"] and lane >= (la["fwd"] as Array).size():
+				lane = 0
 		var pos: Vector3
 		if sp["oncoming"]:
 			pos = _oncoming_xf(d, float(lane)).origin
@@ -3533,6 +3580,12 @@ func _update_traffic(delta: float) -> void:
 			pos = xf.origin + xf.basis.x * hwy_lane_off(lane)
 		if TrafficZone.visible(head, hf, cf, pos):
 			continue                       # spróbuje przy następnym kroku
+		# Fizyczny odstęp od innych aut (TrafficZone sprawdza tylko numer
+		# pasa; auto doganiające 250-300 m za graczem pojawiało się na
+		# innym albo tuż za nim przy 150 km/h - obroty i wraki,
+		# section_drive_test).
+		if not sp["oncoming"] and not _spawn_clear(pos, float(sp["speed_kmh"]) / 3.6):
+			continue
 		if sp["oncoming"]:
 			_spawn_oncoming(d, lane, float(sp["speed_kmh"]))
 		else:
@@ -3543,6 +3596,26 @@ func _update_traffic(delta: float) -> void:
 				var smp: Dictionary = track.sample_at(d)
 				if not smp.is_empty():
 					_drv(_bots[-1]).speed_k = clampf(float(sp["speed_kmh"]) / float(smp["limit"]), 0.3, 1.0)
+
+
+## Wolne miejsce na nowe auto w `pos`: nikt bliżej niż 15 m, a przed nim
+## nikt wolniejszy w zasięgu hamowania (różnica prędkości²/(2·3 m/s²) + 15 m).
+func _spawn_clear(pos: Vector3, v: float) -> bool:
+	var others: Array = _bots.duplicate()
+	others.append(car)
+	for o in others:
+		if not is_instance_valid(o):
+			continue
+		var rel: Vector3 = (o as Node3D).global_position - pos
+		if rel.length() < 15.0:
+			return false
+		var ov: float = (o as RigidBody3D).linear_velocity.length()
+		var dv := v - ov
+		if dv > 0.0 and absf(rel.dot((o as Node3D).global_basis.x)) < 2.5:
+			var ahead: float = -rel.dot((o as Node3D).global_basis.z)   # > 0: tamto auto przed nowym
+			if ahead > 0.0 and ahead < 15.0 + dv * dv / 6.0:
+				return false
+	return true
 
 
 func _is_highway_at(d: float) -> bool:

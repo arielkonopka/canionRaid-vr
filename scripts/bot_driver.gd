@@ -100,6 +100,13 @@ var persona := ""
 ## hold - stoi i czeka (zasadzka; zamrożony, bez szyny), event - nazwa
 ## zdarzenia (ruch TrafficZone go nie usuwa i nie liczy do gęstości).
 var speed_k := 1.0
+## Auto przed botem na jego drodze (spokojna jazda trzyma odstęp; bez tego
+## w zwężeniu do jednego pasa boty najeżdżały na siebie): odstęp [m]
+## i prędkość [m/s]; INF - wolno.
+var _lead_gap := INF
+var _lead_v := 0.0
+## Auto obok na pasie, na który bot zjeżdża - czeka z ruchem w bok.
+var _side_block := false
 var hold := false
 var event := ""
 var brain: ExtremistBrain
@@ -184,6 +191,7 @@ func _drive_step(delta: float) -> void:
 		# EndlessTrack; przegląd chmury R4). Gdyby to się zmieniło - to_global.
 		_window = track.samples_from(dist - 15.0, WINDOW_AHEAD + 15.0)
 		_build_profile()
+		_find_lead()
 		_win_hint = mini(15, _window.size() - 1)
 	if _window.is_empty():
 		return
@@ -232,9 +240,18 @@ func _drive_step(delta: float) -> void:
 	if main and main._endless and main.track.autostrada:
 		# Autostrada 2+2: osie pasów z HighwayGenerator (prawy 0,75 m od osi
 		# jezdni, lewy -3,0 m) - 3-pasowe lane_w wąwozu jechałoby poboczem.
-		target_off = main.hwy_lane_off(lane)
+		# Przekrój (zwężenie itp.): oś pasu z miejsca ~4 s przed botem -
+		# z zamykanego pasa spokojny zjeżdża zawczasu, furiat w ostatniej
+		# chwili (~1 s; zlecenie etap2-przekroje pkt 3).
+		var look := maxf(car.speed, 10.0) * (1.0 if rage > 0.05 else 4.0)
+		target_off = main.hwy_lane_at(lane, dist + look)
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh) * speed_k
+	if _lead_gap < INF and rage < 0.05 and not extremist_persona():
+		# Odstęp ~1,2 s + 8 m; dojazd do auta przed sobą bez stłuczki.
+		var want := 8.0 + 1.2 * maxf(car.speed, 0.0)
+		var v_ok := _lead_v + (_lead_gap - want) * 0.4
+		target_kmh = minf(target_kmh, maxf(v_ok, 0.0) * 3.6)
 	_aggr = 1.0
 	var extremist := persona == "extremist" and brain != null
 	if extremist:
@@ -254,8 +271,12 @@ func _drive_step(delta: float) -> void:
 	if not _tgt_ok:
 		_tgt_off_s = offset
 		_tgt_ok = true
-	_tgt_off_s = move_toward(_tgt_off_s, target_off,
-			(ExtremistBrain.LAT_RATE if extremist else LAT_RATE) * delta)
+	if _side_block and rage < 0.05 and not extremist:
+		# Czeka z wjazdem na zajęty pas i odpuszcza, żeby wjechać za tamtym.
+		target_kmh *= 0.85
+	else:
+		_tgt_off_s = move_toward(_tgt_off_s, target_off,
+				(ExtremistBrain.LAT_RATE if extremist else LAT_RATE) * delta)
 
 	var fwd := -car.global_basis.z
 	var head_err := fwd.signed_angle_to(best["fwd"], car.global_basis.y)
@@ -318,6 +339,43 @@ func _drive_step(delta: float) -> void:
 		car.throttle = 0.0
 		car.brake = 0.0
 	flipped_time = flipped_time + delta if car.global_basis.y.y < 0.3 else 0.0
+
+
+func extremist_persona() -> bool:
+	return persona == "extremist"
+
+
+## Najbliższe auto przed botem (boty i gracz) na jego pasie albo na pasie,
+## do którego zjeżdża (zwężenie), do 120 m. Co 0,15 s z oknem trasy.
+func _find_lead() -> void:
+	_lead_gap = INF
+	_side_block = false
+	if main == null or rage > 0.05 or _window.is_empty():
+		return
+	var right: Vector3 = _window[mini(_win_hint, _window.size() - 1)]["right"]
+	var fwd := -car.global_basis.z
+	var my_x := car.global_position.dot(right)
+	var tgt_x := my_x + (_tgt_off_s - (car.global_position - (_window[mini(_win_hint, _window.size() - 1)]["pos"] as Vector3)).dot(right))
+	var others: Array = main._bots.duplicate()
+	if player:
+		others.append(player)
+	for o in others:
+		if o == car or not is_instance_valid(o) or not (o as Node3D).visible:
+			continue
+		var rel: Vector3 = (o as Node3D).global_position - car.global_position
+		var ahead := rel.dot(fwd)
+		var ox: float = (o as Node3D).global_position.dot(right)
+		# Zjazd na zajęty pas: auto obok (od 6 m za do 8 m przed) tam,
+		# dokąd bot zjeżdża, a nie na jego pasie.
+		if absf(tgt_x - my_x) > 0.8 and ahead > -6.0 and ahead < 8.0 \
+				and absf(ox - tgt_x) < 2.2 and absf(ox - my_x) > 1.6:
+			_side_block = true
+		if ahead < 2.0 or ahead > 120.0 or ahead >= _lead_gap:
+			continue
+		if absf(ox - my_x) > 2.2 and absf(ox - tgt_x) > 2.2:
+			continue
+		_lead_gap = ahead - 4.5
+		_lead_v = (o as RigidBody3D).linear_velocity.dot(fwd)
 
 
 ## Prędkość przepisowa: najniższy limit w oknie, z drogą hamowania (5 m/s²),
@@ -504,6 +562,10 @@ func _update_rail(delta: float) -> bool:
 	dist += _rail_v * delta
 	var xf: Transform3D = track.transform_at_distance(dist)
 	var lane := clampf(_lane_off, -float(smp2["width"]) * 0.5 + 1.0, float(smp2["width"]) * 0.5 - 1.0)
+	if persona != "extremist" and main._endless and main.track.autostrada and main.track.sections:
+		# Na szynie też po otwartych pasach przekroju (płynnie, 3 m/s w bok).
+		_lane_off = move_toward(_lane_off, main.hwy_lane_at(self.lane, dist + 60.0), 3.0 * delta)
+		lane = _lane_off
 	car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.62)
 	return true
 

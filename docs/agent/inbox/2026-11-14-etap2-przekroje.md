@@ -1,4 +1,4 @@
-Status: nowe
+Status: w toku - 2a zrobione (2026-11-14), dalej 2b roboty
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap2-przekroje-rozpoznanie.md)
 Decyzje użytkownika: 2026-11-13 21:42 UTC kolejność etapów "Przekroje,
@@ -128,4 +128,69 @@ test sceny. Wynik do HANDOVER.md.
 
 ## Odpowiedź agenta lokalnego
 
-(tu)
+**2a zwężenie + wspólny mechanizm: zrobione (2026-11-14).**
+
+- **Testy w Godocie:** `section_plan_test` i `segment_code_test` są OK
+  dla ziaren 777, 1, 4242, 5, 9, 31337 i 33. `section_plan_sim.py`
+  też jest OK. Uruchamiałem go bez `python3 -I`, bo importuje
+  `segment_code_sim`. `section_plan_test 777` jest w `quest.sh test`.
+- **Jeden plan na trasę.** `SegmentCode` i `SectionPlan` są tworzone
+  w `EndlessTrack._ready` (`track.segcode`, `track.sections`), bo
+  generator potrzebuje ich przy budowie. `SegmentEvents` bierze ten sam
+  kod.
+- **Generator.** `_next_mark` uwzględnia `sections.limit_marks`, a
+  ograniczenie odcinka to min(plan, strefa). Szerokości jeszcze nie
+  zmieniam, bo dla 7 i 6 jest stała.
+- **Boty.** `xr_main.hwy_lane_at(lane, d)` daje oś z `lanes_at(d).fwd`
+  z indeksem przyciętym do liczby pasów. Boty patrzą przed siebie:
+  spokojne ~4 s, w szale ~1 s, na szynie 60 m. `TrafficZone`: spawn
+  tylko na otwartych pasach; przy `other_closed` bez ruchu z
+  naprzeciwka.
+- **Elementy przekroju.** Pachołki (pomarańczowe z białym pasem) i słupki
+  są w MultiMesh na kawałek toru (strefa 1,2 km: 48 elementów).
+  Tablica ze strzałką ma StaticBody. Znaki: A-12 i A-14 (trójkąt), D-10
+  (`highway_end`), zapora drugiej jezdni. Przejechanie
+  (`xr_main._knock_cones`, auto gracza): pachołek odlatuje po łuku
+  (tween 0,6 s), leży obok i stuka.
+
+**Znaleziska (zmieniają ruch w całej grze):**
+
+1. **Spokojne boty nie trzymały żadnego odstępu.** Na 2+2 tego nie
+   widać, ale w zwężeniu najeżdżały na siebie i się obracały. Teraz:
+   - `BotDriver._find_lead` co 0,15 s szuka najbliższego auta przed
+     sobą na swoim pasie albo na pasie, na który zjeżdża (boty i
+     gracz, do 120 m). Odstęp 8 m + 1,2 s;
+   - `_side_block`: bot czeka z wjazdem na zajęty pas i zwalnia do 85%;
+   - w szale i ekstremista: bez zmian.
+2. **Auto doganiające gracza (CHASER_SHARE) pojawiało się na innym
+   aucie.** Działo się to 250-300 m za graczem, przy ~150 km/h, bo
+   `TrafficZone` sprawdza odstęp tylko po numerze pasa. Kiedy gracz
+   szybko wyprzedził kolumnę, za nim było gęsto. Skutek: obroty i
+   wraki za plecami gracza. `xr_main._spawn_clear` sprawdza fizyczny
+   odstęp (15 m) i drogę hamowania do wolniejszego auta przed nim.
+
+**Do decyzji: ekstremista.** Jedzie zamkniętym pasem przez pachołki, bo
+jego mózg nie zna przekrojów. Pachołki od niego lecą. Pasuje do "nigdy
+nie hamuje", ale jeśli ma znać przekroje, `ExtremistBrain` musiałby
+dostać listę otwartych pasów.
+
+**Obserwacja.** Pojedyncze obroty botów daleko za graczem (400-600 m,
+190-200 km/h, na szynie albo tuż po zejściu z niej). Są poza wzrokiem
+i poza strefą, nie badałem dalej.
+
+**Test `tests/section_drive_test.gd`:** trasa 33, zwężenie 10,8-12 km,
+~12 min, poza `quest.sh`; z KATALOGIEM robi zrzuty. Wynik dwa razy OK:
+- 48 elementów w strefie;
+- ograniczenie w strefie 100;
+- gracz po otwartym pasie przewrócił 0 pachołków, a po zjeździe na
+  zamknięty pas 2;
+- 0 z ~20 tys. próbek botów na zamkniętym pasie.
+
+Pełny `quest.sh test` OK, `drive_test` bez zmian (24.00-24.17).
+`segment_event_test -- 20` OK, mijania 0,80 : 0,35 na km.
+
+**Zrzuty:** `renders/2026-11-14-przekroje/` (przed, skos, środek).
+
+**Bench na Queście:** czeka na gogle.
+
+**Dalej:** 2b (roboty).

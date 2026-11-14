@@ -1576,6 +1576,33 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   wykonanie w etapie 5 (inbox `rondo-w-miescie`).
   **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
   ocena użytkownika w goglach (wartości startowe).
+- **Przekroje jezdni (etap 2 urozmaiceń, od 2026-11-14; inbox
+  etap2-przekroje) - 2a zwężenie zrobione**: `SectionPlan` (chmura) i
+  `SegmentCode` tworzone w `EndlessTrack._ready` (`track.segcode`,
+  `track.sections` - generator potrzebuje ich przy budowie;
+  `SegmentEvents` bierze ten sam kod). `HighwayGenerator`: podział
+  odcinków w `sections.limit_marks`, ograniczenie min(plan, strefa).
+  `StuntTrack._build_section_items`: pachołki i słupki MultiMesh na
+  kawałek, tablica ze strzałką (StaticBody - wjazd = wypadek), znaki
+  A-12/A-14 (trójkąt), D-10 (koniec autostrady), zapora drugiej jezdni.
+  Pachołki bez fizyki: `xr_main._knock_cones` (auto gracza i ekstremista)
+  -> `knock_items` - odlatuje po łuku (tween) i leży obok. Boty: oś pasu
+  z `hwy_lane_at(lane, d)` (indeks przycięty do liczby pasów `lanes_at`),
+  patrzą ~4 s przed siebie (w szale ~1 s); na szynie też. **Spokojne
+  boty trzymają odstęp** (`BotDriver._find_lead`, 8 m + 1,2 s, także
+  za graczem) i **czekają z wjazdem na zajęty pas** (`_side_block`) -
+  wcześniej nie było żadnego, a w zwężeniu najeżdżały na siebie
+  i obracały się. Ekstremista jedzie zamkniętym pasem przez pachołki
+  (jego mózg nie zna przekrojów) - do decyzji. TrafficZone: spawn tylko
+  na otwartych pasach, przy `other_closed` bez ruchu z naprzeciwka.
+  `xr_main._spawn_clear`: nowe auto ruchu nie bliżej niż 15 m od innego
+  i nie w zasięgu hamowania wolniejszego przed nim (doganiające auta
+  250-300 m za graczem pojawiały się na innych - obroty i wraki).
+  Test `tests/section_drive_test.gd` (trasa 33, zwężenie 10,8-12 km,
+  ~12 min, poza `quest.sh`; z KATALOGIEM - zrzuty): 2x OK, 0 próbek
+  botów na zamkniętym pasie. Zrzuty `renders/2026-11-14-przekroje/`.
+  Dalej 2b roboty (żółte linie w shaderze, ruch z naprzeciwka na naszym
+  lewym pasie), 2c 1+1, 2d 2+1, 2e 3+3.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały
