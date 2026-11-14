@@ -9,8 +9,17 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/section_drive_test.gd </dev/null
 ##   (zrzuty: godot --xr-mode off -s res://tests/section_drive_test.gd -- KATALOG)
 
-const ZONE_FROM := 10800.0
-const ZONE_TO := 12000.0
+## Strefy trasy 33: zwężenie 10,8-12 km, roboty 28,5-29,4 km.
+const ZONES := {"zwezenie": [10800.0, 12000.0], "roboty": [28500.0, 29400.0]}
+var kind := "zwezenie"
+var ZONE_FROM := 10800.0
+var ZONE_TO := 12000.0
+var onc_ours := 0                  # auta z naprzeciwka na naszym lewym pasie (pełny przekrój)
+var onc_other := 0
+var loose_wrong := 0               # auto z naprzeciwka po przejściu na fizykę na naszym prawym pasie
+var gap_checked := false
+var gap_open := false
+var barrier_elsewhere := false                 # ... na swojej (zamkniętej) jezdni w pełnym przekroju
 var main
 var f := 0
 var fails := 0
@@ -37,8 +46,16 @@ func _initialize() -> void:
 	gs.weather = "dry"
 	gs.crash_replay = false
 	var a := OS.get_cmdline_user_args()
-	if a.size() > 0:
-		out_dir = a[0]
+	for arg in a:
+		if ZONES.has(arg):
+			kind = arg
+		elif arg != "":
+			out_dir = arg
+	ZONE_FROM = float(ZONES[kind][0])
+	ZONE_TO = float(ZONES[kind][1])
+	shots = [["przed", ZONE_FROM - 250.0], ["skos", ZONE_FROM + 120.0], ["srodek", ZONE_FROM + 500.0]]
+	if kind == "roboty":
+		shots.append(["przejazd", ZONE_TO - 170.0])
 	EndlessTrack.test_seed = 33
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
@@ -107,6 +124,46 @@ func _physics_process(_delta: float) -> bool:
 			bot_in_closed += 1
 			if bot_in_closed % 100 == 1:
 				print("  ZAMKNIĘTY: %s x=%.2f fwd=%s rail=%s lod=%d szał=%.1f zd=%s pas=%d d_od_startu=%.0f v=%.0f" % [b.name, x, str(la["fwd"]), drv.on_rail, drv.lod, drv.rage, drv.event, drv.lane, drv.dist - float(zb["start"]), b.speed * 3.6])
+	if kind == "roboty" and f % 240 == 0 and OS.has_environment("SECTION_DEBUG"):
+		var lst := []
+		for o in main._oncoming:
+			if o.works:
+				var oxf2: Transform3D = main.track.transform_at_distance(o.dist)
+				lst.append("d=%.0f x=%.1f cross=%.2f vis=%s loose=%s" % [o.dist, (o.car.global_position - oxf2.origin).dot(oxf2.basis.x), sp.onc_cross(o.dist), o.car.visible, o.loose])
+		print("  ROBOTY-AUTA p=%.0f: %s" % [p, str(lst)])
+	# Auta z naprzeciwka w pełnym przekroju robót: nasz lewy pas.
+	if kind == "roboty":
+		for o in main._oncoming:
+			# Drugi przejazd (po linii pachołków, 1,9 m od ich pasa) to
+			# prawdziwe zderzenie - liczymy tylko jazdę otwartym pasem.
+			if phase < 2 and o.loose and is_instance_valid(o.car):
+				var ns: Dictionary = main.track.nearest_sample(o.car.global_position)
+				if not ns.is_empty():
+					var lx: float = (o.car.global_position - main.track.to_global(ns["pos"])).dot(ns["right"])
+					if lx > -0.5:
+						loose_wrong += 1
+		for o in main._oncoming:
+			var od: float = o.dist
+			var zo: Dictionary = sp.zone_at(od)
+			if zo.is_empty() or sp.onc_cross(od) < 0.999 or not o.car.visible:
+				continue
+			var oxf: Transform3D = main.track.transform_at_distance(od)
+			var ox: float = (o.car.global_position - oxf.origin).dot(oxf.basis.x)
+			if absf(ox - main.hwy_lane_off(1)) < 1.0:
+				onc_ours += 1
+			elif ox < -8.0:
+				onc_other += 1
+				if onc_other % 300 == 1:
+					print("  NAPRZECIW d=%.0f ox=%.1f cross=%.2f loose=%s osk=%s v=%.0f d_gracz=%.0f rail=%s" % [od, ox, sp.onc_cross(od), o.loose, o.osk, o.v, od - p, str(main.track.rail_at(od).size())])
+	# Przerwa w barierce pasa rozdziału w przejeździe (i bariera poza nim):
+	# promień w poprzek pasa rozdziału na wysokości 0,5 m.
+	if kind == "roboty" and not gap_checked and p > ZONE_FROM + 300.0:
+		gap_checked = true
+		var z2: Dictionary = sp.zone_at(p)
+		var cr: Array = SectionPlan.crossovers(z2)
+		if not cr.is_empty():
+			gap_open = not _median_hit((float(cr[1][0]) + float(cr[1][1])) * 0.5)
+			barrier_elsewhere = _median_hit(float(z2["start"]) - 300.0)
 	if phase == 0 and p > ZONE_FROM:
 		phase = 1
 		var chunk: StuntTrack = main.track._chunk_for(p + 100.0)
@@ -128,7 +185,7 @@ func _physics_process(_delta: float) -> bool:
 		cam.look_at(main.track.transform_at_distance(p + 40.0).origin, Vector3.UP)
 		cam.current = true
 		if pending != "" and f >= pend_f:
-			root.get_viewport().get_texture().get_image().save_png("%s/przekroj_zwezenie_%s.png" % [out_dir, pending])
+			root.get_viewport().get_texture().get_image().save_png("%s/przekroj_%s_%s.png" % [out_dir, kind, pending])
 			print("zrzut ", pending)
 			pending = ""
 		if shot_i < shots.size() and pending == "" and p > float(shots[shot_i][1]):
@@ -140,11 +197,27 @@ func _physics_process(_delta: float) -> bool:
 	return false
 
 
+func _median_hit(d: float) -> bool:
+	var xf: Transform3D = main.track.transform_at_distance(d)
+	var w := HighwayGenerator.WIDTH
+	var a := xf.origin - xf.basis.x * (w * 0.5 - 0.2) + Vector3.UP * 0.5
+	var b := xf.origin - xf.basis.x * (w * 0.5 + TrackGenerator.HIGHWAY_MEDIAN + 0.2) + Vector3.UP * 0.5
+	var q := PhysicsRayQueryParameters3D.create(a, b)
+	q.exclude = [main.car.get_rid()]
+	var hit: Dictionary = main.car.get_world_3d().direct_space_state.intersect_ray(q)
+	return not hit.is_empty() and not (hit["collider"] is StuntCar)
+
+
 func _end() -> bool:
 	_check(items_seen > 30, "pachołki w kawałku ze strefą (%d)" % items_seen)
-	_check(lim_in <= 100.0, "ograniczenie w strefie %.0f" % lim_in)
+	_check(lim_in <= (80.0 if kind == "roboty" else 100.0), "ograniczenie w strefie %.0f" % lim_in)
 	_check(hits_clean == 0, "gracz po otwartym pasie - pachołków przewróconych %d" % hits_clean)
 	_check(hit_on_purpose, "zjazd na zamknięty pas przewraca pachołki (razem %d)" % main.cones_hit)
+	if kind == "roboty":
+		_check(onc_ours > 0, "auta z naprzeciwka naszym lewym pasem (próbek %d)" % onc_ours)
+		_check(gap_open and barrier_elsewhere, "przerwa w barierce w przejeździe (otwarta %s, bariera poza nim %s)" % [gap_open, barrier_elsewhere])
+		_check(loose_wrong == 0, "auto z naprzeciwka po przejściu na fizykę nie wjeżdża na nasz prawy pas (%d)" % loose_wrong)
+		_check(onc_other == 0, "auta z naprzeciwka na zamkniętej drugiej jezdni: %d" % onc_other)
 	_check(bot_in_closed == 0, "boty w pełnym przekroju na zamkniętym pasie: %d z %d próbek" % [bot_in_closed, bot_samples])
 	print("section_drive_test: %s (%d błędów)" % ["OK" if fails == 0 else "BŁĄD", fails])
 	quit(1 if fails else 0)

@@ -20,6 +20,9 @@ var osk := ""                # rola w scence ("" = poza scenką)
 ## Kierowca pod prąd (zdarzenie odcinka): jedzie na gracza NASZĄ jezdnią,
 ## lewym (szybkim) pasem. Mijanie bez kontaktu - punkty (min_gap).
 var wrong_way := false
+## Auto ustawione pod strefę robót (xr_main._works_traffic) - TrafficZone go
+## nie usuwa (stoi ~3 km przed graczem, poza oknem ruchu).
+var works := false
 var min_gap := INF
 var passed := false
 

@@ -58,6 +58,7 @@ void fragment() {
 	float patches = smoothstep(0.62, 0.7, vnoise(vec2(u * 0.35, v * 0.06)));
 	vec3 col = asphalt * (0.82 + 0.32 * grain) * (1.0 - 0.12 * patches);
 	float paint = 0.0;
+	float works = 0.0;
 	float curb = 0.0;
 	float stripe = 0.0;
 	if (layout == 1 || layout == 2) {
@@ -73,6 +74,9 @@ void fragment() {
 		float edge_l = step(0.6, uu) * step(uu, 0.75);
 		float edge_r = step(w - 3.0, uu) * step(uu, w - 2.85);
 		float div = step(abs(uu - 4.5), 0.075) * step(mod(v, 12.0), 6.0);
+		// Roboty (COLOR.r, etap 2b): linia między kierunkami ciągła.
+		works = layout == 1 ? COLOR.r : 0.0;
+		div = max(div, step(0.5, works) * step(abs(uu - 4.5), 0.075));
 		paint = max(max(edge_l, edge_r), div) * (0.85 + 0.15 * grain);
 	} else if (layout == 3) {
 		// Wielka skocznia: biało-czerwone pasy poprzeczne co 2 m na całej
@@ -100,7 +104,9 @@ void fragment() {
 		curb = step(hw - 0.35, au);
 		stripe = step(mod(v, 2.0), 1.0);
 	}
-	col = mix(col, vec3(0.88, 0.88, 0.84), paint * (1.0 - 0.8 * ice));
+	// Linie tymczasowe robót żółte.
+	vec3 line_col = mix(vec3(0.88, 0.88, 0.84), vec3(0.95, 0.72, 0.05), step(0.5, works));
+	col = mix(col, line_col, paint * (1.0 - 0.8 * ice));
 	col = mix(col, mix(vec3(0.72, 0.08, 0.06), vec3(0.9, 0.9, 0.88), stripe), curb);
 
 	float rough = mix(0.88, 0.5, paint);

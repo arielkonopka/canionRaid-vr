@@ -322,3 +322,56 @@ func _zone_items(z: Dictionary) -> Array:
 	if s == 4 or s == 3:
 		out.append({"d": a + t, "x": -WIDTH * 0.5 - 1.0, "kind": "carriageway_closed"})
 	return out
+
+
+# --------------------------------------------------------------------------
+# Dodatek agenta lokalnego (etap 2b, 2026-11-14): przejazd aut z naprzeciwka
+# przez pas rozdziału na robotach (6). Oba przejazdy wewnątrz pełnego
+# przekroju, gdzie nasz lewy pas i tak jest zamknięty: wjazd na naszą
+# jezdnię tuż przed końcem pełnego przekroju (auta jadą w stronę malejącego
+# d), zjazd z niej tuż za końcem skosu wejścia. W tych miejscach przerwa
+# w barierce betonowej (StuntTrack._build_highway).
+# --------------------------------------------------------------------------
+
+const CROSS_LEN := 120.0
+
+
+## Odcinki [d0, d1] przejazdów przez pas rozdziału strefy z (tylko roboty).
+static func crossovers(z: Dictionary) -> Array:
+	if z.is_empty() or int(z["section"]) != 6:
+		return []
+	var b0 := float(z["start"]) + float(z["t_in"])
+	var b1 := float(z["end"]) - float(z["t_out"])
+	return [[b0, b0 + CROSS_LEN], [b1 - CROSS_LEN, b1]]
+
+
+## Jak bardzo auto z naprzeciwka w d jest już na naszej jezdni: 0 - na
+## swojej, 1 - na naszym lewym pasie (płynnie w przejazdach).
+func onc_cross(d: float) -> float:
+	var z := zone_at(d)
+	var cr := crossovers(z)
+	if cr.is_empty():
+		return 0.0
+	var a: Array = cr[0]
+	var b: Array = cr[1]
+	if d <= float(a[0]) or d >= float(b[1]):
+		return 0.0
+	if d < float(a[1]):
+		return smoothstep(float(a[0]), float(a[1]), d)
+	if d > float(b[0]):
+		return 1.0 - smoothstep(float(b[0]), float(b[1]), d)
+	return 1.0
+
+
+## Przerwa w barierce pasa rozdziału w d (przejazd na robotach).
+func median_gap(d: float) -> bool:
+	for c in crossovers(zone_at(d)):
+		if d >= float(c[0]) - 5.0 and d <= float(c[1]) + 5.0:
+			return true
+	return false
+
+
+## Żółte linie tymczasowe na naszej jezdni (roboty, cała strefa).
+func works_at(d: float) -> bool:
+	var z := zone_at(d)
+	return not z.is_empty() and int(z["section"]) == 6
