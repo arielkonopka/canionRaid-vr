@@ -1424,6 +1424,10 @@ func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
 
 ## Siatka i kolizja kawałka rury (beton, stoki góry, pas jarzeniówek).
 func _tunnel_flush(st: SurfaceTool, mount: SurfaceTool, lamp: SurfaceTool, faces: PackedVector3Array) -> void:
+	# Podział wypadł na ostatniej próbce kawałka bez wlotu - pusto (commit
+	# pustego SurfaceTool wypisuje błąd; przegląd PR #106).
+	if faces.is_empty():
+		return
 	st.generate_normals()
 	st.set_material(_concrete_material())
 	mount.generate_normals()
@@ -2279,7 +2283,9 @@ func _build_highway() -> void:
 ## Wiadukt nad autostradą na dystansie `dist`: poziomy pomost 10 m szeroki,
 ## 6,5 m nad jezdnią, nad obiema jezdniami i nasypami, filary na poboczu,
 ## w pasie rozdziału i za drugą jezdnią, przyczółki do terenu. Z kolizją.
-func _build_overpass(dist: float) -> void:
+## rail (etap 3c): {"clear": prześwit [m]} - wiadukt kolejowy: pomost
+## 14 m wzdłuż drogi, dwa tory na wierzchu (pociąg - RailTrain z xr_main).
+func _build_overpass(dist: float, rail := {}) -> void:
 	if dist > float(_samples[-1]["dist"]) - 10.0:
 		return
 	var smp := _sample_near(dist)
@@ -2288,7 +2294,8 @@ func _build_overpass(dist: float) -> void:
 	var fh := Vector3(-rh.z, 0.0, rh.x) * -1.0           # kierunek jazdy w poziomie
 	var hw := float(smp["width"]) * 0.5
 	var med := TrackGenerator.HIGHWAY_MEDIAN
-	var deck_y := c.y + 6.5
+	var deck_y := c.y + (float(rail["clear"]) if not rail.is_empty() else 6.5)
+	var deck_len := 14.0 if not rail.is_empty() else 10.0
 	var x_r := hw + 14.0
 	var x_l := -(hw + med + 2.0 * hw + 14.0)
 	var mid_x := (x_r + x_l) * 0.5
@@ -2301,12 +2308,12 @@ func _build_overpass(dist: float) -> void:
 	var shapes := PackedVector3Array()
 	var parts := [
 		# [środek (x w poprzek, y), rozmiar (w poprzek, w górę, wzdłuż)]
-		[Vector2(mid_x, deck_y + 0.6), Vector3(span, 1.2, 10.0)],
+		[Vector2(mid_x, deck_y + 0.6), Vector3(span, 1.2, deck_len)],
 		[Vector2(hw + 3.0, deck_y * 0.5), Vector3(1.2, deck_y, 1.2)],
 		[Vector2(-(hw + med * 0.5), deck_y * 0.5), Vector3(1.0, deck_y, 1.0)],
 		[Vector2(-(hw + med + 2.0 * hw + 3.0), deck_y * 0.5), Vector3(1.2, deck_y, 1.2)],
-		[Vector2(x_r - 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
-		[Vector2(x_l + 1.5, deck_y * 0.5), Vector3(3.0, deck_y, 10.0)],
+		[Vector2(x_r - 1.5, deck_y * 0.5), Vector3(3.0, deck_y, deck_len)],
+		[Vector2(x_l + 1.5, deck_y * 0.5), Vector3(3.0, deck_y, deck_len)],
 	]
 	# Jedna siatka (SurfaceTool) i jedno ciało z kształtami - przegląd PR #7
 	# (było 6 MeshInstance3D + 6 StaticBody3D na wiadukt).
@@ -2334,6 +2341,36 @@ func _build_overpass(dist: float) -> void:
 	mi.mesh = st.commit()
 	root.add_child(mi)
 	root.add_child(body)
+	if not rail.is_empty():
+		# Tory: dwie pary szyn wzdłuż pomostu (w poprzek drogi), ciągnięte
+		# daleko w obie strony na nasypie kolejowym (do horyzontu ~600 m).
+		var rails := SurfaceTool.new()
+		rails.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var reach := 600.0
+		for tz in [-2.5, 2.5]:
+			for rz in [-0.75, 0.75]:
+				var rb := BoxMesh.new()
+				rb.size = Vector3(reach * 2.0, 0.18, 0.12)
+				rails.append_from(rb, 0, Transform3D(b, base + rh * mid_x + Vector3.UP * (deck_y + 1.29) - fh * (tz + rz)))
+			var bed := BoxMesh.new()
+			bed.size = Vector3(reach * 2.0, 0.1, 2.8)
+			rails.append_from(bed, 0, Transform3D(b, base + rh * mid_x + Vector3.UP * (deck_y + 1.22) - fh * tz))
+		rails.set_material(_metal_material())
+		var rmi := MeshInstance3D.new()
+		rmi.mesh = rails.commit()
+		rmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(rmi)
+		# Nasyp kolejowy poza wiaduktem (do ziemi) - wąski wał po obu stronach.
+		for sx in [1.0, -1.0]:
+			var emb := BoxMesh.new()
+			emb.size = Vector3(reach - span * 0.5, deck_y + 1.2, 9.0)
+			var ex: float = mid_x + sx * (span * 0.5 + (reach - span * 0.5) * 0.5)
+			var ei := MeshInstance3D.new()
+			emb.material = _flat_mat("rail_bank", Color(0.42, 0.38, 0.3), 1.0)
+			ei.mesh = emb
+			ei.transform = Transform3D(b, base + rh * ex + Vector3.UP * ((deck_y + 1.2) * 0.5))
+			ei.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			root.add_child(ei)
 
 
 func _metal_material() -> Material:
@@ -2600,6 +2637,12 @@ func _build_structures() -> void:
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				_adopt(mi)
 	for z in hwy_structures.zones(d0, d1):
+		if int(z["structure"]) == 3:
+			# Wiadukt kolejowy (3c) - w kawałku z jego środkiem.
+			var vd := (float(z["start"]) + float(z["end"])) * 0.5
+			if vd >= d0 and vd < d1:
+				_build_overpass(vd, {"clear": float(z.get("clear", 6.5))})
+			continue
 		if int(z["structure"]) == 1:
 			# Tunel (3b): ta część, która wypada w kawałku.
 			var ta := maxf(float(z["start"]), d0)

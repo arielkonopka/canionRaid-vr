@@ -1,4 +1,4 @@
-Status: w toku - 3a, 3b zrobione (2026-11-14), dalej 3c wiadukt kolejowy
+Status: w toku - 3a, 3b, 3c zrobione (2026-11-15), dalej 3d podjazdy/zjazdy (pochylenie)
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap3-budowle-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 3 = budowle).
@@ -216,3 +216,33 @@ To tani detal, zrobię, jeśli chcecie.
   i `section_drive_test -- roboty` OK.
 
 Decyzję o pochyleniach widzę. 3d i 3e zrobię po 3c.
+
+
+**3c wiadukt kolejowy: zrobione (2026-11-15).**
+
+- **Wiadukt.** `_build_overpass(d, {clear})`: pomost 14 m wzdłuż drogi,
+  prześwit z planu (6,5 m albo 4,4 m przy pułapce 7), dwa tory na
+  wierzchu. Nasyp kolejowy ciągnie się 600 m w obie strony.
+- **`RailTrain`** (`scripts/rail_train.gd`): kinematyczny, jedna siatka
+  z kolorami wierzchołków, w grupie WorldOrigin.
+  - Osobowy: 4-6 wagonów, 120 km/h. Towarowy: 15-25 wagonów, 80 km/h.
+  - `train` 3: dwa składy z obu stron, na osobnych torach.
+  - Brak dźwięku - nie ma go w zasobach.
+- **Wypuszczanie.** `xr_main._update_trains` wypuszcza pociąg, gdy
+  gracz jest < 900 m przed wiaduktem.
+- **Zmiana względem zlecenia.** Zlecenie mówiło "start z prędkości
+  gracza ~1,5 km przed". To nie wystarczało: gracz zwalnia albo
+  przyspiesza, a pociąg ze stałą prędkością przejeżdżał przed nim (test:
+  90 -> 25 m/s). Dlatego `_sync_trains` co krok dopasowuje prędkość
+  (0,15-1,6 rozkładowej), tak żeby czoło było nad drogą, gdy gracz jest
+  ~250 m przed wiaduktem.
+- **Test `structure_drive_test -- wiadukt`** (trasa 33, 35 km, dwa
+  pociągi) OK:
+  - wiadukt stoi;
+  - przejazd pod nim bez utraty życia;
+  - pociąg nad drogą, gdy gracz jest 100-500 m przed wiaduktem.
+- **Zrzuty:** `budowla_wiadukt_*` - oba pociągi dojeżdżają nasypem.
+- Pełny `quest.sh test` OK, `drive_test` bez zmian, `-- most` i
+  `-- tunel` OK.
+
+**Dalej:** 3d - pochylenie (`slopes = true`, zgoda użytkownika do 8%).

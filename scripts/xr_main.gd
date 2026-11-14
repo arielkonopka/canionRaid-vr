@@ -1344,6 +1344,7 @@ func _update_segments(delta: float) -> void:
 	if not (_endless and track.autostrada) or race_state != Race.RACING:
 		return
 	_works_traffic()
+	_update_trains()
 	if segments == null:
 		segments = SegmentEvents.new(track.segcode, self, track.plan_seed)
 	var t0 := Time.get_ticks_usec()
@@ -1418,6 +1419,77 @@ func _works_traffic() -> void:
 				if _oncoming.size() > n:
 					(_oncoming[-1] as OncomingCar).works = true
 		print("ROBOTY: strefa %.0f-%.0f, auta z naprzeciwka za nią: %d" % [z["start"], z["end"], _oncoming.size() - n0])
+
+
+## Wiadukt kolejowy z pociągiem (etap 3c): pociąg (RailTrain) wypuszczany,
+## gdy gracz jest < 900 m od wiaduktu, a droga pociągu do środka drogi
+## mieści się w torach (600 m); start z prędkości gracza tak, żeby czoło
+## było nad drogą, gdy gracz jest ~250 m przed wiaduktem. train 1/2 -
+## kierunek, 3 - dwa z obu stron; freight - 15-25 wagonów ~80 km/h,
+## inaczej 4-6 ~120 km/h.
+var _trains_done := {}
+var trains_spawned := 0
+func _update_trains() -> void:
+	if not track.structures:
+		return
+	var p := _last_safe_dist
+	_sync_trains(p)
+	for z in track.structures.zones(p, p + 1600.0):
+		if int(z["structure"]) != 3 or _trains_done.has(int(z["k"])):
+			continue
+		var tr := int(z.get("train", 0))
+		var vd := (float(z["start"]) + float(z["end"])) * 0.5
+		if tr == 0 or vd - p > 900.0:
+			continue
+		var freight := bool(z.get("freight", false))
+		var vt := (80.0 if freight else 120.0) / 3.6
+		var t := maxf(vd - 250.0 - p, 0.0) / maxf(car.speed, 15.0)
+		if vt * t > 580.0:
+			continue                       # za daleko na torach - poczekaj
+		_trains_done[int(z["k"])] = true
+		var xf: Transform3D = track.transform_at_distance(vd)
+		var rh := (xf.basis.x * Vector3(1, 0, 1)).normalized()
+		var fh := Vector3.UP.cross(rh)
+		var smp: Dictionary = track.sample_at(vd)
+		var hw := 5.625 if smp.is_empty() else float(smp["width"]) * 0.5
+		var med := TrackGenerator.HIGHWAY_MEDIAN
+		var mid_x := ((hw + 14.0) + -(hw + med + 2.0 * hw + 14.0)) * 0.5
+		var deck_y := xf.origin.y + float(z.get("clear", 6.5)) + 1.35
+		var dirs := [1.0] if tr == 1 else ([-1.0] if tr == 2 else [1.0, -1.0])
+		for dir in dirs:
+			var tn := RailTrain.new()
+			var n: int = (15 + _bot_rng.randi() % 11) if freight else (4 + _bot_rng.randi() % 3)
+			tn.speed = vt
+			tn.v_nom = vt
+			tn.run = 1200.0 + n * RailTrain.CAR_LEN
+			tn.front_left = vt * t
+			tn.set_meta("vd", vd)
+			tn.build(n, freight, dir)
+			add_child(tn)
+			tn.add_to_group(WorldOrigin.GROUP)
+			var tz: float = -2.5 if dir > 0.0 else 2.5
+			var start_x: float = mid_x - float(dir) * vt * t
+			tn.global_transform = Transform3D(Basis(rh, Vector3.UP, -fh),
+					Vector3(xf.origin.x, deck_y, xf.origin.z) + rh * start_x - fh * tz)
+			trains_spawned += 1
+		print("POCIĄG: wiadukt %.0f m, %s, %d skład(y), nad drogą za %.1f s" % [vd, "towarowy" if freight else "osobowy", dirs.size(), t])
+
+
+## Pociąg dopasowuje prędkość co krok (gracz zwalnia i przyspiesza): czoło
+## nad drogą, gdy gracz jest ~250 m przed wiaduktem; 0,5-1,6 rozkładowej.
+func _sync_trains(p: float) -> void:
+	var t := -1.0
+	for n in get_children():
+		if not (n is RailTrain):
+			continue
+		var tn := n as RailTrain
+		if tn.front_left <= 0.0:
+			tn.speed = tn.v_nom
+			continue
+		t = maxf(float(tn.get_meta("vd", p)) - 250.0 - p, 0.0) / maxf(car.speed, 10.0)
+		# Do 0,15 rozkładowej - pociąg prawie staje (jak przed semaforem), gdy
+		# gracz zwolnił; przy 0,5 przejeżdżał przed nim (test: 90 -> 25 m/s).
+		tn.speed = tn.v_nom if t < 0.5 else clampf(tn.front_left / t, tn.v_nom * 0.15, tn.v_nom * 1.6)
 
 
 func _traffic_ensure() -> void:

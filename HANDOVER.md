@@ -1667,7 +1667,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   trasa 77). **Do zrobienia**: bench na Queście w strefie robót, ocena
   użytkownika; rzadko (1/5) ~1 s bota na zamkniętym pasie w 1+1.
 - **Budowle (etap 3 urozmaiceń, od 2026-11-14; inbox etap3-budowle)
-  - W TOKU, 3a most, 3b tunel zrobione**: `StructurePlan` (chmura) w
+  - W TOKU, 3a most, 3b tunel, 3c wiadukt kolejowy zrobione**: `StructurePlan` (chmura) w
   `EndlessTrack._ready` (`track.structures`, `STRUCT_SLOPES` false -
   **pochylenia czekają na decyzję użytkownika**, karta w wątku chmury).
   Generator dzieli odcinki na granicach budowli, ograniczenie min(plan,
@@ -1696,7 +1696,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   pasa rozdziału i nasypu w tunelu. Łuk w tunelu (`curved`) - jeszcze nie.
   Rura w siatkach po ~250 m (limit ~8 świateł na obiekt w Mobile). UV2.y
   jezdni = 1 pod dachem (przyciemnienie i lampy w `road.gdshader` - wcześniej
-  nieustawiane nigdzie, także w wąwozie). Test
+  nieustawiane nigdzie, także w wąwozie). **3c wiadukt kolejowy**:
+  `_build_overpass(d, {clear})` - pomost 14 m, prześwit z planu (6,5 /
+  4,4 m), tory i nasyp kolejowy 600 m w obie strony; `RailTrain`
+  (scripts/rail_train.gd, kinematyczny, jedna siatka z kolorami
+  wierzchołków, WorldOrigin) wypuszczany w `xr_main._update_trains`, gdy
+  gracz < 900 m przed wiaduktem; `_sync_trains` co krok dopasowuje
+  prędkość (0,15-1,6 rozkładowej), żeby czoło było nad drogą, gdy gracz
+  ~250 m przed - stała prędkość z chwili wypuszczenia przejeżdżała przed
+  graczem (gracz zwalniał). Bez dźwięku. Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.
