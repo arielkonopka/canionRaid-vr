@@ -430,7 +430,9 @@ func road_color(d: float) -> Color:
 		return Color(1, 0, 0)
 	if s == 4 or s == 3:
 		var la := lanes_at(d)
-		if not bool(la["single"]) or float(la["width"]) > WIDTH - 0.5:
+		# single = od początku skosu (f > 0); 2+1 ma 11,5 m - szerzej niż
+		# autostrada, więc bez warunku na szerokość.
+		if not bool(la["single"]):
 			return Color(0, 0, 0)
 		var fwd: Array = la["fwd"]
 		var onc: Array = la["onc"]

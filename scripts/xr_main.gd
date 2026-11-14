@@ -1265,16 +1265,16 @@ func _knock_cones() -> void:
 	if not (_endless and track.autostrada and track.sections) or race_state != Race.RACING:
 		return
 	var d := _last_safe_dist
-	if track.sections.zone_at(d).is_empty() and _bots.is_empty():
-		return
-	var xf: Transform3D = track.transform_at_distance(d)
-	var x := (car.global_position - xf.origin).dot(xf.basis.x)
-	var side := signf(car.linear_velocity.dot(xf.basis.x))
-	var n: int = track.knock_items(d, x, 0.95, absf(car.speed), side)
-	if n > 0:
-		cones_hit += n
-		if car.get_node_or_null("Audio"):
-			car.get_node("Audio").thud(0.15)
+	# Gracz tylko w strefie (transform_at_distance + knock_items co krok).
+	if not track.sections.zone_at(d).is_empty():
+		var xf: Transform3D = track.transform_at_distance(d)
+		var x := (car.global_position - xf.origin).dot(xf.basis.x)
+		var side := signf(car.linear_velocity.dot(xf.basis.x))
+		var n: int = track.knock_items(d, x, 0.95, absf(car.speed), side)
+		if n > 0:
+			cones_hit += n
+			if car.get_node_or_null("Audio"):
+				car.get_node("Audio").thud(0.15)
 	# Ekstremista i boty w szale jadą po swojemu, także zamkniętym pasem
 	# przez pachołki (plan szału goni gracza, nie zna przekrojów) - niech
 	# lecą. Tylko auta z fizyką w strefie (kilka naraz, tanio).
@@ -3396,7 +3396,13 @@ func _update_oncoming(delta: float) -> void:
 		# Roboty (etap 2b): przejazd przez pas rozdziału na nasz lewy pas.
 		if not o.wrong_way and track.sections:
 			var fx: float = track.sections.onc_cross(d2)
-			var ox: float = track.sections.onc_x(d2, int(o.lane))
+			# onc_x tylko w strefie (zone_at + 2x lanes_at - koszt na Questa).
+			var ox: float = track.sections.onc_x(d2, int(o.lane)) if fx > 0.0 else NAN
+			if not is_nan(ox):
+				o.x_cur = ox if is_nan(o.x_cur) else move_toward(o.x_cur, ox, 3.0 * delta)
+				ox = o.x_cur
+			else:
+				o.x_cur = NAN
 			if fx > 0.0 and not is_nan(ox):
 				var ours := _wrong_way_pose(rail[0], c.wheel_radius, ox)
 				var xf2 := c.global_transform
@@ -3698,7 +3704,11 @@ func _is_highway_at(d: float) -> bool:
 ## każdym minięciu (3,75 m obok, LOOSE_R 5,5) jechało dalej bez kierowcy
 ## prosto przez koniec strefy na nasze pasy.
 func _onc_beside(o: OncomingCar, c: StuntCar) -> bool:
-	if not track.sections or track.sections.onc_cross(o.dist) <= 0.0:
+	# Na naszej jezdni: strefa (onc_cross) albo kierowca pod prąd (etap 1 -
+	# przy minięciu też przechodził na fizykę i bez kierowcy przecinał
+	# nasze pasy; "LUŹNE" w section_drive_test, trasa 77, 15 km).
+	var ours: bool = o.wrong_way or (track.sections != null and track.sections.onc_cross(o.dist) > 0.0)
+	if not ours:
 		return false
 	return absf((c.global_position - car.global_position).dot(car.global_basis.x)) > 2.4
 
