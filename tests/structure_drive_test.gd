@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2], "tunel": [1, 1]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3]}
 var kind := "most"
 var main
 var f := 0
@@ -26,6 +26,8 @@ var roof_hits := 0
 var roof_probes := 0
 var lim_in := INF
 var dry_in := true
+var overpass_seen := false
+var train_over := false
 var fall_t := 0.0
 var cam: Camera3D
 var shots: Array = []
@@ -75,6 +77,8 @@ func _physics_process(delta: float) -> bool:
 		var s0 := float(z["start"])
 		var e0 := float(z["end"])
 		shots = [["przed", s0 - 120.0, "road"], ["na", s0 + 40.0, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
+		if kind == "wiadukt":
+			shots = [["przed", s0 - 300.0, "road"], ["blisko", s0 - 120.0, "road"], ["bok", s0 - 60.0, "side"]]
 		if kind == "tunel":
 			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["srodek", (s0 + e0) * 0.5, "road"], ["bok", s0 + 100.0, "side"]]
 	if f < 8:
@@ -96,6 +100,30 @@ func _physics_process(delta: float) -> bool:
 			var mat := (main.get_node("Ground/GroundMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 			if mat.shader == main._GROUND_RIVER_SH:
 				river_shader_on = true
+		if kind == "wiadukt":
+			if p > s0 - 600.0 and p < s0:
+				for n in main.track._chunk_for(s0).get_children():
+					if n.name.begins_with("Overpass"):
+						overpass_seen = true
+				# Pociąg nad drogą (±20 m od osi wiaduktu w poprzek), gdy gracz
+				# jest 100-500 m przed nim.
+				var vxf: Transform3D = main.track.transform_at_distance((s0 + e0) * 0.5)
+				for n in main.get_children():
+					if n is RailTrain:
+						var rel: Vector3 = (n as Node3D).global_position - vxf.origin
+						var along: float = rel.dot((vxf.basis.x * Vector3(1, 0, 1)).normalized())
+						# Skład ciągnie się za czołem - nad drogą, jeśli czoło minęło
+						# oś, a koniec jeszcze nie.
+						var dirn: float = float(n.get_meta("dir", 1.0))
+						var tail: float = along - dirn * (n as RailTrain).length
+						if (along * dirn > -20.0 and tail * dirn < 20.0) and s0 - p > 100.0 and s0 - p < 500.0:
+							train_over = true
+			if p > s0 and p < e0:
+				if main.race_state == main.Race.EXPLODING:
+					lives_lost += 1
+				main._grace_t = 0.0
+			if p > e0 + 60.0 and pending == "":
+				return _end()
 		if kind == "tunel" and p > s0 + 20.0 and p < e0 - 20.0:
 			# Dach nad jezdnią (rura) - promień w górę od auta.
 			var q := PhysicsRayQueryParameters3D.create(main.car.global_position + Vector3.UP * 1.0, main.car.global_position + Vector3.UP * 20.0)
@@ -175,7 +203,13 @@ func _physics_process(delta: float) -> bool:
 
 
 func _end() -> bool:
-	if not z.is_empty() and kind == "tunel":
+	if not z.is_empty() and kind == "wiadukt":
+		_check(overpass_seen, "wiadukt stoi")
+		_check(lives_lost == 0, "przejazd pod wiaduktem bez utraty życia")
+		if int(z.get("train", 0)) > 0:
+			_check(main.trains_spawned > 0, "pociąg wyjechał (%d)" % main.trains_spawned)
+			_check(train_over, "pociąg nad drogą, gdy gracz 100-500 m przed wiaduktem")
+	elif not z.is_empty() and kind == "tunel":
 		_check(lives_lost == 0, "przejazd tunelem bez utraty życia")
 		_check(roof_probes > 0 and roof_hits * 10 >= roof_probes * 9, "dach nad jezdnią (%d z %d próbek)" % [roof_hits, roof_probes])
 		_check(lim_in <= 100.0, "ograniczenie w tunelu %.0f" % lim_in)
