@@ -1662,7 +1662,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   trasa 77). **Do zrobienia**: bench na Queście w strefie robót, ocena
   użytkownika; rzadko (1/5) ~1 s bota na zamkniętym pasie w 1+1.
 - **Budowle (etap 3 urozmaiceń, od 2026-11-14; inbox etap3-budowle)
-  - W TOKU, 3a most nad rzeką**: `StructurePlan` (chmura) w
+  - W TOKU, 3a most, 3b tunel zrobione**: `StructurePlan` (chmura) w
   `EndlessTrack._ready` (`track.structures`, `STRUCT_SLOPES` false -
   **pochylenia czekają na decyzję użytkownika**, karta w wątku chmury).
   Generator dzieli odcinki na granicach budowli, ograniczenie min(plan,
@@ -1679,7 +1679,16 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   z naprzeciwka w rzece - do puli (bot w szale jak rozbity). Wariant
   shadera rozgrzewany na starcie (`_warm_river_shader`, quad 1 cm przed
   kamerą przez 5 kroków). Filary - wspólny BoxMesh na wysokość. Dekoracje (`HighwayScenery`,
-  `Scenery.scatter`) pomijają strefę mostu (stały nad dziurą). Test
+  `Scenery.scatter`) pomijają strefę mostu (stały nad dziurą). **3b tunel**:
+  `_build_tunnel(..., hwy)` - rura nad każdą jezdnią (nasza na osi, druga
+  w lewo o w + pas rozdziału), góra nad obiema z `cover` (zbocze szerokie
+  jak wysokie, skrajne punkty na ziemi + czoło do ziemi - inaczej wisiała),
+  chodniki między jezdnią a rurą (szczelina do ziemi), ciemny tunel - co
+  trzecie światło. **Tunel przechodzi przez granice kawałków** - każdy
+  kawałek buduje swoją część (`_build_structures`), wloty i stok tylko
+  przy prawdziwych końcach (`hwy.a/b`). Generator: odcinki w tunelu
+  `roof` (sucho, bez deszczu), limit 100; `_build_highway` bez barier,
+  pasa rozdziału i nasypu w tunelu. Łuk w tunelu (`curved`) - jeszcze nie. Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.

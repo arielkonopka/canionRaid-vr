@@ -259,6 +259,10 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 		lim = minf(lim, structures.limit_at(d + 0.25))
 	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
 			"width": width, "surface": surf, "limit": lim}
+	# Tunel (etap 3b): pod dachem sucho i bez deszczu (StuntTrack "roof").
+	if structures and int(structures.zone_at(d + 0.25).get("structure", 0)) == 1:
+		seg["roof"] = true
+		seg["surface"] = "dry"
 	if not meta.is_empty():
 		seg["meta"] = meta.duplicate()
 		meta.clear()
