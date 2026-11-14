@@ -1693,7 +1693,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   kawałek buduje swoją część (`_build_structures`), wloty i stok tylko
   przy prawdziwych końcach (`hwy.a/b`). Generator: odcinki w tunelu
   `roof` (sucho, bez deszczu), limit 100; `_build_highway` bez barier,
-  pasa rozdziału i nasypu w tunelu. Łuk w tunelu (`curved`) - jeszcze nie. Test
+  pasa rozdziału i nasypu w tunelu. Łuk w tunelu (`curved`) - jeszcze nie.
+  Rura w siatkach po ~250 m (limit ~8 świateł na obiekt w Mobile). UV2.y
+  jezdni = 1 pod dachem (przyciemnienie i lampy w `road.gdshader` - wcześniej
+  nieustawiane nigdzie, także w wąwozie). Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.

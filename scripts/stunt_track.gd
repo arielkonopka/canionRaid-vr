@@ -497,9 +497,15 @@ func _build_mesh(road_faces: Dictionary) -> ArrayMesh:
 		# UV2.x = szerokość (linie pasów zależą od niej).
 		var ca := hwy_sections.road_color(ad) if (_road_layout == 1 and hwy_sections) else Color(0, 0, 0)
 		var cb := hwy_sections.road_color(bd) if (_road_layout == 1 and hwy_sections) else Color(0, 0, 0)
+		# UV2.y: pod dachem (tunel) - przyciemnienie i lampy w road.gdshader
+		# (nigdzie nie ustawiane do 2026-11-14 - także w wąwozie; przegląd
+		# PR #104). Dwie nitki wąwozu (shader: ujemne = lampy nad połowami)
+		# próbka nie rozróżnia - lampy w jezdni nad osią całej drogi.
+		var ea := 1.0 if a.get("roof", false) else 0.0
+		var eb := 1.0 if b.get("roof", false) else 0.0
 		_quad_uv(st, [al, bl, br, ar],
 				[Vector2(-aw * 0.5, ad), Vector2(-bw * 0.5, bd), Vector2(bw * 0.5, bd), Vector2(aw * 0.5, ad)],
-				[aw, bw, bw, aw], [ca, cb, cb, ca])
+				[aw, bw, bw, aw], [ca, cb, cb, ca], [ea, eb, eb, ea])
 		road_faces[surf].append_array(_quad_faces(al, bl, br, ar))
 		# spód i krawędzie boczne - beton (widać je przy spadaniu z toru)
 		_quad(deck, al + a_down, ar + a_down, br + b_down, bl + b_down)
@@ -591,10 +597,10 @@ static func obox(st: SurfaceTool, c: Vector3, right: Vector3, fwd: Vector3, size
 	_quad(st, v[3], v[0], v[4], v[7])
 
 
-func _quad_uv(st: SurfaceTool, p: Array, uv: Array, w: Array, cols := []) -> void:
+func _quad_uv(st: SurfaceTool, p: Array, uv: Array, w: Array, cols := [], encs := []) -> void:
 	for idx in [0, 1, 2, 0, 2, 3]:
 		st.set_uv(uv[idx])
-		st.set_uv2(Vector2(w[idx], 0.0))
+		st.set_uv2(Vector2(w[idx], encs[idx] if not encs.is_empty() else 0.0))
 		# COLOR: przekrój dla road.gdshader (SectionPlan.road_color: r roboty,
 		# g zwykła droga 1+1 / 2+1, b granica kierunków).
 		st.set_color(cols[idx] if not cols.is_empty() else Color(0, 0, 0))
@@ -1258,6 +1264,7 @@ func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
 	var first := {}
 	var last := {}
 	var light_next := d0 + 10.0
+	var piece_d0 := d0
 	var hp := 0.0                   # górna krawędź ściany czołowej
 	for smp in _samples:
 		var d := float(smp["dist"])
@@ -1339,6 +1346,19 @@ func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
 				var lb: Vector3 = (tubes[ti][0] as Vector3) + Vector3.UP * (crown - 0.08)
 				var lo: Vector3 = prev["r"] * 0.18
 				_quad_facing(lamp, dummy, la - lo, lb - lo, lb + lo, la + lo, Vector3.DOWN)
+		# Co ~250 m osobna siatka: renderer Mobile liczy najwyżej ~8 świateł
+		# na obiekt, a rura 1,5 km to ~19 świateł na jednej siatce (przegląd
+		# PR #104).
+		if d - piece_d0 > 250.0 and not prev.is_empty():
+			_tunnel_flush(st, mount, lamp, faces)
+			st = SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			mount = SurfaceTool.new()
+			mount.begin(Mesh.PRIMITIVE_TRIANGLES)
+			lamp = SurfaceTool.new()
+			lamp.begin(Mesh.PRIMITIVE_TRIANGLES)
+			faces = PackedVector3Array()
+			piece_d0 = d
 		if d >= light_next and Bench.on("tunnel_lights"):
 			# Co 80 m (było 40): renderer mobilny płaci za każde światło na
 			# każdym oświetlanym obiekcie; jarzeniówka i tak świeci.
@@ -1399,6 +1419,11 @@ func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
 			var gr: Vector3 = c + r * big + g
 			_quad_facing(mount, dummy, pr[0], gl, gl + Vector3.UP * (hp + HighwayGenerator.ROAD_Y), pr[1], out_dir)
 			_quad_facing(mount, dummy, gr, pr[pr.size() - 1], pr[pr.size() - 2], gr + Vector3.UP * (hp + HighwayGenerator.ROAD_Y), out_dir)
+	_tunnel_flush(st, mount, lamp, faces)
+
+
+## Siatka i kolizja kawałka rury (beton, stoki góry, pas jarzeniówek).
+func _tunnel_flush(st: SurfaceTool, mount: SurfaceTool, lamp: SurfaceTool, faces: PackedVector3Array) -> void:
 	st.generate_normals()
 	st.set_material(_concrete_material())
 	mount.generate_normals()
@@ -1412,7 +1437,8 @@ func _build_tunnel(d0: float, length: float, twin := {}, hwy := {}) -> void:
 	mi.name = "Tunnel"
 	mi.mesh = mesh
 	_adopt(mi)
-	_collision_body("TunnelBody", faces, "rock", 0.55)
+	if not faces.is_empty():
+		_collision_body("TunnelBody", faces, "rock", 0.55)
 
 
 ## Ściana czołowa z okrągłym otworem dla jednej rury: każdy odcinek łuku
