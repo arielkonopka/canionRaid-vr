@@ -10,8 +10,11 @@ extends SceneTree
 ##   (zrzuty: godot --xr-mode off -s res://tests/section_drive_test.gd -- KATALOG)
 
 ## Strefy trasy 33: zwężenie 10,8-12 km, roboty 28,5-29,4 km.
-const ZONES := {"zwezenie": [10800.0, 12000.0], "roboty": [28500.0, 29400.0], "jedna": [46800.0, 48300.0]}
-const LIMITS := {"zwezenie": 100.0, "roboty": 80.0, "jedna": 90.0}
+const ZONES := {"zwezenie": [10800.0, 12000.0], "roboty": [28500.0, 29400.0], "jedna": [46800.0, 48300.0],
+		"dwa": [66000.0, 67800.0], "trzy": [61200.0, 63300.0]}
+const LIMITS := {"zwezenie": 100.0, "roboty": 80.0, "jedna": 90.0, "dwa": 90.0, "trzy": 140.0}
+## Trasa (EndlessTrack.test_seed): 2+1 jest wcześnie dopiero na trasie 77.
+const TRACKS := {"dwa": 77}
 var kind := "zwezenie"
 var ZONE_FROM := 10800.0
 var ZONE_TO := 12000.0
@@ -62,9 +65,9 @@ func _initialize() -> void:
 	ZONE_FROM = float(ZONES[kind][0])
 	ZONE_TO = float(ZONES[kind][1])
 	shots = [["przed", ZONE_FROM - 250.0], ["skos", ZONE_FROM + 120.0], ["srodek", ZONE_FROM + 500.0]]
-	if kind != "zwezenie":
+	if kind in ["roboty", "jedna", "dwa"]:
 		shots.append(["przejazd", ZONE_TO - 170.0])
-	EndlessTrack.test_seed = 33
+	EndlessTrack.test_seed = int(TRACKS.get(kind, 33))
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 
@@ -88,10 +91,10 @@ func _physics_process(_delta: float) -> bool:
 	main._grace_t = 1.0
 	var p: float = main._last_safe_dist
 	var sp: SectionPlan = main.track.sections
-	var v := 70.0 if p < ZONE_FROM - 600.0 else 26.0
+	var v := (90.0 if ZONE_FROM > 40000.0 else 70.0) if p < ZONE_FROM - 600.0 else 26.0
 	# Drugi przejazd: po linii pachołków przez 150 m - pachołki lecą.
 	var x_goal: float = main.hwy_lane_at(0, p + 30.0)
-	if phase == 2 and kind != "jedna":
+	if phase == 2 and kind in ["zwezenie", "roboty"]:
 		# Po linii pachołków (między pasami, co 18 m) - przecięcie jej
 		# w poprzek trwa ~0,3 s i trafienie było losowe.
 		x_goal = (main.hwy_lane_off(0) + main.hwy_lane_off(1)) * 0.5
@@ -191,7 +194,7 @@ func _physics_process(_delta: float) -> bool:
 				lst.append("d=%.0f x=%.1f cross=%.2f vis=%s loose=%s" % [o.dist, (o.car.global_position - oxf2.origin).dot(oxf2.basis.x), sp.onc_cross(o.dist), o.car.visible, o.loose])
 		print("  ROBOTY-AUTA p=%.0f: %s" % [p, str(lst)])
 	# Auta z naprzeciwka w pełnym przekroju robót: nasz lewy pas.
-	if kind != "zwezenie":
+	if kind in ["roboty", "jedna", "dwa"]:
 		for o in main._oncoming:
 			# Drugi przejazd (po linii pachołków, 1,9 m od ich pasa) to
 			# prawdziwe zderzenie - liczymy tylko jazdę otwartym pasem.
@@ -199,10 +202,19 @@ func _physics_process(_delta: float) -> bool:
 				var ns: Dictionary = main.track.nearest_sample(o.car.global_position)
 				if not ns.is_empty():
 					var lx: float = (o.car.global_position - main.track.to_global(ns["pos"])).dot(ns["right"])
-					if lx > -0.5:
+					# Na naszym otwartym pasie (2+1: środkowy pas bywa ich).
+					var la2: Dictionary = sp.lanes_at(float(ns["dist"]))
+					var on_fwd := false
+					for fx2 in la2["fwd"]:
+						if absf(lx - float(fx2)) < 1.2:
+							on_fwd = true
+					for ox2 in la2["onc"]:
+						if absf(lx - float(ox2)) < 1.2:
+							on_fwd = false
+					if on_fwd and (la2["onc"] as Array).size() + (la2["fwd"] as Array).size() > 0 and lx > -0.5:
 						loose_wrong += 1
 						if loose_wrong % 10 == 1:
-							print("  LUŹNE: %s lx=%.1f d_auta=%.0f p=%.0f osk=%s works=%s loose_t=%.1f kontakt=%s" % [o.car.name, lx, float(ns["dist"]), p, o.osk, o.works, o.loose_t, str(o.car.last_hit.get("what", "-"))])
+							print("  LUŹNE: %s lx=%.1f d_auta=%.0f p=%.0f osk=%s works=%s pod_prąd=%s loose_t=%.1f kontakt=%s" % [o.car.name, lx, float(ns["dist"]), p, o.osk, o.works, o.wrong_way, o.loose_t, str(o.car.last_hit.get("what", "-"))])
 		for o in main._oncoming:
 			var od: float = o.dist
 			var zo: Dictionary = sp.zone_at(od)
@@ -218,7 +230,7 @@ func _physics_process(_delta: float) -> bool:
 					print("  NAPRZECIW d=%.0f ox=%.1f cross=%.2f loose=%s osk=%s v=%.0f d_gracz=%.0f rail=%s" % [od, ox, sp.onc_cross(od), o.loose, o.osk, o.v, od - p, str(main.track.rail_at(od).size())])
 	# Przerwa w barierce pasa rozdziału w przejeździe (i bariera poza nim):
 	# promień w poprzek pasa rozdziału na wysokości 0,5 m.
-	if kind != "zwezenie" and not gap_checked and p > ZONE_FROM + 300.0:
+	if kind in ["roboty", "jedna", "dwa"] and not gap_checked and p > ZONE_FROM + 300.0:
 		gap_checked = true
 		var z2: Dictionary = sp.zone_at(p)
 		var cr: Array = SectionPlan.crossovers(z2)
@@ -276,14 +288,14 @@ func _median_hit(d: float) -> bool:
 
 
 func _end() -> bool:
-	var coned := kind != "jedna"           # 1+1: bez pachołków (zwęża się jezdnia)
+	var coned := kind in ["zwezenie", "roboty"]   # 1+1, 2+1, 3+3: bez pachołków
 	if coned:
 		_check(items_seen > 30, "pachołki w kawałku ze strefą (%d)" % items_seen)
 	_check(lim_in <= float(LIMITS[kind]), "ograniczenie w strefie %.0f" % lim_in)
 	_check(hits_clean <= 0, "gracz po otwartym pasie - pachołków przewróconych %d" % hits_clean)
 	if coned:
 		_check(hit_on_purpose, "zjazd na zamknięty pas przewraca pachołki (razem %d)" % main.cones_hit)
-	if kind != "zwezenie":
+	if kind in ["roboty", "jedna", "dwa"]:
 		_check(onc_ours > 0, "auta z naprzeciwka naszym lewym pasem (próbek %d)" % onc_ours)
 		_check(gap_open and barrier_elsewhere, "przerwa w barierce w przejeździe (otwarta %s, bariera poza nim %s)" % [gap_open, barrier_elsewhere])
 		_check(loose_wrong == 0, "auto z naprzeciwka po przejściu na fizykę nie wjeżdża na nasz prawy pas (%d)" % loose_wrong)

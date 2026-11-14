@@ -73,10 +73,15 @@ void fragment() {
 		col *= 1.0 - 0.10 * rut_h;
 		float edge_l = step(0.6, uu) * step(uu, 0.75);
 		float edge_r = step(w - 3.0, uu) * step(uu, w - 2.85);
-		float div = step(abs(uu - 4.5), 0.075) * step(mod(v, 12.0), 6.0);
+		// Linie między pasami: co 3,75 m od opaski, tyle ile pasów mieści
+		// szerokość (2+2: jedna; 3+3 w etapie 2e: dwie; w skosie płynnie).
+		float n_lanes = floor((w - 3.75) / 3.75 + 0.3);
+		float k_l = floor((uu - 0.75) / 3.75 + 0.5);
+		float div = step(abs(uu - 0.75 - 3.75 * k_l), 0.075) * step(1.0, k_l) * step(k_l, n_lanes - 1.0)
+				* step(mod(v, 12.0), 6.0);
 		// Roboty (COLOR.r, etap 2b): linia między kierunkami ciągła.
 		works = layout == 1 ? COLOR.r : 0.0;
-		div = max(div, step(0.5, works) * step(abs(uu - 4.5), 0.075));
+		div = max(div, step(0.5, works) * step(abs(uu - 4.5), 0.075));   // roboty: 2 pasy
 		paint = max(max(edge_l, edge_r), div) * (0.85 + 0.15 * grain);
 		// Zwykła droga 1+1 / 2+1 (COLOR.g, etap 2c-2d): krawędzie 0,5 m od
 		// brzegu, pasy co 3,5 m od granicy kierunków (COLOR.b), granica na

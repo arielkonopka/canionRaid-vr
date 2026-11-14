@@ -23,6 +23,9 @@ var wrong_way := false
 ## Auto ustawione pod strefę robót (xr_main._works_traffic) - TrafficZone go
 ## nie usuwa (stoi ~3 km przed graczem, poza oknem ruchu).
 var works := false
+## Bieżąca oś na naszej jezdni (strefy z ruchem z naprzeciwka): płynnie do
+## onc_x - na 2+1 środkowy pas zmienia kierunek co 1 km, bez przeskoku.
+var x_cur := NAN
 var min_gap := INF
 var passed := false
 

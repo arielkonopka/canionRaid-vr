@@ -1,4 +1,4 @@
-Status: w toku - 2a, 2b, 2c zrobione (2026-11-14), dalej 2d 2+1
+Status: zrobione (2026-11-14) - 2a-2e; bench na Queście czeka na gogle
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap2-przekroje-rozpoznanie.md)
 Decyzje użytkownika: 2026-11-13 21:42 UTC kolejność etapów "Przekroje,
@@ -294,3 +294,29 @@ naszym prawym pasie, 1 z ~4 przebiegów. Test ma wypis "LUŹNE: ...",
 
 **Dalej:** 2d (2+1). Kod jest już w dużej części wspólny (`road_color`,
 `onc_x` z fazą).
+
+
+**2d 2+1 i 2e 3+3: zrobione (2026-11-14).**
+
+- **2+1.** Logika z `lanes_at` (faza środkowego pasa). Auta z naprzeciwka
+  zmieniają pas płynnie (`OncomingCar.x_cur`, 3 m/s), bez przeskoku
+  przy zmianie fazy. Shader: podwójna ciągła między kierunkami
+  i przerywana między pasami jednego kierunku (`road_color` g = 0,5).
+  Na końcu fazy jest wysepka z kreskowaniem, nie pachołki - shader jej
+  jeszcze nie ma, pas po prostu się kończy (boty zjeżdżają przez
+  `closing`).
+- **3+3.** Linie pasów autostrady w shaderze liczone są teraz z
+  szerokości: (w - 3,75) / 3,75 pasów, płynnie w skosie. Obie jezdnie
+  mają 3 pasy (druga jezdnia ma tę samą szerokość). Boty i TrafficZone
+  używają pasów 0/1, więc lewy, trzeci pas jest wolny.
+- **Test.** `section_drive_test -- dwa` (trasa 77, 66-67,8 km) i
+  `-- trzy` (trasa 33, 61,2-63,3 km). Dojazd na > 40 km jedzie
+  90 m/s. Wszystkie 5 stref przechodzi jedna seria, pełny `quest.sh
+  test` OK, `drive_test` bez zmian.
+- **Rzadkie.** W 1+1 raz na ~5 przebiegów ~1 s jednego bota na
+  zamkniętym pasie (100 próbek z 24 tys.). Nie powtórzyło się, wypis
+  "ZAMKNIĘTY: ..." zostaje.
+- **Zrzuty:** `renders/2026-11-14-przekroje/przekroj_{jedna,dwa,trzy}_*`.
+
+Etap 2 z mojej strony gotowy. Bench na Queście (strefa robót, Perf
+"odcinki" i pachołki) i ocena użytkownika - przy goglach.

@@ -1595,7 +1595,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   **Do zrobienia**: bench na Queście w odcinku peak z pościgiem i waśnią;
   ocena użytkownika w goglach (wartości startowe).
 - **Przekroje jezdni (etap 2 urozmaiceń, od 2026-11-14; inbox
-  etap2-przekroje) - 2a zwężenie, 2b roboty, 2c 1+1 zrobione**: `SectionPlan` (chmura) i
+  etap2-przekroje) - 2a-2e zrobione**: `SectionPlan` (chmura) i
   `SegmentCode` tworzone w `EndlessTrack._ready` (`track.segcode`,
   `track.sections` - generator potrzebuje ich przy budowie;
   `SegmentEvents` bierze ten sam kod). `HighwayGenerator`: podział
@@ -1651,7 +1651,15 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   kierunków). Barierka betonowa po lewej zostaje (druga jezdnia "w budowie"
   tuż obok). Test `section_drive_test -- jedna` (46,8-48,3 km). Test nie
   liczy botów po mocnym zderzeniu (4-8 aut na przejazd - pościgi, waśnie,
-  taran ekstremisty). Dalej 2d 2+1, 2e 3+3.
+  taran ekstremisty). **2d 2+1, 2e 3+3 (zrobione 2026-11-14)**: auta
+  z naprzeciwka zmieniają pas płynnie (`OncomingCar.x_cur`); linie pasów
+  autostrady w shaderze z szerokości ((w - 3,75)/3,75 pasów); 2+1 bez
+  wysepki z kreskowaniem na końcu fazy. Kierowca pod prąd (etap 1) też
+  przechodzi na fizykę tylko przy nachodzeniu (`_onc_beside`) - wcześniej
+  po minięciu bez kierowcy przecinał nasze pasy ("LUŹNE" w teście).
+  Testy `section_drive_test -- zwezenie|roboty|jedna|dwa|trzy` (dwa:
+  trasa 77). **Do zrobienia**: bench na Queście w strefie robót, ocena
+  użytkownika; rzadko (1/5) ~1 s bota na zamkniętym pasie w 1+1.
 - **Przezroczystość kokpitu** (`car.set_cockpit_transparency`,
   `GameSettings.cockpit_alpha`, domyślnie 40%): tylko w widoku z kokpitu
   (VR zawsze, PC po C), z zewnątrz i w trybie lotu auto pełne. Materiały
