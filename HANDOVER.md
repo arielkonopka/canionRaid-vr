@@ -1725,6 +1725,18 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Wcześniej auto za barierą na podniesionym odcinku spadało przez
   widoczny teren na płaszczyznę (do 50 m niżej) i był "upadek". Shader
   ziemi liczy też normalną stoku z różnicy sąsiednich wysokości.
+  **3e estakada (2026-11-15)**: plan (`StructurePlan`, rodzaj 6) i filary
+  były od chmury; teren w shaderze już opadał w dolinę (`ground_at`).
+  Dodane: `StructurePlan.drop_at(d)` (o ile teren niżej niż droga -
+  ROAD_Y); nad doliną głębszą niż 1 m bez nasypu (jak most), za to pas
+  kolizji `HighwayTerrain` na dnie doliny w poprzek całej drogi ±60 m;
+  dekoracje (`Scenery.scatter` przez klucz próbki "drop",
+  `HighwayScenery`) na dnie. Wcześniej nasyp, pas terenu i drzewa wisiały
+  w powietrzu na wysokości drogi. Test `structure_drive_test -- estakada`
+  (trasa 119, 41,0-41,4 km, dolina 76 m): przejazd, filary, promień z boku
+  pomostu trafia w dno (96% w `HighwayTerrain`, 4% w płaszczyznę 0,8 m
+  niżej - prawdopodobnie szwy kawałków, pierwsza próbka kawałka nie ma
+  poprzedniej). Boczny wiatr (pułapka 11) - etap 4.
   Nasypy, dekoracje i podstawa wiaduktu na wysokości terenu (droga -
   ROAD_Y). Test `structure_drive_test -- podjazd` (trasa 1, 26,6-27,8 km,
   8%, 0 -> 96 m; sprawdza też zepchnięcie za barierę na stromym podjeździe
@@ -2534,14 +2546,26 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   dwa / trzy OK. Kontrola: bez `HighwayTerrain` podjazd daje BŁĄD
   "upadek po 2,7 s".
 
+- **3e estakada** (sekcja 5) i **zgłoszenia z gogli** (build cd2288a):
+  użytkownik "generalnie w porządku"; auto po koziołkowaniu na jezdni
+  z naprzeciwka nie ma jak wrócić - pytanie do chmury (sekcja 9);
+  "czarne kostki w tunelu" i "błyski na horyzoncie" - na zrzutach PC
+  (`renders/2026-11-15-tunel/`, nowe ujęcia "eye" w teście tunelu) nie
+  widać, dopytany o szczegóły. Testy: pełny `quest.sh test` OK,
+  `drive_test` bez zmian (24.00-24.17), `structure_drive_test`
+  most/tunel/wiadukt/podjazd/estakada OK, `section_drive_test` wszystkie
+  rodzaje OK.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
-**Bieżące (2026-11-15)**: etapy urozmaiceń 1-2 i 3a-3d zrobione
-(sekcja 5, "Budowle"). Dalej według chmury: **3e estakada** (dolina,
-estakada na filarach - tu kolizja terenu `HighwayTerrain` już jest), potem
-pas dla wolnych na podjazdach, łuk w tunelu (`curved`), lampy dwururowego
+**Bieżące (2026-11-15)**: etapy urozmaiceń 1-2 i 3a-3e zrobione
+(sekcja 5, "Budowle"). Czeka odpowiedź chmury: auto na drugiej jezdni
+(sekcja 9). Zgłoszenia z gogli do zbadania przy następnym podłączeniu:
+czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli).
+Zrzuty w `structure_drive_test` mylą ujęcia (kamera nie tam, gdzie
+nazwa) - do poprawy. Dalej: pas dla wolnych na podjazdach, łuk w tunelu (`curved`), lampy dwururowego
 tunelu w wąwozie (dziś nad osią całej drogi). Potem etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
 `section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.

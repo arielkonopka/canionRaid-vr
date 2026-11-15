@@ -114,7 +114,8 @@ static func scatter(samples: Array, rng: RandomNumberGenerator, clear := 16.0, g
 				continue
 			# Gęściej blisko toru, rzadziej dalej (rozkład kwadratowy).
 			var lat := clear + pow(rng.randf(), 2.0) * 220.0
-			var gy := 0.0 if is_nan(ground_y_off) else pos.y - ground_y_off
+			# "drop" (etap 3e): teren niżej - dolina pod estakadą.
+			var gy := 0.0 if is_nan(ground_y_off) else pos.y - ground_y_off - float(s.get("drop", 0.0))
 			var p: Vector3 = Vector3(pos.x, gy, pos.z) + right * side * lat \
 					+ Vector3(rng.randf_range(-3, 3), 0, rng.randf_range(-3, 3))
 			if _too_close(samples, p, clear):

@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4], "estakada": [119, 6]}
 var kind := "most"
 var main
 var f := 0
@@ -40,6 +40,10 @@ var side_done := false
 var side_ok := false
 var side_info := ""
 var side_p := 0.0
+var valley_probes := 0
+var valley_err := 0.0
+var valley_info := ""
+var valley_hits := {}
 var cam: Camera3D
 var shots: Array = []
 var shot_i := 0
@@ -93,8 +97,11 @@ func _physics_process(delta: float) -> bool:
 			shots = [["przed", s0 - 100.0, "road"], ["na", (s0 + e0) * 0.5, "road"], ["bok", (s0 + e0) * 0.5 + 100.0, "side"], ["szczyt", e0 + 50.0, "road"]]
 		if kind == "wiadukt":
 			shots = [["przed", s0 - 300.0, "road"], ["blisko", s0 - 120.0, "road"], ["bok", s0 - 60.0, "side"]]
+		if kind == "estakada":
+			shots = [["przed", s0 - 150.0, "road"], ["na", (s0 + e0) * 0.5, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
 		if kind == "tunel":
-			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["srodek", (s0 + e0) * 0.5, "road"], ["bok", s0 + 100.0, "side"]]
+			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["w1", s0 + 60.0, "eye"], ["w2", s0 + 200.0, "eye"],
+					["srodek", (s0 + e0) * 0.5, "eye"], ["w4", e0 - 150.0, "eye"], ["wylot", e0 - 20.0, "eye"], ["bok", s0 + 100.0, "side"]]
 	if f < 8:
 		return false
 	if f > Engine.physics_ticks_per_second * 60 * 20:
@@ -206,6 +213,33 @@ func _physics_process(delta: float) -> bool:
 			main._grace_t = 0.0                # na moście bez ochrony - nie może stracić życia
 			if main.race_state == main.Race.EXPLODING:
 				lives_lost += 1
+		if kind == "estakada" and p > s0 and p < e0:
+			piers_seen = main.track.structures.piers(s0, e0).size()
+			main._grace_t = 0.0
+			if main.race_state == main.Race.EXPLODING:
+				lives_lost += 1
+			# Promień z boku pomostu (8 m za barierą) w dół: trafia w dno doliny
+			# (kolizja terenu na dnie), nie w nasyp ani płaszczyznę niżej.
+			var sp6: StructurePlan = main.track.structures
+			var drop: float = sp6.drop_at(p + 20.0)
+			if drop > 10.0:
+				var exf: Transform3D = main.track.transform_at_distance(p + 20.0)
+				var erh := (exf.basis.x * Vector3(1, 0, 1)).normalized()
+				var ehw := float(main.track.sample_at(p + 20.0).get("width", 11.0)) * 0.5
+				var from: Vector3 = exf.origin + erh * (ehw + 0.6 + 8.0) + Vector3.UP * 2.0
+				var q6 := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 300.0)
+				q6.exclude = [main.car.get_rid()]
+				var hit: Dictionary = main.car.get_world_3d().direct_space_state.intersect_ray(q6)
+				var want: float = exf.origin.y - HighwayGenerator.ROAD_Y - drop
+				valley_probes += 1
+				var cn: String = "brak" if hit.is_empty() else String((hit["collider"] as Node).name)
+				valley_hits[cn] = int(valley_hits.get(cn, 0)) + 1
+				var e: float = absf(float((hit["position"] as Vector3).y) - want) if not hit.is_empty() else 999.0
+				if e > valley_err:
+					valley_err = e
+					valley_info = "dolina %.0f m, trafienie %s" % [drop, "brak" if hit.is_empty() else "%.1f m od dna (%s)" % [e, (hit["collider"] as Node).name]]
+		if kind == "estakada" and p > e0 + 60.0 and pending == "":
+			return _end()
 		if kind == "tunel" and p > e0 + 60.0 and pending == "":
 			return _end()
 		if kind == "most" and p > e0 + 60.0 and pending == "":
@@ -270,6 +304,10 @@ func _physics_process(delta: float) -> bool:
 			if sh[2] == "side":
 				cam.global_position = at.origin + at.basis.x * 70.0 - at.basis.z * 40.0 + Vector3.UP * 2.0
 				cam.look_at(at.origin - Vector3.UP * 6.0, Vector3.UP)
+			elif sh[2] == "eye":
+				# Wzrok kierowcy (w rurze kamera nad autem siedziałaby w górze).
+				cam.global_position = main.car.global_position + Vector3.UP * 1.2 + at.basis.z * 0.5
+				cam.look_at(main.car.global_position - at.basis.z * 60.0 + Vector3.UP * 1.0, Vector3.UP)
 			else:
 				cam.global_position = main.car.global_position + at.basis.z * 14.0 + Vector3.UP * 5.0
 				cam.look_at(main.car.global_position - at.basis.z * 40.0, Vector3.UP)
@@ -284,7 +322,11 @@ func _physics_process(delta: float) -> bool:
 
 
 func _end() -> bool:
-	if not z.is_empty() and kind == "podjazd":
+	if not z.is_empty() and kind == "estakada":
+		_check(lives_lost == 0, "przejazd estakadą bez utraty życia")
+		_check(piers_seen > 0, "filary estakady (%d)" % piers_seen)
+		_check(valley_probes > 0 and valley_err < 1.5, "z boku pomostu kolizja na dnie doliny (%d próbek %s, najgorsza: %s)" % [valley_probes, str(valley_hits), valley_info])
+	elif not z.is_empty() and kind == "podjazd":
 		_check(h_probes > 0 and h_err < 0.8, "jezdnia na wysokości planu (maks. odchyłka %.2f m, szczyt %.0f m)" % [h_err, top_h])
 		_check(ground_err < 0.1, "kolizja ziemi nie nad terenem przy aucie (maks. %.2f m)" % ground_err)
 		_check(lives_lost == 0, "przejazd podjazdem bez utraty życia")
