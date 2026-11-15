@@ -2888,6 +2888,12 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
+- (2026-11-15, do chmury: `docs/agent/outbox/2026-11-15-zla-jezdnia-pytanie.md`)
+  Auto po koziołkowaniu ląduje na jezdni z naprzeciwka i nie ma jak wrócić
+  (bariera ciągła, żadna reguła upadku się nie włącza). Propozycje: A -
+  druga jezdnia = utrata życia, B - przejazdy awaryjne co ~2 km, C - oba
+  (rekomendacja). Czekam na odpowiedź.
+
 - (2026-11-09) Czy przy "nie rusza pod górę" bak był pusty i gdzie to
   było (zwykły podjazd / rozbieg skoczni / po dźwigu)? (Zużycie:
   ustalono zasięg 20-30 km, sekcja 7.)
