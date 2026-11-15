@@ -257,7 +257,8 @@ func _drive_step(delta: float) -> void:
 		# z zamykanego pasa spokojny zjeżdża zawczasu, furiat w ostatniej
 		# chwili (~1 s; zlecenie etap2-przekroje pkt 3).
 		var look := maxf(car.speed, 10.0) * (1.0 if rage > 0.05 else 4.0)
-		target_off = main.hwy_lane_at(lane, dist + look)
+		_update_slow_lane(float(best.get("limit", 140.0)), dist + look, car.speed)
+		target_off = _lane_x(dist + look)
 	var kmh := car.speed * 3.6
 	var target_kmh := _calm_speed(kmh) * speed_k
 	if _lead_gap < INF and rage < 0.05 and not extremist_persona():
@@ -318,7 +319,7 @@ func _drive_step(delta: float) -> void:
 		# Czeka z wjazdem na zajęty pas i odpuszcza, żeby wjechać za tamtym;
 		# blisko końca pasa (pachołki ~50 m przed) - mocniej, żeby nie
 		# przejechać przez nie (przegląd PR #94).
-		var end_near := absf(main.hwy_lane_at(lane, dist + 50.0) - offset) > 1.5 if main._endless and main.track.autostrada else false
+		var end_near := absf(_lane_x(dist + 50.0) - offset) > 1.5 if main._endless and main.track.autostrada else false
 		target_kmh *= 0.4 if end_near else 0.85
 	else:
 		_tgt_off_s = move_toward(_tgt_off_s, target_off,
@@ -399,6 +400,35 @@ func _find_jump() -> void:
 			_jump_d = float(smp["dist"])
 			_jump_v = float((m["jump"] as Dictionary).get("v_bottom", 0.0))
 			return
+
+
+## Pas dla wolnych (SectionPlan, przekrój 1 na podjeździe): spokojny bot
+## z prawego pasa, który jedzie wyraźnie poniżej limitu (ciężarówka,
+## wolny z ruchu albo słabe auto na stromiźnie), zjeżdża na niego; wraca,
+## gdy się rozpędzi albo pas się kończy (lanes_at "slow" = NAN przed skosem).
+var _slow_lane := false
+func _update_slow_lane(limit_kmh: float, d: float, v: float) -> void:
+	if not (main and main._endless and main.track.autostrada and main.track.sections):
+		_slow_lane = false
+		return
+	var sx: float = main.track.sections.lanes_at(d)["slow"]
+	if is_nan(sx) or rage > 0.05 or extremist_persona() or lane != 0:
+		_slow_lane = false
+		return
+	var kmh := v * 3.6
+	if not _slow_lane and (speed_k < 0.85 or kmh < 0.75 * limit_kmh):
+		_slow_lane = true
+	elif _slow_lane and speed_k >= 0.85 and kmh > 0.92 * limit_kmh:
+		_slow_lane = false
+
+
+## Oś pasa bota w d: jego pas przekroju albo pas dla wolnych.
+func _lane_x(d: float) -> float:
+	if _slow_lane:
+		var sx: float = main.track.sections.lanes_at(d)["slow"]
+		if not is_nan(sx):
+			return sx
+	return main.hwy_lane_at(lane, d)
 
 
 func extremist_persona() -> bool:
@@ -631,7 +661,8 @@ func _update_rail(delta: float) -> bool:
 	if main._endless and main.track.autostrada and main.track.sections:
 		# Na szynie też po otwartych pasach przekroju (płynnie, 3 m/s w bok;
 		# także ekstremista - zna otwarte pasy, decyzja użytkownika 2026-11-14).
-		_lane_off = move_toward(_lane_off, main.hwy_lane_at(self.lane, dist + 60.0), 3.0 * delta)
+		_update_slow_lane(float(smp2["limit"]), dist + 60.0, _rail_v)
+		_lane_off = move_toward(_lane_off, _lane_x(dist + 60.0), 3.0 * delta)
 		lane = _lane_off
 	car.global_transform = Transform3D(xf.basis, xf.origin + xf.basis.x * lane + xf.basis.y * 0.62)
 	return true

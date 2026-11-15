@@ -77,6 +77,7 @@ func _ready() -> void:
 		_hgen.sections = sections
 		structures = StructurePlan.new(segcode, plan, STRUCT_SLOPES)
 		_hgen.structures = structures
+		sections.structures = structures       # pas dla wolnych na podjazdach
 	for i in range(1 + AHEAD):
 		_add_section()
 
