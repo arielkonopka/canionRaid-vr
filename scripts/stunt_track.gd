@@ -223,7 +223,13 @@ func build() -> void:
 		# Bez drzew i głazów nad rzeką pod mostem (etap 3a).
 		var sc_samples := _samples
 		if hwy_structures:
-			sc_samples = _samples.filter(func(sm): return int(hwy_structures.zone_at(float(sm["dist"])).get("structure", 0)) != 2)
+			sc_samples = []
+			for sm in _samples:
+				var st := int(hwy_structures.zone_at(float(sm["dist"])).get("structure", 0))
+				if st == 6:
+					sm = (sm as Dictionary).merged({"drop": hwy_structures.drop_at(float(sm["dist"]))})
+				if st != 2:
+					sc_samples.append(sm)
 		for node in Scenery.scatter(sc_samples, rng, 16.0,
 				HighwayGenerator.ROAD_Y if hwy_structures and hwy_structures.slopes else NAN):
 			_adopt(node)
@@ -2220,6 +2226,8 @@ func _build_highway() -> void:
 		# Teren pod jezdnią (etap 3d: z pochyleniem teren idzie z drogą,
 		# ROAD_Y niżej) - wcześniej zawsze y = 0.
 		var ty: float = c.y - HighwayGenerator.ROAD_Y if hwy_structures and hwy_structures.slopes else 0.0
+		var st_here := int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) if hwy_structures else 0
+		var drop: float = hwy_structures.drop_at(float(smp["dist"])) if st_here == 6 and hwy_structures.slopes else 0.0
 		var h_r := maxf(out_r.y - ty, 0.0)
 		var h_l := maxf(out_l.y - ty, 0.0)
 		var p := {
@@ -2236,6 +2244,9 @@ func _build_highway() -> void:
 			"el0": out_l + Vector3.DOWN * 0.05, "el1": Vector3(out_l.x, ty, out_l.z) - rh * (2.0 * h_l + 2.0),
 			"tr": Vector3(out_r.x, ty, out_r.z) + rh * (2.0 * h_r + 2.0 + TERRAIN_STRIP),
 			"tl": Vector3(out_l.x, ty, out_l.z) - rh * (2.0 * h_l + 2.0 + TERRAIN_STRIP),
+			# Dno doliny pod estakadą (3e) - pas kolizji w poprzek całej drogi.
+			"vr": Vector3(out_r.x, ty - drop, out_r.z) + rh * TERRAIN_STRIP,
+			"vl": Vector3(out_l.x, ty - drop, out_l.z) - rh * TERRAIN_STRIP,
 			# Pobocze między jezdnią a barierą.
 			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
 		}
@@ -2267,8 +2278,12 @@ func _build_highway() -> void:
 			_quad_facing(metal, faces, q["gl0"], p["gl0"], p["gl1"], q["gl1"], rh)
 			_quad_facing(metal, none, q["gl0"], p["gl0"], p["gl1"], q["gl1"], -rh)
 			_quad_facing(grass, faces, q["sr0"], p["sr0"], p["er0"], q["er0"], Vector3.UP)
-			# Pod mostem (etap 3a) bez nasypu - pod pomostem rzeka i filary.
-			var on_bridge := hwy_structures != null and int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) == 2
+			# Pod mostem (etap 3a) i estakadą (3e) bez nasypu - pod pomostem
+			# rzeka albo dolina i filary.
+			# Przy końcach estakady dolina płytka (sinus) - tam zwykły nasyp.
+			var on_bridge := st_here == 2 or (st_here == 6 and drop > 1.0)
+			if st_here == 6 and drop > 1.0:
+				terrain.append_array(_quad_faces(q["vl"], p["vl"], p["vr"], q["vr"]))
 			if not on_bridge:
 				_quad_facing(grass, terrain, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
 			_quad_facing(grass, faces, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)

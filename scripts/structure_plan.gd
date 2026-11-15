@@ -299,6 +299,12 @@ func ground_at(d: float) -> Dictionary:
 	return out
 
 
+## O ile teren leży niżej niż zwykle (droga - ROAD_Y): dolina pod
+## estakadą, koryto pod mostem; 0 poza budowlami.
+func drop_at(d: float) -> float:
+	return height_at(d) - float(ground_at(d)["y"])
+
+
 ## Filary mostów i estakad w [d0, d1): [{"d", "top", "bottom"}].
 func piers(d0: float, d1: float) -> Array:
 	var out := []
