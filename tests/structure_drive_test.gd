@@ -41,6 +41,11 @@ var side_ok := false
 var side_info := ""
 var side_p := 0.0
 var valley_probes := 0
+var slow_zone := false
+var slow_w := 0.0
+var slow_on := 0
+var slow_cand := 0
+var slow_bot: StuntCar
 var valley_err := 0.0
 var valley_info := ""
 var valley_hits := {}
@@ -128,6 +133,28 @@ func _physics_process(delta: float) -> bool:
 			# Jezdnia na wysokości planu, ziemia (kolizja) przy terenie.
 			var sp: StructurePlan = main.track.structures
 			var rxf: Transform3D = main.track.transform_at_distance(p)
+			# Pas dla wolnych (przekrój 1) w środku podjazdu.
+			if p > s0 + 300.0 and p < e0 - 300.0:
+				var sz: Dictionary = main.track.sections.zone_at(p)
+				if not sz.is_empty() and int(sz["section"]) == 1:
+					slow_zone = true
+				var sm1: Dictionary = main.track.sample_at(p)
+				if not sm1.is_empty():
+					slow_w = maxf(slow_w, float(sm1["width"]))
+				# Wolne auto (60% limitu) na prawym pasie przed graczem.
+				if slow_bot == null:
+					main._spawn_bot(p + 120.0, 0, 84.0)
+					if not main._bots.is_empty():
+						slow_bot = main._bots[-1]
+						main._drv(slow_bot).speed_k = 0.6
+				elif is_instance_valid(slow_bot) and main._bots.has(slow_bot):
+					var bd2: BotDriver = main._drv(slow_bot)
+					var sxb: float = main.track.sections.lanes_at(bd2.dist)["slow"]
+					if not is_nan(sxb) and bd2.dist > s0 + 600.0:
+						var bx: Transform3D = main.track.transform_at_distance(bd2.dist)
+						slow_cand += 1
+						if absf((slow_bot.global_position - bx.origin).dot(bx.basis.x) - sxb) < 1.2:
+							slow_on += 1
 			var want: float = HighwayGenerator.ROAD_Y + sp.height_at(p)
 			h_probes += 1
 			h_err = maxf(h_err, absf(rxf.origin.y - (want + h_base)))
@@ -330,6 +357,9 @@ func _end() -> bool:
 		_check(h_probes > 0 and h_err < 0.8, "jezdnia na wysokości planu (maks. odchyłka %.2f m, szczyt %.0f m)" % [h_err, top_h])
 		_check(ground_err < 0.1, "kolizja ziemi nie nad terenem przy aucie (maks. %.2f m)" % ground_err)
 		_check(lives_lost == 0, "przejazd podjazdem bez utraty życia")
+		_check(slow_zone, "pas dla wolnych na podjeździe")
+		_check(slow_w > HighwayGenerator.WIDTH + 3.0, "jezdnia szersza o pas (%.2f m)" % slow_w)
+		_check(slow_cand > 0 and slow_on * 2 > slow_cand, "wolne auto (60%% limitu, prawy pas) na pasie dla wolnych (%d z %d próbek)" % [slow_on, slow_cand])
 		_check(side_done and side_ok, "auto za barierą na podjeździe stoi na trawie (%s)" % side_info)
 		_check(bot_samples == 0 or bot_slow * 10 < bot_samples, "boty na podjeździe nie stają (%d z %d próbek < 30 km/h)" % [bot_slow, bot_samples])
 	elif not z.is_empty() and kind == "wiadukt":

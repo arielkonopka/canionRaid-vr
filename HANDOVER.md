@@ -1740,7 +1740,22 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Nasypy, dekoracje i podstawa wiaduktu na wysokości terenu (droga -
   ROAD_Y). Test `structure_drive_test -- podjazd` (trasa 1, 26,6-27,8 km,
   8%, 0 -> 96 m; sprawdza też zepchnięcie za barierę na stromym podjeździe
-  - auto ma stanąć na trawie). Pas dla wolnych - jeszcze nie. Test
+  - auto ma stanąć na trawie - i pas dla wolnych). **Pas dla wolnych
+  (2026-11-15)**: przekrój 1 w `SectionPlan` nie z kodu odcinka, tylko
+  z podjazdu `StructurePlan` (4) - `sections.structures` ustawia
+  `EndlessTrack`. Jezdnia szersza o pas po prawej (jak 3+3, skos o połowę
+  krótszy), od 50 m przed podjazdem do 250 m za szczytem; ciąg podjazdów
+  < 500 m od siebie = jeden pas (najwyżej 5 km). Tylko bez innego
+  przekroju z kodu w zasięgu. `lanes_at` daje "slow" (oś pasa, NAN poza
+  pełnym przekrojem i 150 m przed skosem wyjścia); "fwd" to zwykłe pasy
+  (`hwy_lanes(2, w)` = lewe dwa z trzech - bez skoku na końcu skosu).
+  `BotDriver._update_slow_lane`: spokojny bot z prawego pasa jadący
+  < 75% limitu (albo `speed_k` < 0,85) zjeżdża, wraca > 92% limitu.
+  **Pułapka**: `SectionPlan._blocked` blokował strefę przy każdym
+  znaczniku `limit_changes` - także "140" na końcu miasta; dla pasa dla
+  wolnych liczą się tylko obniżenia (`only_lower`), sprawdzane od
+  początku skosu (bez zapowiedzi). Na trasie 1 miasto kończy się 600 m
+  przed podjazdem. Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.
@@ -2556,6 +2571,13 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   most/tunel/wiadukt/podjazd/estakada OK, `section_drive_test` wszystkie
   rodzaje OK.
 
+- **Pas dla wolnych na podjazdach** (sekcja 5, 3d): test podjazdu
+  stawia wolne auto (60% limitu) na prawym pasie - jedzie pasem dla
+  wolnych 1994 z 1994 próbek; jezdnia 15 m. Testy: pełny `quest.sh test`
+  OK, `drive_test` bez zmian (24.00-24.17), `structure_drive_test`
+  most/tunel/wiadukt/podjazd/estakada OK, `section_drive_test` wszystkie
+  rodzaje OK.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -2565,8 +2587,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 (sekcja 9). Zgłoszenia z gogli do zbadania przy następnym podłączeniu:
 czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli).
 Zrzuty w `structure_drive_test` mylą ujęcia (kamera nie tam, gdzie
-nazwa) - do poprawy. Dalej: pas dla wolnych na podjazdach, łuk w tunelu (`curved`), lampy dwururowego
-tunelu w wąwozie (dziś nad osią całej drogi). Potem etap 4 (pułapki)
+nazwa) - do poprawy. Dalej: łuk w tunelu (`curved`), lampy dwururowego
+tunelu w wąwozie (dziś nad osią całej drogi). Pas dla wolnych zrobiony
+(znaku zapowiedzi brak - do rozważenia). Potem etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
 `section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.
 Przy goglach: wgrać, bench (Perf "odcinki", tunel, shader rzeki, dźwięki

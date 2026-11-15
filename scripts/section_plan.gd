@@ -29,7 +29,11 @@ class_name SectionPlan
 ##     (variant bit 1: kto zaczyna); ograniczenie 90;
 ##   2 autostrada 3+3 - jezdnia szersza o pas (symetrycznie wokół osi, pasy
 ##     liczone od lewej krawędzi jak HighwayGenerator.lane_center);
-##   1 pas dla wolnych i 5 rozjazd - etap 3 (z podjazdem / estakadą), tu 2+2.
+##   1 pas dla wolnych (dodatek agenta lokalnego, 2026-11-15) - nie z kodu
+##     odcinka, tylko z podjazdu StructurePlan (4): jezdnia szersza o pas
+##     po prawej (jak 3+3), "slow" = oś tego pasa w pełnym przekroju; wolni
+##     zjeżdżają na niego (BotDriver). Tylko gdy wokół nie ma innego
+##     przekroju z kodu; 5 rozjazd - jeszcze nie (2+2).
 ##
 ## Wyjście: zones(d0, d1), zone_at(d), lanes_at(d), limit_at(d),
 ## limit_marks(d0, d1), items(d0, d1).
@@ -47,7 +51,7 @@ const CHANGE_F := [0.0, 0.25, 0.5, 0.75]
 ## Odstęp od końca poprzedniej strefy (> WARN: zapowiedź nie wpada w strefę).
 const GAP_MIN := 500.0
 ## Najkrótszy środek strefy (pełny przekrój) [m].
-const BODY_MIN := {7: 200.0, 6: 300.0, 2: 400.0, 4: 900.0, 3: 1100.0}
+const BODY_MIN := {7: 200.0, 6: 300.0, 2: 400.0, 4: 900.0, 3: 1100.0, 1: 400.0}
 ## Pierwsza zapowiedź (znak, ograniczenie) przed strefą (~10 s przy 140).
 const WARN := 400.0
 const OUT_TAPER := 60.0
@@ -62,15 +66,23 @@ const ALT_END := 150.0
 ## Zapas za strefą wolny od miast / stacji / skoczni [m].
 const CLEAR_AFTER := 200.0
 
-const LIMIT := {7: 100.0, 6: 80.0, 4: 90.0, 3: 90.0, 2: 140.0}
+const LIMIT := {7: 100.0, 6: 80.0, 4: 90.0, 3: 90.0, 2: 140.0, 1: 140.0}
 ## Znak zapowiedzi: A-12 zwężenie jezdni, A-14 roboty, D-10 koniec drogi
 ## ekspresowej/autostrady (tu: "koniec autostrady" przed zwykłą drogą).
-const SIGN_IN := {7: "A-12", 6: "A-14", 4: "D-10", 3: "D-10", 2: ""}
+const SIGN_IN := {7: "A-12", 6: "A-14", 4: "D-10", 3: "D-10", 2: "", 1: ""}
+## Pas dla wolnych: od tylu m przed podjazdem pełny przekrój, do tylu za
+## szczytem; wolni schodzą z niego SLOW_MERGE m przed skosem wyjścia.
+const SLOW_BEFORE := 50.0
+const SLOW_AFTER := 250.0
+const SLOW_MERGE := 150.0
+const SLOW_MAX := 5000.0
 
 var code: SegmentCode
 ## Plan trasy (miasta, stacje, skocznie blokują strefy). null = bez blokad
 ## (testy, bliźniak w Pythonie).
 var plan: HighwayPlan = null
+## Budowle (podjazdy -> pas dla wolnych). null = bez pasa dla wolnych.
+var structures: StructurePlan = null
 var _zones := {}
 var _last := {}
 
@@ -114,7 +126,9 @@ func zone(k: int) -> Dictionary:
 
 func _make(k: int) -> Dictionary:
 	var s := _sec(k)
-	if s == 0 or _sec(k - 1) == s:
+	if s == 0:
+		return _slow_zone(k)
+	if _sec(k - 1) == s:
 		return {}
 	var j := k + 1
 	while _sec(j) == s and j - k < MAX_SEGS:
@@ -137,11 +151,57 @@ func _make(k: int) -> Dictionary:
 			"limit": lim, "side": int(seg["variant"]) & 1, "first": (int(seg["variant"]) >> 1) & 1}
 
 
+## Pas dla wolnych na podjeździe zaczynającym się w odcinku k (jeden pas
+## na ciąg podjazdów oddalonych < GAP_MIN). Bez innych przekrojów z kodu
+## w zasięgu (z zapasem GAP_MIN) - strefy się nie nakładają.
+func _slow_zone(k: int) -> Dictionary:
+	if structures == null:
+		return {}
+	var climb := {}
+	for z in structures.zones(float(k) * SEG_LEN, float(k + 1) * SEG_LEN):
+		if int(z["structure"]) == 4 and int(floor(float(z["start"]) / SEG_LEN)) == k:
+			climb = z
+			break
+	if climb.is_empty():
+		return {}
+	var c0 := float(climb["start"])
+	var c1 := float(climb["end"])
+	# Poprzedni podjazd tuż przed - ten pas już tam jest (ciąg podjazdów).
+	for z in structures.zones(c0 - GAP_MIN, c0):
+		if int(z["structure"]) == 4 and float(z["end"]) <= c0 and float(z["end"]) > c0 - GAP_MIN:
+			return {}
+	var more := true
+	while more:
+		more = false
+		for z in structures.zones(c1, c1 + GAP_MIN):
+			# Najwyżej ~5 km (zones() szuka stref LOOKBACK odcinków wstecz).
+			if int(z["structure"]) == 4 and float(z["start"]) >= c1 and float(z["start"]) < c1 + GAP_MIN \
+					and float(z["end"]) - c0 < SLOW_MAX:
+				c1 = float(z["end"])
+				more = true
+	var lim: float = LIMIT[1]
+	var t := taper_len(LANE_W, lim) * 0.5
+	var start := c0 - SLOW_BEFORE - t
+	var end := c1 + SLOW_AFTER + t
+	for j in range(int(floor((start - GAP_MIN - WARN) / SEG_LEN)) - 1, int(floor((end + GAP_MIN) / SEG_LEN)) + 2):
+		if _sec(j) != 0:
+			return {}
+	if plan != null and _blocked(start, end + CLEAR_AFTER, true):     # bez zapowiedzi (znaku) - od początku skosu
+		return {}
+	return {"k": k, "section": 1, "start": start, "end": end, "t_in": t, "t_out": t,
+			"limit": lim, "side": 0, "first": 0}
+
+
 ## Miasto (i stopniowanie ograniczeń przed nim), stacja, warsztat, objazd
 ## skoczni w [d0, d1] - tam przekrój zostaje 2+2.
-func _blocked(d0: float, d1: float) -> bool:
-	if plan.limit_at(d0) < HighwayPlan.LIMIT_HIGHWAY or not plan.limit_changes(d0, d1).is_empty():
+## only_lower: tylko zmiany na niższe (pas dla wolnych nie zmienia limitu,
+## a plan wstawia też znaczniki "140" bez obniżenia).
+func _blocked(d0: float, d1: float, only_lower := false) -> bool:
+	if plan.limit_at(d0) < HighwayPlan.LIMIT_HIGHWAY:
 		return true
+	for m in plan.limit_changes(d0, d1):
+		if not only_lower or float(m[1]) < HighwayPlan.LIMIT_HIGHWAY:
+			return true
 	return not (plan.stations_between(d0, d1).is_empty() and plan.workshops_between(d0, d1).is_empty()
 			and plan.jumps_between(d0, d1).is_empty())
 
@@ -212,7 +272,7 @@ func limit_marks(d0: float, d1: float) -> Array:
 func lanes_at(d: float) -> Dictionary:
 	var z := zone_at(d)
 	var out := {"fwd": [], "onc": [], "width": WIDTH, "single": false, "closing": NAN,
-			"other_closed": false}
+			"other_closed": false, "slow": NAN}
 	if z.is_empty():
 		out["fwd"] = hwy_lanes(2, WIDTH)
 		return out
@@ -232,6 +292,14 @@ func lanes_at(d: float) -> Dictionary:
 			out["closing"] = lanes[1 - keep]
 		if s == 6 and body:
 			out["onc"] = [lanes[1]]
+	elif s == 1:
+		# Zwykłe pasy przy lewej krawędzi (hwy_lanes(2, w) = hwy_lanes(3, w)[1..2]
+		# - bez skoku na końcu skosu), pas dla wolnych dochodzi z prawej.
+		var w1 := WIDTH + LANE_W * f
+		out["width"] = w1
+		out["fwd"] = hwy_lanes(2, w1)
+		if body and v - t_out > SLOW_MERGE:
+			out["slow"] = hwy_lanes(3, w1)[0]
 	elif s == 2:
 		var w := WIDTH + LANE_W * f
 		out["width"] = w
@@ -390,7 +458,7 @@ func works_at(d: float) -> bool:
 func width_marks(d0: float, d1: float) -> Array:
 	var out := []
 	for z in zones(d0, d1):
-		if not (int(z["section"]) in [4, 3, 2]):
+		if not (int(z["section"]) in [4, 3, 2, 1]):
 			continue
 		var a := float(z["start"])
 		var e := float(z["end"])
