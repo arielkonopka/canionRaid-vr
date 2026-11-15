@@ -2546,7 +2546,9 @@ tunelu w wąwozie (dziś nad osią całej drogi). Potem etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
 `section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.
 Przy goglach: wgrać, bench (Perf "odcinki", tunel, shader rzeki, dźwięki
-aut, manekiny), ocena użytkownika.
+aut, manekiny), ocena użytkownika; czy auto wyrzucone dalej niż 60 m
+za nasyp (wybuch, skocznia w bok) spada przez teren - wtedy poszerzyć
+`TERRAIN_STRIP` (płaszczyzny ziemi nie podnosić: boty niżej na zboczu).
 
 000. **Do oceny w goglach (noc 2026-11-11)**: auta z epoki dla gracza
    (menu Nadwozie -> Model auta, teraz z fabrycznym silnikiem i masą),
