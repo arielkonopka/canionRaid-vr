@@ -4,6 +4,12 @@ pasy i pachołki. W chmurze nie ma Godota, więc logikę sprawdzamy tutaj.
 Bez HighwayPlan (miasta, stacje, skocznie nie blokują stref - w Godocie
 blokują), więc liczby zgadzają się z SectionPlan.new(SegmentCode, null).
 
+Przekrój 1 (pas dla wolnych) NIE jest tu odwzorowany: w GDScript powstaje
+z podjazdów StructurePlan (`SectionPlan.structures`, `_slow_zone`, "slow"
+w `lanes_at`, `_blocked(only_lower)` - dodatek agenta lokalnego
+2026-11-15). Bez `structures` (jak tu) GDScript też go nie tworzy.
+Zmieniając SectionPlan.gd na podstawie tego pliku - nie usuwać tych części.
+
     python3 tools/section_plan_sim.py [ziarno] [km]
 """
 import math
