@@ -37,6 +37,8 @@ metallic_specular = 0.3
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 size = Vector2(4000, 4000)
+subdivide_width = 79
+subdivide_depth = 79
 
 [sub_resource type="ShaderMaterial" id="Material_ground"]
 shader = ExtResource("9_ground")

@@ -1,4 +1,4 @@
-Status: w toku - 3a, 3b, 3c zrobione (2026-11-15), dalej 3d podjazdy/zjazdy (pochylenie)
+Status: w toku - 3a-3c zrobione, 3d pochylenie zrobione bez pasa dla wolnych (2026-11-15), dalej 3e estakada
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-14-etap3-budowle-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 3 = budowle).
@@ -246,3 +246,53 @@ Decyzję o pochyleniach widzę. 3d i 3e zrobię po 3c.
   `-- tunel` OK.
 
 **Dalej:** 3d - pochylenie (`slopes = true`, zgoda użytkownika do 8%).
+
+
+**3d pochylenie: zrobione bez pasa dla wolnych (2026-11-15).**
+
+**Włączenie.** `EndlessTrack.STRUCT_SLOPES` = true (`slopes` = true).
+
+**Generator.** Dzieli odcinki na kawałki <= 40 m. Pochylenie = plan
+(`grade_at` w środku kawałka) + 0,3 x korekta dryfu wysokości.
+Odchyłka od planu: maks. 0,38 m.
+- **Pułapka.** Pierwsza wersja rozwiązywała wysokość dokładnie na końcu
+  każdego kawałka: sin p = 2 dh/len - sin p_prev, bo StuntTrack
+  przechodzi płynnie od poprzedniego pochylenia. To oscylowało -
+  pochylenia na przemian za duże i za małe, jezdnia falowała co 40 m,
+  a boty na 8% podskakiwały i stawały.
+
+**Teren.** Teren to shader ziemi z tablicą 81 wysokości `ground_at` co
+50 m wzdłuż kierunku trasy wokół auta (`xr_main._update_terrain`, 5 Hz,
+wierzchołki przesuwane w `vertex()`). Trasa nie zawraca, więc rzut na
+kierunek wystarcza. Siatka ziemi podzielona 80 x 80. Teren w bok jest
+na tej samej wysokości co przy drodze ("góra wokół drogi"), więc pod
+mostem i estakadą jest dolina.
+
+**Pułapka: kolizja ziemi.** Ziemia ma kolizję jako nieskończoną
+płaszczyznę. Postawiona na wysokości terenu przy graczu była nad
+jezdnią botów niżej na zboczu. Fizyka je wypychała: koła w powietrzu,
+toczenie do tyłu przy pełnym gazie, 30% próbek < 30 km/h. Teraz
+płaszczyzna leży na najniższym terenie w zasięgu ±2 km. Auto wypadnięte
+z drogi wysoko spada niżej niż teren, a łapie je wykrywanie upadku.
+Lepiej byłoby HeightMapShape3D wzdłuż trasy - zostawiam na później,
+jeśli upadki w VR będą wyglądać źle.
+
+**Na wysokości terenu (droga - ROAD_Y):** nasypy `_build_highway`,
+dekoracje (`HighwayScenery._biome_props`, `Scenery.scatter`) i podstawa
+wiaduktu.
+
+**Pas dla wolnych (przekrój 1)** - jeszcze nie. Zrobię razem z 3e albo
+osobno.
+
+**Test `structure_drive_test -- podjazd`** (trasa 1, 26,6-27,8 km, 8%,
+0 -> 96 m, dalej zjazd i most na 49 m) OK:
+- jezdnia na wysokości planu;
+- kolizja ziemi nigdy nad terenem przy aucie;
+- przejazd bez utraty życia;
+- boty na podjeździe: 3 z ~30 tys. próbek < 30 km/h.
+
+**Seria z włączonym pochyleniem:** pełny `quest.sh test` OK, `drive_test`
+bez zmian. `structure_drive_test` most, tunel, wiadukt i podjazd OK,
+`section_drive_test` zwężenie, roboty i 1+1 OK.
+
+**Zrzuty:** `budowla_podjazd_*`.

@@ -223,7 +223,8 @@ func build() -> void:
 		var sc_samples := _samples
 		if hwy_structures:
 			sc_samples = _samples.filter(func(sm): return int(hwy_structures.zone_at(float(sm["dist"])).get("structure", 0)) != 2)
-		for node in Scenery.scatter(sc_samples, rng):
+		for node in Scenery.scatter(sc_samples, rng, 16.0,
+				HighwayGenerator.ROAD_Y if hwy_structures and hwy_structures.slopes else NAN):
 			_adopt(node)
 	# Bramy punktów kontrolnych i znaki przed skokami (trasa generowana).
 	var n_meta := 0
@@ -2210,8 +2211,11 @@ func _build_highway() -> void:
 		var mid := c - r * (hw + med * 0.5)               # środek pasa rozdziału
 		var out_r := c + r * (hw + 0.6)                     # bariera prawa
 		var out_l := c - r * (hw + med + 2.0 * hw + 0.6)    # bariera lewa (druga jezdnia)
-		var h_r := maxf(out_r.y, 0.0)
-		var h_l := maxf(out_l.y, 0.0)
+		# Teren pod jezdnią (etap 3d: z pochyleniem teren idzie z drogą,
+		# ROAD_Y niżej) - wcześniej zawsze y = 0.
+		var ty: float = c.y - HighwayGenerator.ROAD_Y if hwy_structures and hwy_structures.slopes else 0.0
+		var h_r := maxf(out_r.y - ty, 0.0)
+		var h_l := maxf(out_l.y - ty, 0.0)
 		var p := {
 			# Bariera betonowa (New Jersey): podstawa 0,6 m, góra 0,2 m, 0,85 m.
 			"jb_l0": mid - rh * 0.3, "jb_l1": mid - rh * 0.1 + Vector3.UP * 0.85,
@@ -2222,8 +2226,8 @@ func _build_highway() -> void:
 			"gr0": out_r + Vector3.UP * 0.5, "gr1": out_r + Vector3.UP * 0.85,
 			"gl0": out_l + Vector3.UP * 0.5, "gl1": out_l + Vector3.UP * 0.85,
 			# Nasyp 1:2 do terenu.
-			"er0": out_r + Vector3.DOWN * 0.05, "er1": Vector3(out_r.x, 0.0, out_r.z) + rh * (2.0 * h_r + 2.0),
-			"el0": out_l + Vector3.DOWN * 0.05, "el1": Vector3(out_l.x, 0.0, out_l.z) - rh * (2.0 * h_l + 2.0),
+			"er0": out_r + Vector3.DOWN * 0.05, "er1": Vector3(out_r.x, ty, out_r.z) + rh * (2.0 * h_r + 2.0),
+			"el0": out_l + Vector3.DOWN * 0.05, "el1": Vector3(out_l.x, ty, out_l.z) - rh * (2.0 * h_l + 2.0),
 			# Pobocze między jezdnią a barierą.
 			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
 		}
@@ -2294,7 +2298,10 @@ func _build_overpass(dist: float, rail := {}) -> void:
 	var fh := Vector3(-rh.z, 0.0, rh.x) * -1.0           # kierunek jazdy w poziomie
 	var hw := float(smp["width"]) * 0.5
 	var med := TrackGenerator.HIGHWAY_MEDIAN
-	var deck_y := c.y + (float(rail["clear"]) if not rail.is_empty() else 6.5)
+	# Wysokości części liczone od podstawy (base.y - teren; etap 3d), więc
+	# pomost = droga nad terenem + prześwit.
+	var base_y: float = (c.y - HighwayGenerator.ROAD_Y) if hwy_structures and hwy_structures.slopes else 0.0
+	var deck_y := (c.y - base_y) + (float(rail["clear"]) if not rail.is_empty() else 6.5)
 	var deck_len := 14.0 if not rail.is_empty() else 10.0
 	var x_r := hw + 14.0
 	var x_l := -(hw + med + 2.0 * hw + 14.0)
@@ -2304,7 +2311,7 @@ func _build_overpass(dist: float, rail := {}) -> void:
 	root.name = "Overpass"
 	_adopt(root)
 	var b := Basis(rh, Vector3.UP, -fh)
-	var base := Vector3(c.x, 0.0, c.z)
+	var base := Vector3(c.x, base_y, c.z)
 	var shapes := PackedVector3Array()
 	var parts := [
 		# [środek (x w poprzek, y), rozmiar (w poprzek, w górę, wzdłuż)]

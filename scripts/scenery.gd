@@ -97,7 +97,9 @@ static func rock() -> Mesh:
 ## Rozrzuca drzewa i głazy wzdłuż toru (próbki w układzie toru). Zwraca
 ## węzły do dodania jako dzieci toru. Nic nie stoi bliżej niż `clear` od
 ## osi toru - ani pod jezdnią, ani przy filarach.
-static func scatter(samples: Array, rng: RandomNumberGenerator, clear := 16.0) -> Array:
+## ground_y_off (etap 3d): teren = wysokość próbki - ten offset (pochylona
+## autostrada); NAN - płasko na y = 0.
+static func scatter(samples: Array, rng: RandomNumberGenerator, clear := 16.0, ground_y_off := NAN) -> Array:
 	var kinds := {"conifer": [], "broadleaf": [], "rock": []}
 	var step := 3
 	for i in range(0, samples.size(), step):
@@ -112,7 +114,8 @@ static func scatter(samples: Array, rng: RandomNumberGenerator, clear := 16.0) -
 				continue
 			# Gęściej blisko toru, rzadziej dalej (rozkład kwadratowy).
 			var lat := clear + pow(rng.randf(), 2.0) * 220.0
-			var p: Vector3 = Vector3(pos.x, 0.0, pos.z) + right * side * lat \
+			var gy := 0.0 if is_nan(ground_y_off) else pos.y - ground_y_off
+			var p: Vector3 = Vector3(pos.x, gy, pos.z) + right * side * lat \
 					+ Vector3(rng.randf_range(-3, 3), 0, rng.randf_range(-3, 3))
 			if _too_close(samples, p, clear):
 				continue

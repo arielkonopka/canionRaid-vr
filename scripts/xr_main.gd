@@ -700,6 +700,42 @@ func _update_river() -> void:
 	_river = {"c": Vector2(c.x, c.z), "t": Vector2(fwd.x, fwd.z), "hw": (r1 - r0) * 0.5, "road_y": xf.origin.y}
 
 
+## Teren z pochyleniem trasy (etap 3d): tablica wysokości dla shadera ziemi
+## (81 x 50 m wzdłuż kierunku trasy wokół auta) i kolizja ziemi
+## (WorldBoundaryShape3D) na wysokości terenu przy aucie. 5 Hz, z _watch_track.
+var _terr := PackedFloat32Array()
+func _update_terrain() -> void:
+	if not (_endless and track.autostrada and track.structures and track.structures.slopes):
+		return
+	var mat := ($Ground/GroundMesh as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+	if mat == null:
+		return
+	var p := _last_safe_dist
+	var xf: Transform3D = track.transform_at_distance(p)
+	var fwd := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
+	# Wysokość świata w punkcie trasy = ROAD_Y + height; teren = ground_at.y.
+	# Ziemia (siatka) leży na y = 0 - przesunięcie w górę o ground_at.y.
+	if _terr.size() != 81:
+		_terr.resize(81)
+	var base_off: float = xf.origin.y - HighwayGenerator.ROAD_Y - float(track.structures.height_at(p))
+	for i in range(81):
+		var d := p + (i - 40) * 50.0
+		_terr[i] = float(track.structures.ground_at(maxf(d, 0.0))["y"]) + base_off
+	mat.set_shader_parameter("terr", _terr)
+	mat.set_shader_parameter("terr_o", Vector2(xf.origin.x, xf.origin.z))
+	mat.set_shader_parameter("terr_dir", Vector2(fwd.x, fwd.z))
+	mat.set_shader_parameter("terr_on", 1.0)
+	# Kolizja ziemi (nieskończona płaszczyzna) na NAJNIŻSZYM terenie w zasięgu
+	# tablicy (±2 km): na wysokości terenu przy graczu boty niżej na zboczu
+	# były pod płaszczyzną - fizyka je wypychała (podskoki, toczenie w tył,
+	# structure_drive_test -- podjazd). Auto wypadnięte z drogi wysoko spada
+	# niżej niż teren - łapie je wykrywanie upadku.
+	var lo := INF
+	for v in _terr:
+		lo = minf(lo, v)
+	($Ground/GroundShape as CollisionShape3D).position.y = lo - 0.5
+
+
 func _check_river_fall() -> void:
 	_warm_river_shader()
 	if _river.is_empty() or race_state != Race.RACING:
@@ -1433,7 +1469,7 @@ func _update_trains() -> void:
 	if not track.structures:
 		return
 	var p := _last_safe_dist
-	_sync_trains(p)
+	_sync_trains(p, get_physics_process_delta_time())
 	for z in track.structures.zones(p, p + 1600.0):
 		if int(z["structure"]) != 3 or _trains_done.has(int(z["k"])):
 			continue
@@ -1466,6 +1502,7 @@ func _update_trains() -> void:
 			tn.set_meta("vd", vd)
 			tn.build(n, freight, dir)
 			add_child(tn)
+			_trains.append(tn)
 			tn.add_to_group(WorldOrigin.GROUP)
 			var tz: float = -2.5 if dir > 0.0 else 2.5
 			var start_x: float = mid_x - float(dir) * vt * t
@@ -1476,20 +1513,23 @@ func _update_trains() -> void:
 
 
 ## Pociąg dopasowuje prędkość co krok (gracz zwalnia i przyspiesza): czoło
-## nad drogą, gdy gracz jest ~250 m przed wiaduktem; 0,5-1,6 rozkładowej.
-func _sync_trains(p: float) -> void:
-	var t := -1.0
-	for n in get_children():
-		if not (n is RailTrain):
+## nad drogą, gdy gracz jest ~250 m przed wiaduktem; 0,15-1,6 rozkładowej,
+## przyspieszenie do 1 m/s², hamowanie do 1,2 m/s² (przegląd PR #107: skoki
+## prędkości składu w jednej klatce).
+var _trains: Array[RailTrain] = []
+func _sync_trains(p: float, delta: float) -> void:
+	for tn in _trains.duplicate():
+		if not is_instance_valid(tn):
+			_trains.erase(tn)
 			continue
-		var tn := n as RailTrain
-		if tn.front_left <= 0.0:
-			tn.speed = tn.v_nom
-			continue
-		t = maxf(float(tn.get_meta("vd", p)) - 250.0 - p, 0.0) / maxf(car.speed, 10.0)
-		# Do 0,15 rozkładowej - pociąg prawie staje (jak przed semaforem), gdy
-		# gracz zwolnił; przy 0,5 przejeżdżał przed nim (test: 90 -> 25 m/s).
-		tn.speed = tn.v_nom if t < 0.5 else clampf(tn.front_left / t, tn.v_nom * 0.15, tn.v_nom * 1.6)
+		var goal: float = tn.v_nom
+		if tn.front_left > 0.0:
+			var t := maxf(float(tn.get_meta("vd", p)) - 250.0 - p, 0.0) / maxf(car.speed, 10.0)
+			# Do 0,15 rozkładowej - pociąg prawie staje (jak przed semaforem),
+			# gdy gracz zwolnił; przy 0,5 przejeżdżał przed nim.
+			if t >= 0.5:
+				goal = clampf(tn.front_left / t, tn.v_nom * 0.15, tn.v_nom * 1.6)
+		tn.speed = move_toward(tn.speed, goal, (1.0 if goal > tn.speed else 1.2) * delta)
 
 
 func _traffic_ensure() -> void:
@@ -2494,6 +2534,7 @@ func _watch_track(delta: float) -> void:
 		# Biom: przejście trwa 2,8 km - 5 razy na sekundę wystarczy (było co klatkę).
 		_update_biome()
 		_update_river()
+		_update_terrain()
 		var sec: int = track.section_at(_last_safe_dist)
 		if sec > _last_section:
 			_last_section = sec
