@@ -242,7 +242,8 @@ static func _biome_props(samples: Array, plan: HighwayPlan, edges: Vector2, d0: 
 				var fr := frame_at(samples, d + rng.randf_range(-3.0, 3.0))
 				var right: Vector3 = ((fr["right"] as Vector3) * Vector3(1, 0, 1)).normalized()
 				var p: Vector3 = (fr["pos"] as Vector3) + right * lat * float(side)
-				p.y = 0.0
+				# Teren z pochyleniem (etap 3d) idzie z drogą, ROAD_Y niżej.
+				p.y = ((fr["pos"] as Vector3).y - HighwayGenerator.ROAD_Y) if structures and structures.slopes else 0.0
 				var kind: String = entry[0]
 				var sc := rng.randf_range(0.7, 1.4)
 				if kind == "rock":

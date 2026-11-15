@@ -40,7 +40,7 @@ var sections: SectionPlan
 ## Budowle (etap 3, StructurePlan): mosty, tunele, wiadukty... Pochylenia
 ## (slopes) czekają na decyzję użytkownika - na razie płasko.
 var structures: StructurePlan
-const STRUCT_SLOPES := false
+const STRUCT_SLOPES := true             # decyzja użytkownika 2026-11-14: do 8%
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
 var first_biome := ""

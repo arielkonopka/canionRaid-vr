@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4]}
 var kind := "most"
 var main
 var f := 0
@@ -27,6 +27,13 @@ var roof_probes := 0
 var lim_in := INF
 var dry_in := true
 var overpass_seen := false
+var h_err := 0.0
+var h_probes := 0
+var ground_err := 0.0
+var bot_slow := 0
+var bot_samples := 0
+var top_h := 0.0
+var h_base := 0.0
 var train_over := false
 var fall_t := 0.0
 var cam: Camera3D
@@ -74,9 +81,12 @@ func _physics_process(delta: float) -> bool:
 			_check(false, "brak budowli %s na trasie" % kind)
 			return _end()
 		print("  %s: %.0f-%.0f %s" % [kind, z["start"], z["end"], str(z)])
+		h_base = main.track.transform_at_distance(300.0).origin.y - HighwayGenerator.ROAD_Y - main.track.structures.height_at(300.0)
 		var s0 := float(z["start"])
 		var e0 := float(z["end"])
 		shots = [["przed", s0 - 120.0, "road"], ["na", s0 + 40.0, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
+		if kind == "podjazd":
+			shots = [["przed", s0 - 100.0, "road"], ["na", (s0 + e0) * 0.5, "road"], ["bok", (s0 + e0) * 0.5 + 100.0, "side"], ["szczyt", e0 + 50.0, "road"]]
 		if kind == "wiadukt":
 			shots = [["przed", s0 - 300.0, "road"], ["blisko", s0 - 120.0, "road"], ["bok", s0 - 60.0, "side"]]
 		if kind == "tunel":
@@ -100,6 +110,31 @@ func _physics_process(delta: float) -> bool:
 			var mat := (main.get_node("Ground/GroundMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 			if mat.shader == main._GROUND_RIVER_SH:
 				river_shader_on = true
+		if kind == "podjazd" and p > s0 - 200.0:
+			# Jezdnia na wysokości planu, ziemia (kolizja) przy terenie.
+			var sp: StructurePlan = main.track.structures
+			var rxf: Transform3D = main.track.transform_at_distance(p)
+			var want: float = HighwayGenerator.ROAD_Y + sp.height_at(p)
+			h_probes += 1
+			h_err = maxf(h_err, absf(rxf.origin.y - (want + h_base)))
+			top_h = maxf(top_h, sp.height_at(p))
+			# Kolizja ziemi nigdy nad jezdnią (płaszczyzna na najniższym terenie
+			# w zasięgu - boty na zboczu pod nią były wypychane).
+			var gy: float = (main.get_node("Ground/GroundShape") as CollisionShape3D).position.y
+			ground_err = maxf(ground_err, gy - (rxf.origin.y - HighwayGenerator.ROAD_Y))
+			if main.race_state == main.Race.EXPLODING:
+				lives_lost += 1
+			main._grace_t = 0.0
+			for b in main._bots:
+				var bd: BotDriver = main._drv(b)
+				if bd and not bd.on_rail and bd.rage < 0.05 and bd.event == "" and absf(sp.grade_at(bd.dist)) > 0.04:
+					bot_samples += 1
+					if absf(b.speed) * 3.6 < 30.0:
+						bot_slow += 1
+						if bot_slow % 400 == 1:
+							print("  WOLNY %s v=%.0f gaz=%.2f ham=%.2f bieg=%d obr=%.0f nachylenie=%.1f%% lod=%d koła=%d cel_gap=%.0f kontakt=%s" % [b.name, b.speed * 3.6, b.throttle, b.brake, b.gear, b.engine_rpm, sp.grade_at(bd.dist) * 100.0, bd.lod, b.wheels_on_ground, bd._lead_gap, str(b.last_hit.get("what", "-"))])
+			if p > e0 + 2500.0 and pending == "":
+				return _end()
 		if kind == "wiadukt":
 			if p > s0 - 600.0 and p < s0:
 				for n in main.track._chunk_for(s0).get_children():
@@ -150,7 +185,7 @@ func _physics_process(delta: float) -> bool:
 				lives_lost += 1
 		if kind == "tunel" and p > e0 + 60.0 and pending == "":
 			return _end()
-		if p > e0 + 60.0 and pending == "":
+		if kind == "most" and p > e0 + 60.0 and pending == "":
 			phase = 1
 			# Zrzut auta obok pomostu nad wodą: ma być upadek.
 			var r0 := s0 + StructurePlan.BRIDGE_BANK
@@ -203,7 +238,12 @@ func _physics_process(delta: float) -> bool:
 
 
 func _end() -> bool:
-	if not z.is_empty() and kind == "wiadukt":
+	if not z.is_empty() and kind == "podjazd":
+		_check(h_probes > 0 and h_err < 0.8, "jezdnia na wysokości planu (maks. odchyłka %.2f m, szczyt %.0f m)" % [h_err, top_h])
+		_check(ground_err < 0.1, "kolizja ziemi nie nad terenem przy aucie (maks. %.2f m)" % ground_err)
+		_check(lives_lost == 0, "przejazd podjazdem bez utraty życia")
+		_check(bot_samples == 0 or bot_slow * 10 < bot_samples, "boty na podjeździe nie stają (%d z %d próbek < 30 km/h)" % [bot_slow, bot_samples])
+	elif not z.is_empty() and kind == "wiadukt":
 		_check(overpass_seen, "wiadukt stoi")
 		_check(lives_lost == 0, "przejazd pod wiaduktem bez utraty życia")
 		if int(z.get("train", 0)) > 0:

@@ -46,6 +46,7 @@ const BANK_CITY := 0.0
 const EASE := 60.0               # wejście / wyjście z przechyłki [m]
 ## Moduł krótszy niż to przed najbliższym znacznikiem -> prosta do znacznika.
 const MIN_MODULE := 120.0
+const SLOPE_PIECE := 40.0        # [m] kawałek odcinka z pochyleniem (etap 3d)
 
 var plan: HighwayPlan
 ## Przekroje jezdni (etap 2 urozmaiceń): ograniczenie w strefach
@@ -238,6 +239,16 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 	if length < 0.5:
 		return
 	var d: float = state["dist"]
+	# Pochylenie (etap 3d, zgoda użytkownika do 8%): kawałki <= SLOPE_PIECE m,
+	# każdy z pochyleniem trafiającym w wysokość planu na swoim końcu (od
+	# rzeczywistej wysokości stanu - błąd się nie kumuluje).
+	if structures and structures.slopes and length > SLOPE_PIECE + 0.5:
+		var n := int(ceil(length / SLOPE_PIECE))
+		var piece := length / float(n)
+		for i in range(n):
+			_seg(out, state, piece, curve, bank, meta if i == 0 else {}, width, limit)
+			meta = {}
+		return
 	# Zmiana nawierzchni w środku odcinka: dzielimy (krzywizna i przechył są
 	# na metr / stałe, więc geometria się nie zmienia).
 	if weather:
@@ -257,7 +268,24 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 		lim = minf(lim, sections.limit_at(d + 0.25))
 	if structures and limit <= 0.0:
 		lim = minf(lim, structures.limit_at(d + 0.25))
-	var seg := {"len": length, "curve": curve, "pitch": 0.0, "bank": bank,
+	var pitch := 0.0
+	if structures and structures.slopes:
+		# Pochylenie z planu w środku kawałka + łagodna korekta dryfu
+		# wysokości. Rozwiązywanie wysokości dokładnie na końcu każdego
+		# kawałka (sin p = 2 dh/len - sin p_prev) oscylowało: pochylenia na
+		# przemian za duże i za małe - jezdnia falowała co 40 m, boty
+		# podskakiwały na 8% i stawały (structure_drive_test -- podjazd).
+		# sample_segments przechodzi od poprzedniego pochylenia płynnie, więc
+		# przewidywany koniec to średnia z poprzedniego i tego.
+		var y_now: float = (state["pos"] as Vector3).y
+		var target := HighwayGenerator.ROAD_Y + structures.height_at(d + length)
+		var sp_prev := sin(float(state.get("pitch", 0.0)))
+		var g := structures.grade_at(d + length * 0.5)
+		var sp_plan := g / sqrt(1.0 + g * g)
+		var predicted := y_now + length * (sp_prev + sp_plan) * 0.5
+		var sp := clampf(sp_plan + 0.3 * (target - predicted) / length, -0.085, 0.085)
+		pitch = rad_to_deg(asin(sp))
+	var seg := {"len": length, "curve": curve, "pitch": pitch, "bank": bank,
 			"width": width, "surface": surf, "limit": lim}
 	# Tunel (etap 3b): pod dachem sucho i bez deszczu (StuntTrack "roof").
 	if structures and int(structures.zone_at(d + 0.25).get("structure", 0)) == 1:

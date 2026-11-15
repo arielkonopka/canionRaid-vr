@@ -1704,7 +1704,22 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   gracz < 900 m przed wiaduktem; `_sync_trains` co krok dopasowuje
   prędkość (0,15-1,6 rozkładowej), żeby czoło było nad drogą, gdy gracz
   ~250 m przed - stała prędkość z chwili wypuszczenia przejeżdżała przed
-  graczem (gracz zwalniał). Bez dźwięku. Test
+  graczem (gracz zwalniał). Bez dźwięku. Pociąg przyspiesza do 1 m/s², hamuje do 1,2
+  m/s² (`_sync_trains`, lista `_trains`). **3d pochylenie (W TOKU,
+  2026-11-15)**: `STRUCT_SLOPES` = true. Generator dzieli odcinki na
+  kawałki <= 40 m; pochylenie = plan (`grade_at` w środku kawałka) +
+  0,3 x korekta dryfu wysokości. **Pułapka**: rozwiązywanie wysokości
+  dokładnie na końcu kawałka (sin p = 2 dh/len - sin p_prev) oscylowało -
+  jezdnia falowała co 40 m. Teren: shader ziemi (`ground_body.gdshaderinc`)
+  dostaje tablicę 81 wysokości `ground_at` co 50 m wzdłuż kierunku trasy
+  wokół auta (`xr_main._update_terrain`, 5 Hz) - trasa nie zawraca, więc
+  rzut na kierunek wystarcza; siatka ziemi podzielona 80 x 80. **Pułapka**:
+  kolizja ziemi (nieskończona płaszczyzna) na wysokości terenu przy graczu
+  - boty niżej na zboczu były pod nią i fizyka je wypychała (podskoki,
+  toczenie w tył); teraz płaszczyzna na najniższym terenie w zasięgu ±2 km.
+  Nasypy, dekoracje i podstawa wiaduktu na wysokości terenu (droga -
+  ROAD_Y). Test `structure_drive_test -- podjazd` (trasa 1, 26,6-27,8 km,
+  8%, 0 -> 96 m). Pas dla wolnych - jeszcze nie. Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.
@@ -2492,6 +2507,15 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
+
+**PRZERWA (2026-11-15, prośba użytkownika "to dokończymy później")**:
+lokalnie, niewypchnięte - `xr_main._sync_trains` z ograniczeniem
+przyspieszenia pociągu (1 / 1,2 m/s²) i listą `_trains` (przegląd PR #107,
+uwagi 1-2; inbox `2026-11-14-pr107-scalony.md`, Status jeszcze "nowe").
+Do zrobienia: `structure_drive_test -- wiadukt` (czy pociąg z limitem
+przyspieszenia zdąży nad drogę), pełny zestaw, commit, push, odpowiedź
+w skrzynce; uwaga 3 (nasyp kolejowy na zboczu) - przy 3d. Potem 3d
+(pochylenie, `STRUCT_SLOPES` = true) i 3e.
 
 000. **Do oceny w goglach (noc 2026-11-11)**: auta z epoki dla gracza
    (menu Nadwozie -> Model auta, teraz z fabrycznym silnikiem i masą),

@@ -33,7 +33,26 @@ vec3 palette(vec2 p, vec3 ga, vec3 gb, vec3 dr, float stripes) {
 	return col;
 }
 
+// Teren z pochyleniem trasy (etap 3d): wysokość terenu wzdłuż kierunku
+// trasy wokół auta, co terr_step m (xr_main._update_terrain z
+// StructurePlan.ground_at - poza budowlami teren = jezdnia - ROAD_Y, pod
+// mostem i estakadą dolina). Trasa nie zawraca (MAX_YAW 40°), więc rzut na
+// kierunek trasy wystarcza. Bez tablicy (terr_on = 0) - płasko.
+uniform float terr[81];
+uniform vec2 terr_o = vec2(0.0, 0.0);
+uniform vec2 terr_dir = vec2(0.0, -1.0);
+uniform float terr_step = 50.0;
+uniform float terr_on = 0.0;
+
 void vertex() {
+	vec3 w0 = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	if (terr_on > 0.5) {
+		float u = dot(w0.xz - terr_o, terr_dir) / terr_step + 40.0;
+		u = clamp(u, 0.0, 79.999);
+		int i0 = int(floor(u));
+		float f = u - float(i0);
+		VERTEX.y += mix(terr[i0], terr[i0 + 1], f);
+	}
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
