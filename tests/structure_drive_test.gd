@@ -36,6 +36,10 @@ var top_h := 0.0
 var h_base := 0.0
 var train_over := false
 var fall_t := 0.0
+var side_done := false
+var side_ok := false
+var side_info := ""
+var side_p := 0.0
 var cam: Camera3D
 var shots: Array = []
 var shot_i := 0
@@ -93,6 +97,9 @@ func _physics_process(delta: float) -> bool:
 			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["srodek", (s0 + e0) * 0.5, "road"], ["bok", s0 + 100.0, "side"]]
 	if f < 8:
 		return false
+	if f > Engine.physics_ticks_per_second * 60 * 20:
+		_check(false, "test w limicie czasu (20 min gry)")
+		return _end()
 	var p: float = main._last_safe_dist
 	var s0 := float(z["start"])
 	var e0 := float(z["end"])
@@ -133,6 +140,22 @@ func _physics_process(delta: float) -> bool:
 						bot_slow += 1
 						if bot_slow % 400 == 1:
 							print("  WOLNY %s v=%.0f gaz=%.2f ham=%.2f bieg=%d obr=%.0f nachylenie=%.1f%% lod=%d koła=%d cel_gap=%.0f kontakt=%s" % [b.name, b.speed * 3.6, b.throttle, b.brake, b.gear, b.engine_rpm, sp.grade_at(bd.dist) * 100.0, bd.lod, b.wheels_on_ground, bd._lead_gap, str(b.last_hit.get("what", "-"))])
+			# Zepchnięcie za barierę na stromym podjeździe (uwagi do PR #108):
+			# auto ma stanąć na trawie, nie spaść przez teren.
+			if not side_done and p > (s0 + e0) * 0.5 and absf(sp.grade_at(p + 30.0)) > 0.06:
+				side_done = true
+				side_p = p
+				phase = 2
+				fall_t = 0.0
+				var sxf: Transform3D = main.track.transform_at_distance(p + 30.0)
+				var srh := (sxf.basis.x * Vector3(1, 0, 1)).normalized()
+				var hw := float(main.track.sample_at(p + 30.0).get("width", 11.0)) * 0.5
+				main.car.global_position = sxf.origin + srh * (hw + 0.6 + 7.0) + Vector3.UP * 1.5
+				main.car.global_basis = sxf.basis
+				main.car.linear_velocity = Vector3.ZERO
+				main.car.angular_velocity = Vector3.ZERO
+				main._grace_t = 0.0
+				return false
 			if p > e0 + 2500.0 and pending == "":
 				return _end()
 		if kind == "wiadukt":
@@ -204,6 +227,29 @@ func _physics_process(delta: float) -> bool:
 			main.race_state = main.Race.RACING
 			main._update_river()
 			fall_t = 0.0
+	elif phase == 2:
+		fall_t += delta
+		main._grace_t = 0.0
+		var ty: float = main.track.transform_at_distance(side_p + 30.0).origin.y - HighwayGenerator.ROAD_Y
+		if main.race_state != main.Race.RACING:
+			# Po upadku gra wybucha i odradza auto - jazda dalej nie ma sensu.
+			side_info = "upadek po %.1f s" % fall_t
+			return _end()
+		elif fall_t > 3.0:
+			var gy: float = (main.get_node("Ground/GroundShape") as CollisionShape3D).position.y
+			var dy: float = main.car.global_position.y - ty
+			side_ok = main.car.wheels_on_ground >= 3 and absf(dy) < 2.0
+			side_info = "koła %d, nad terenem %.2f m, płaszczyzna %.1f m niżej" % [main.car.wheels_on_ground, dy, ty - gy]
+			phase = 3
+		if phase == 3:
+			# Z powrotem na jezdnię, jazda dalej.
+			var bxf: Transform3D = main.track.transform_at_distance(side_p)
+			main.car.global_position = bxf.origin + bxf.basis.x * main.hwy_lane_off(0) + Vector3.UP * 0.6
+			main.car.global_basis = bxf.basis
+			main.car.linear_velocity = -bxf.basis.z * 25.0
+			main.race_state = main.Race.RACING
+			main._last_safe_dist = side_p
+			phase = 0
 	elif phase == 1:
 		fall_t += delta
 		if main.race_state == main.Race.EXPLODING or main.race_state == main.Race.REPLAY:
@@ -242,6 +288,7 @@ func _end() -> bool:
 		_check(h_probes > 0 and h_err < 0.8, "jezdnia na wysokości planu (maks. odchyłka %.2f m, szczyt %.0f m)" % [h_err, top_h])
 		_check(ground_err < 0.1, "kolizja ziemi nie nad terenem przy aucie (maks. %.2f m)" % ground_err)
 		_check(lives_lost == 0, "przejazd podjazdem bez utraty życia")
+		_check(side_done and side_ok, "auto za barierą na podjeździe stoi na trawie (%s)" % side_info)
 		_check(bot_samples == 0 or bot_slow * 10 < bot_samples, "boty na podjeździe nie stają (%d z %d próbek < 30 km/h)" % [bot_slow, bot_samples])
 	elif not z.is_empty() and kind == "wiadukt":
 		_check(overpass_seen, "wiadukt stoi")

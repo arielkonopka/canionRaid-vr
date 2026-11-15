@@ -31,6 +31,7 @@ const LANES := 2
 const SHOULDER_R := 3.0          # pas awaryjny
 const SHOULDER_L := 0.75         # opaska przy pasie rozdziału
 const WIDTH := LANES * LANE_W + SHOULDER_R + SHOULDER_L     # 11,25 m
+const MAX_SLOPE := 0.0797        # sin nachylenia: 8% (zgoda użytkownika), z korektą dryfu
 const ROAD_Y := 1.0              # jezdnia nad terenem [m] (niski nasyp)
 const CHUNK_LEN := 1000.0
 const STEP := 2.0                # krok próbkowania jak w TrackGenerator
@@ -283,7 +284,7 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 		var g := structures.grade_at(d + length * 0.5)
 		var sp_plan := g / sqrt(1.0 + g * g)
 		var predicted := y_now + length * (sp_prev + sp_plan) * 0.5
-		var sp := clampf(sp_plan + 0.3 * (target - predicted) / length, -0.085, 0.085)
+		var sp := clampf(sp_plan + 0.3 * (target - predicted) / length, -MAX_SLOPE, MAX_SLOPE)
 		pitch = rad_to_deg(asin(sp))
 	var seg := {"len": length, "curve": curve, "pitch": pitch, "bank": bank,
 			"width": width, "surface": surf, "limit": lim}

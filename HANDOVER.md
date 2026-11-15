@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-13, sesja 8 - noc (powtórka wypadku, dźwięki innych aut z Dopplerem)
+Ostatnia aktualizacja: 2026-11-15 (etap 3d pochylenie, kolizja terenu przy drodze - uwagi do PR #108)
 
 ---
 
@@ -679,8 +679,9 @@ zawiera tylko notę, pełny tekst trzeba dograć).
 
 - **Pochylenie autostrady (decyzja 2026-11-14, karta w wątku chmury):
   "Tak, do 8% w górę i w dół"** - podjazdy, zjazdy z serpentynami, pas
-  dla wolnych i estakady (etap 3d/3e). Do czasu 3d `EndlessTrack.
-  STRUCT_SLOPES` = false (generator jeszcze nie pochyla jezdni).
+  dla wolnych i estakady (etap 3d/3e). Od 3d `EndlessTrack.STRUCT_SLOPES`
+  = true; pochylenie (sin) obcięte do `HighwayGenerator.MAX_SLOPE` 0,0797
+  (= 8% tangensa), żeby korekta dryfu nie wyszła ponad zgodę.
 
 ## 3. Środowisko (sprawdzone 2026-11-07)
 
@@ -1705,8 +1706,8 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   prędkość (0,15-1,6 rozkładowej), żeby czoło było nad drogą, gdy gracz
   ~250 m przed - stała prędkość z chwili wypuszczenia przejeżdżała przed
   graczem (gracz zwalniał). Bez dźwięku. Pociąg przyspiesza do 1 m/s², hamuje do 1,2
-  m/s² (`_sync_trains`, lista `_trains`). **3d pochylenie (W TOKU,
-  2026-11-15)**: `STRUCT_SLOPES` = true. Generator dzieli odcinki na
+  m/s² (`_sync_trains`, lista `_trains`). **3d pochylenie
+  (2026-11-15)**: `STRUCT_SLOPES` = true, sin pochylenia <= `MAX_SLOPE`. Generator dzieli odcinki na
   kawałki <= 40 m; pochylenie = plan (`grade_at` w środku kawałka) +
   0,3 x korekta dryfu wysokości. **Pułapka**: rozwiązywanie wysokości
   dokładnie na końcu kawałka (sin p = 2 dh/len - sin p_prev) oscylowało -
@@ -1716,10 +1717,18 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   rzut na kierunek wystarcza; siatka ziemi podzielona 80 x 80. **Pułapka**:
   kolizja ziemi (nieskończona płaszczyzna) na wysokości terenu przy graczu
   - boty niżej na zboczu były pod nią i fizyka je wypychała (podskoki,
-  toczenie w tył); teraz płaszczyzna na najniższym terenie w zasięgu ±2 km.
+  toczenie w tył); teraz płaszczyzna na najniższym terenie w zasięgu ±2 km
+  - to tylko siatka bezpieczeństwa. **Kolizja terenu przy drodze** (uwagi
+  do PR #108): ciało `HighwayTerrain` w każdym kawałku (trawa, grip 0,45
+  jak ziemia) - skarpy nasypu i pas `StuntTrack.TERRAIN_STRIP` 60 m za
+  stopą nasypu na wysokości terenu `ty`; bez mostu, tunelu i miasta.
+  Wcześniej auto za barierą na podniesionym odcinku spadało przez
+  widoczny teren na płaszczyznę (do 50 m niżej) i był "upadek". Shader
+  ziemi liczy też normalną stoku z różnicy sąsiednich wysokości.
   Nasypy, dekoracje i podstawa wiaduktu na wysokości terenu (droga -
   ROAD_Y). Test `structure_drive_test -- podjazd` (trasa 1, 26,6-27,8 km,
-  8%, 0 -> 96 m). Pas dla wolnych - jeszcze nie. Test
+  8%, 0 -> 96 m; sprawdza też zepchnięcie za barierę na stromym podjeździe
+  - auto ma stanąć na trawie). Pas dla wolnych - jeszcze nie. Test
   `tests/structure_drive_test.gd -- most` (trasa 33, 31,4 km), zrzuty
   `renders/2026-11-14-budowle/`. Pełny `quest.sh test` OK, `drive_test`
   bez zmian.
@@ -2504,18 +2513,40 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   250 kW i gasi długie; `set_high_beam(0)` wraca do koloru lamp
   z `_make_head_mat`. Sprawdzane w `extremist_play_test`.
 
+### 2026-11-13 - 2026-11-15, sesje 9-10 (praca z chmurą, gogle odłączone)
+
+- **Urozmaicenia trasy, etapy 1-3d** (plan od chmury, inbox): zdarzenia
+  na odcinkach (`SegmentCode`, `SegmentEvents`), przekroje (`SectionPlan`:
+  zwężenia, roboty, 1+1 / 2+1 / 3 pasy), budowle (`StructurePlan`: most
+  3a, tunel 3b, wiadukt kolejowy z pociągiem 3c, pochylenie do 8% 3d).
+  Szczegóły i pułapki w sekcji 5 ("Budowle", "Przekroje"). PR-y #97-#108
+  scalone przez chmurę.
+- **Kolizja terenu przy drodze (uwagi do PR #108)**: patrz sekcja 5, 3d.
+  Bez poprawki zepchnięte auto spadało przez trawę na płaszczyznę 51 m
+  niżej. Przy okazji `structure_drive_test` dostał limit czasu (20 min
+  gry) i każdy stan inny niż RACING po zepchnięciu traktuje jako upadek -
+  wcześniej po upadku test wisiał bez końca. Clamp pochylenia 0,0797,
+  normalne stoku w shaderze ziemi. Testy: pełny
+  `quest.sh test` OK, `drive_test` soft 24.00/24.05, sport 24.06/24.07,
+  stiff 24.10/24.17 (bez zmian), `structure_drive_test` podjazd (auto za
+  barierą: 4 koła, 0,86 m nad terenem, płaszczyzna 51 m niżej) / most /
+  tunel / wiadukt OK, `section_drive_test` zwezenie / roboty / jedna /
+  dwa / trzy OK. Kontrola: bez `HighwayTerrain` podjazd daje BŁĄD
+  "upadek po 2,7 s".
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
-**PRZERWA (2026-11-15, prośba użytkownika "to dokończymy później")**:
-lokalnie, niewypchnięte - `xr_main._sync_trains` z ograniczeniem
-przyspieszenia pociągu (1 / 1,2 m/s²) i listą `_trains` (przegląd PR #107,
-uwagi 1-2; inbox `2026-11-14-pr107-scalony.md`, Status jeszcze "nowe").
-Do zrobienia: `structure_drive_test -- wiadukt` (czy pociąg z limitem
-przyspieszenia zdąży nad drogę), pełny zestaw, commit, push, odpowiedź
-w skrzynce; uwaga 3 (nasyp kolejowy na zboczu) - przy 3d. Potem 3d
-(pochylenie, `STRUCT_SLOPES` = true) i 3e.
+**Bieżące (2026-11-15)**: etapy urozmaiceń 1-2 i 3a-3d zrobione
+(sekcja 5, "Budowle"). Dalej według chmury: **3e estakada** (dolina,
+estakada na filarach - tu kolizja terenu `HighwayTerrain` już jest), potem
+pas dla wolnych na podjazdach, łuk w tunelu (`curved`), lampy dwururowego
+tunelu w wąwozie (dziś nad osią całej drogi). Potem etap 4 (pułapki)
+i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
+`section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.
+Przy goglach: wgrać, bench (Perf "odcinki", tunel, shader rzeki, dźwięki
+aut, manekiny), ocena użytkownika.
 
 000. **Do oceny w goglach (noc 2026-11-11)**: auta z epoki dla gracza
    (menu Nadwozie -> Model auta, teraz z fabrycznym silnikiem i masą),

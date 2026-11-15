@@ -141,6 +141,7 @@ func _ready() -> void:
 
 ## Punkty profilu ściany (z 13) objęte kolizją - patrz _build_canyon.
 const CANYON_COLLIDE_K := 7
+const TERRAIN_STRIP := 60.0   # pas kolizji terenu za nasypem autostrady [m]
 ## Budowa rozłożona na klatki (odcinki dobudowywane w trakcie jazdy): na
 ## Queście budowa odcinka w jednym kawałku to ~0,5 s zamrożenia obrazu.
 ## Próbki i jezdnia z kolizją powstają od razu, reszta (ściany, znaki,
@@ -2198,6 +2199,11 @@ func _build_highway() -> void:
 	grass.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
 	var none := PackedVector3Array()
+	# Kolizja terenu przy drodze (uwagi do PR #108): skarpy nasypu i pas
+	# trawy +-TERRAIN_STRIP m za nimi na wysokości terenu ty. Bez tego auto
+	# za barierą na podniesionym odcinku spadało przez widoczny teren na
+	# płaszczyznę kolizji na najniższym terenie (ta zostaje jako siatka).
+	var terrain := PackedVector3Array()
 	var prev := {}
 	var idxs := range(0, _samples.size(), 2)
 	if idxs[-1] != _samples.size() - 1:
@@ -2228,6 +2234,8 @@ func _build_highway() -> void:
 			# Nasyp 1:2 do terenu.
 			"er0": out_r + Vector3.DOWN * 0.05, "er1": Vector3(out_r.x, ty, out_r.z) + rh * (2.0 * h_r + 2.0),
 			"el0": out_l + Vector3.DOWN * 0.05, "el1": Vector3(out_l.x, ty, out_l.z) - rh * (2.0 * h_l + 2.0),
+			"tr": Vector3(out_r.x, ty, out_r.z) + rh * (2.0 * h_r + 2.0 + TERRAIN_STRIP),
+			"tl": Vector3(out_l.x, ty, out_l.z) - rh * (2.0 * h_l + 2.0 + TERRAIN_STRIP),
 			# Pobocze między jezdnią a barierą.
 			"sr0": c + r * hw + Vector3.DOWN * 0.03, "sl0": c - r * (hw + med + 2.0 * hw) + Vector3.DOWN * 0.03,
 		}
@@ -2252,7 +2260,7 @@ func _build_highway() -> void:
 				_quad_facing(concrete, faces, q["jb_r0"], p["jb_r0"], p["jb_r1"], q["jb_r1"], rh)
 				_quad_facing(concrete, faces, q["jb_l1"], p["jb_l1"], p["jb_r1"], q["jb_r1"], Vector3.UP)
 			# Pas rozdziału i pobocza z kolizją (przegląd PR #7: bez niej auto
-			# zepchnięte ~0,5 m za krawędź spadało pod nasyp); nasyp bez.
+			# zepchnięte ~0,5 m za krawędź spadało pod nasyp); nasyp w "terrain".
 			_quad_facing(grass, faces, q["md_r"], p["md_r"], p["md_l"], q["md_l"], Vector3.UP)
 			_quad_facing(metal, faces, q["gr0"], p["gr0"], p["gr1"], q["gr1"], -rh)
 			_quad_facing(metal, none, q["gr0"], p["gr0"], p["gr1"], q["gr1"], rh)
@@ -2262,10 +2270,13 @@ func _build_highway() -> void:
 			# Pod mostem (etap 3a) bez nasypu - pod pomostem rzeka i filary.
 			var on_bridge := hwy_structures != null and int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) == 2
 			if not on_bridge:
-				_quad_facing(grass, none, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
+				_quad_facing(grass, terrain, q["er0"], p["er0"], p["er1"], q["er1"], Vector3.UP + rh)
 			_quad_facing(grass, faces, q["sl0"], p["sl0"], p["el0"], q["el0"], Vector3.UP)
 			if not on_bridge:
-				_quad_facing(grass, none, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
+				_quad_facing(grass, terrain, q["el0"], p["el0"], p["el1"], q["el1"], Vector3.UP - rh)
+				if hwy_structures and hwy_structures.slopes:
+					terrain.append_array(_quad_faces(q["er1"], p["er1"], p["tr"], q["tr"]))
+					terrain.append_array(_quad_faces(q["el1"], p["el1"], p["tl"], q["tl"]))
 			none.clear()
 		prev = p
 	concrete.generate_normals()
@@ -2282,6 +2293,7 @@ func _build_highway() -> void:
 	mi.mesh = mesh
 	_adopt(mi)
 	_collision_body("HighwayBarriers", faces, "rock", 0.55)
+	_collision_body("HighwayTerrain", terrain, "grass", 0.45)
 
 
 ## Wiadukt nad autostradą na dystansie `dist`: poziomy pomost 10 m szeroki,

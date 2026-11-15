@@ -52,6 +52,11 @@ void vertex() {
 		int i0 = int(floor(u));
 		float f = u - float(i0);
 		VERTEX.y += mix(terr[i0], terr[i0 + 1], f);
+		// Normalna stoku (uwagi do PR #108) - wysokość zależy tylko od u,
+		// więc gradient to s * terr_dir. Siatka ziemi nie jest obracana,
+		// przestrzeń modelu ma osie świata.
+		float s = (terr[i0 + 1] - terr[i0]) / terr_step;
+		NORMAL = normalize(vec3(-terr_dir.x * s, 1.0, -terr_dir.y * s));
 	}
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
