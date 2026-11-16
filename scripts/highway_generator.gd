@@ -196,6 +196,15 @@ func _module(out: Array, state: Dictionary, meta: Dictionary) -> void:
 		return
 	var in_city := not city.is_empty()
 	var roll := rng.randf()
+	# Tunel (3b): "curved" - jeden łuk od wlotu dopasowany do długości rury,
+	# inne tunele proste (wcześniej łuk w tunelu wypadał losowo).
+	var tz: Dictionary = structures.zone_at(d + 0.5) if structures else {}
+	if not tz.is_empty() and int(tz["structure"]) == 1:
+		if bool(tz.get("curved", false)) and absf(float(tz["start"]) - d) < 0.5:
+			_curve(out, state, meta, room, false, true)
+		else:
+			_seg(out, state, room, 0.0, 0.0, meta)
+		return
 	if roll < (0.5 if in_city else 0.45):
 		_curve(out, state, meta, room, in_city)
 	else:
@@ -205,7 +214,8 @@ func _module(out: Array, state: Dictionary, meta: Dictionary) -> void:
 
 ## Łuk: wejście w przechyłkę (EASE), łuk, wyjście (EASE), tak żeby kurs nie
 ## przekroczył MAX_YAW. Nie mieści się przed znacznikiem -> prosta.
-func _curve(out: Array, state: Dictionary, meta: Dictionary, room: float, in_city: bool) -> void:
+## fit: łuk w całości w `room` (promień dobrany do miejsca; tunel "curved").
+func _curve(out: Array, state: Dictionary, meta: Dictionary, room: float, in_city: bool, fit := false) -> void:
 	var yaw: float = state.get("yaw", 0.0)
 	var dir := -1.0 if rng.randf() < 0.5 else 1.0
 	if absf(yaw) > MAX_YAW * 0.4:
@@ -214,6 +224,11 @@ func _curve(out: Array, state: Dictionary, meta: Dictionary, room: float, in_cit
 	var ang := deg_to_rad(rng.randf_range(8.0, 30.0) if in_city else rng.randf_range(5.0, 25.0))
 	# Nie dalej niż MAX_YAW od kierunku startu.
 	ang = minf(ang, MAX_YAW - dir * yaw)
+	if fit:
+		ang = maxf(ang, deg_to_rad(10.0))
+		var avail := room - 2.0 * EASE - 10.0
+		r = clampf(avail / ang, R_MIN, R_MAX)
+		ang = minf(ang, minf(avail / r, MAX_YAW - dir * yaw))
 	var arc := ang * r
 	var bank := (BANK_CITY if in_city else BANK) * dir
 	var total := arc + 2.0 * EASE

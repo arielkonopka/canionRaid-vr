@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4], "estakada": [119, 6]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4], "estakada": [119, 6], "tunel_luk": [26, 1]}
 var kind := "most"
 var main
 var f := 0
@@ -104,7 +104,7 @@ func _physics_process(delta: float) -> bool:
 			shots = [["przed", s0 - 300.0, "road"], ["blisko", s0 - 120.0, "road"], ["bok", s0 - 60.0, "side"]]
 		if kind == "estakada":
 			shots = [["przed", s0 - 150.0, "road"], ["na", (s0 + e0) * 0.5, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
-		if kind == "tunel":
+		if kind.begins_with("tunel"):
 			shots = [["przed", s0 - 150.0, "road"], ["wlot", s0 - 30.0, "road"], ["w1", s0 + 60.0, "eye"], ["w2", s0 + 200.0, "eye"],
 					["srodek", (s0 + e0) * 0.5, "eye"], ["w4", e0 - 150.0, "eye"], ["wylot", e0 - 20.0, "eye"], ["bok", s0 + 100.0, "side"]]
 	if f < 8:
@@ -216,7 +216,7 @@ func _physics_process(delta: float) -> bool:
 				main._grace_t = 0.0
 			if p > e0 + 60.0 and pending == "":
 				return _end()
-		if kind == "tunel" and p > s0 + 20.0 and p < e0 - 20.0:
+		if kind.begins_with("tunel") and p > s0 + 20.0 and p < e0 - 20.0:
 			# Dach nad jezdnią (rura) - promień w górę od auta.
 			var q := PhysicsRayQueryParameters3D.create(main.car.global_position + Vector3.UP * 1.0, main.car.global_position + Vector3.UP * 20.0)
 			q.exclude = [main.car.get_rid()]
@@ -267,7 +267,7 @@ func _physics_process(delta: float) -> bool:
 					valley_info = "dolina %.0f m, trafienie %s" % [drop, "brak" if hit.is_empty() else "%.1f m od dna (%s)" % [e, (hit["collider"] as Node).name]]
 		if kind == "estakada" and p > e0 + 60.0 and pending == "":
 			return _end()
-		if kind == "tunel" and p > e0 + 60.0 and pending == "":
+		if kind.begins_with("tunel") and p > e0 + 60.0 and pending == "":
 			return _end()
 		if kind == "most" and p > e0 + 60.0 and pending == "":
 			phase = 1
@@ -368,11 +368,16 @@ func _end() -> bool:
 		if int(z.get("train", 0)) > 0:
 			_check(main.trains_spawned > 0, "pociąg wyjechał (%d)" % main.trains_spawned)
 			_check(train_over, "pociąg nad drogą, gdy gracz 100-500 m przed wiaduktem")
-	elif not z.is_empty() and kind == "tunel":
+	elif not z.is_empty() and kind.begins_with("tunel"):
 		_check(lives_lost == 0, "przejazd tunelem bez utraty życia")
 		_check(roof_probes > 0 and roof_hits * 10 >= roof_probes * 9, "dach nad jezdnią (%d z %d próbek)" % [roof_hits, roof_probes])
 		_check(lim_in <= 100.0, "ograniczenie w tunelu %.0f" % lim_in)
 		_check(dry_in, "w tunelu sucho")
+		if kind == "tunel_luk":
+			var y0: float = main.track.transform_at_distance(float(z["start"]) + 1.0).basis.get_euler().y
+			var y1: float = main.track.transform_at_distance(float(z["end"]) - 1.0).basis.get_euler().y
+			var turn := absf(rad_to_deg(angle_difference(y0, y1)))
+			_check(bool(z.get("curved", false)) and turn > 5.0, "łuk w tunelu (zmiana kursu %.1f°)" % turn)
 	elif not z.is_empty():
 		_check(lives_lost == 0, "przejazd po moście bez utraty życia")
 		_check(river_shader_on, "ziemia z dziurą na rzekę przy moście")
