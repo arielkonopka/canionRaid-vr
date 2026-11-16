@@ -40,6 +40,7 @@ var sections: SectionPlan
 ## Budowle (etap 3, StructurePlan): mosty, tunele, wiadukty... Pochylenia
 ## (slopes) czekają na decyzję użytkownika - na razie płasko.
 var structures: StructurePlan
+var traps: TrapPlan                 # pułapki (etap 4)
 const STRUCT_SLOPES := true             # decyzja użytkownika 2026-11-14: do 8%
 var _hgen: HighwayGenerator
 ## Biom na starcie (tylko do zrzutów/testów; "" = z planu).
@@ -78,6 +79,8 @@ func _ready() -> void:
 		structures = StructurePlan.new(segcode, plan, STRUCT_SLOPES)
 		_hgen.structures = structures
 		sections.structures = structures       # pas dla wolnych na podjazdach
+		traps = TrapPlan.new(segcode, structures, sections)
+		_hgen.traps = traps
 	for i in range(1 + AHEAD):
 		_add_section()
 
@@ -138,6 +141,7 @@ func _add_highway_chunk() -> void:
 	chunk.hwy_plan = plan
 	chunk.hwy_sections = sections
 	chunk.hwy_structures = structures
+	chunk.hwy_traps = traps
 	chunk.start_state = loc["state"]
 	chunk.build_lines = false
 	chunk.road_material = road_material
