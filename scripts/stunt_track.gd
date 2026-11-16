@@ -419,6 +419,7 @@ static func sample_segments(track: Array, start: Dictionary, step: float) -> Arr
 				"surface": surface,
 				"rain": int(seg.get("rain", 0)),
 				"roof": bool(seg.get("roof", false)),
+				"roof_twin": bool(seg.get("roof_twin", false)),     # dwie rury (wąwóz)
 				"dist": dist,
 				"yaw": yaw, "pitch": p, "bank": b,
 				"meta": seg.get("meta", {}) if i == 0 else {},
@@ -445,7 +446,8 @@ static func sample_segments(track: Array, start: Dictionary, step: float) -> Arr
 			"pos": pos, "fwd": fwd_e,
 			"right": right_e.rotated(fwd_e, prev_bank), "up": up_e.rotated(fwd_e, prev_bank),
 			"width": prev_width, "gap": last["gap"], "finish": false,
-			"surface": last["surface"], "rain": last["rain"], "roof": last["roof"], "dist": dist,
+			"surface": last["surface"], "rain": last["rain"], "roof": last["roof"],
+			"roof_twin": last.get("roof_twin", false), "dist": dist,
 			"yaw": yaw, "pitch": prev_pitch, "bank": prev_bank, "meta": {}, "limit": limit,
 		})
 	# Stan końcowy jako ostatnia, "wirtualna" informacja - do łączenia kawałków.
@@ -507,10 +509,10 @@ func _build_mesh(road_faces: Dictionary) -> ArrayMesh:
 		var cb := hwy_sections.road_color(bd) if (_road_layout == 1 and hwy_sections) else Color(0, 0, 0)
 		# UV2.y: pod dachem (tunel) - przyciemnienie i lampy w road.gdshader
 		# (nigdzie nie ustawiane do 2026-11-14 - także w wąwozie; przegląd
-		# PR #104). Dwie nitki wąwozu (shader: ujemne = lampy nad połowami)
-		# próbka nie rozróżnia - lampy w jezdni nad osią całej drogi.
-		var ea := 1.0 if a.get("roof", false) else 0.0
-		var eb := 1.0 if b.get("roof", false) else 0.0
+		# PR #104). Dwie nitki wąwozu ("roof_twin"): ujemne - shader stawia
+		# lampy nad osiami obu rur, nie nad osią całej drogi (wyspą).
+		var ea := (-1.0 if a.get("roof_twin", false) else 1.0) if a.get("roof", false) else 0.0
+		var eb := (-1.0 if b.get("roof_twin", false) else 1.0) if b.get("roof", false) else 0.0
 		_quad_uv(st, [al, bl, br, ar],
 				[Vector2(-aw * 0.5, ad), Vector2(-bw * 0.5, bd), Vector2(bw * 0.5, bd), Vector2(aw * 0.5, ad)],
 				[aw, bw, bw, aw], [ca, cb, cb, ca], [ea, eb, eb, ea])

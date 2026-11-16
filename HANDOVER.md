@@ -958,7 +958,10 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   **Dwie nitki** (`TrackGenerator._tunnel`, szansa 0,4, meta `twin`):
   45 m rozszerzenia jak w rozwidleniu (wyspa `ISLAND_W` przez całą
   długość), dwie rury nad połowami jezdni, wspólna ściana czołowa (każda
-  rura domyka ją do osi między nitkami), 45 m zwężenia za górą.
+  rura domyka ją do osi między nitkami), 45 m zwężenia za górą. Odcinek
+  w rurach ma "roof_twin" -> próbka -> UV2.y = -1, a `road.gdshader` stawia
+  pas światła lamp nad osiami obu rur (2026-11-16; wcześniej nad osią całej
+  drogi, czyli nad wyspą). Zrzut: `tests/twin_tunnel_shot.gd`.
 - **Autostrada** (`TrackGenerator.is_highway`: odcinki 3, 8, 13, ...
   (`HIGHWAY_EVERY` 5, `HIGHWAY_PHASE` 3) - nie trafia na stację ani
   warsztat; `_highway_section`): wjazd z meta `highway`, zejście do
@@ -2593,19 +2596,23 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   most/tunel/tunel_luk/wiadukt/podjazd/estakada OK, `section_drive_test`
   wszystkie rodzaje OK.
 
+- **Lampy dwururowego tunelu w wąwozie (2026-11-16)** (sekcja 5, tunel):
+  "roof_twin" -> UV2.y = -1, światło nad osiami rur; zrzuty przed / po
+  w `renders/2026-11-16-tunel-nitki/`. Testy: pełny `quest.sh test` OK
+  (także offroad_test), `drive_test` bez zmian (24.00-24.17).
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 
-**Bieżące (2026-11-15)**: etapy urozmaiceń 1-2 i 3a-3e zrobione
+**Bieżące (2026-11-16)**: etapy urozmaiceń 1-2 i 3a-3e zrobione
 (sekcja 5, "Budowle"). Czeka odpowiedź chmury: auto na drugiej jezdni
 (sekcja 9). Zgłoszenia z gogli do zbadania przy następnym podłączeniu:
 czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli).
 Zrzuty w `structure_drive_test` mylą ujęcia (kamera nie tam, gdzie
-nazwa) - do poprawy. Dalej: lampy dwururowego
-tunelu w wąwozie (dziś nad osią całej drogi). Pas dla wolnych i łuk
-w tunelu zrobione
-(znaku zapowiedzi brak - do rozważenia). Potem etap 4 (pułapki)
+nazwa) - do poprawy. Pas dla wolnych (bez znaku zapowiedzi - do
+rozważenia), łuk w tunelu i lampy dwururowego tunelu w wąwozie zrobione.
+Dalej etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
 `section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.
 Przy goglach: wgrać, bench (Perf "odcinki", tunel, shader rzeki, dźwięki
