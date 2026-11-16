@@ -179,6 +179,14 @@ func _slow_zone(k: int) -> Dictionary:
 					and float(z["end"]) - c0 < SLOW_MAX:
 				c1 = float(z["end"])
 				more = true
+	# Tylko gdy ciężarówka wyraźnie zwolni (etap 4, StructurePlan.slow_lane):
+	# wystarczy jeden podjazd z ciągu.
+	var any_slow := false
+	for z in structures.zones(c0, c1):
+		if StructurePlan.slow_lane(z):
+			any_slow = true
+	if not any_slow:
+		return {}
 	var lim: float = LIMIT[1]
 	var t := taper_len(LANE_W, lim) * 0.5
 	var start := c0 - SLOW_BEFORE - t

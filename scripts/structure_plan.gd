@@ -305,6 +305,31 @@ func drop_at(d: float) -> float:
 	return height_at(d) - float(ground_at(d)["y"])
 
 
+## Czy podjazd dostaje pas dla wolnych (etap 4, odpowiedź na pytanie agenta
+## 2026-11-16): tylko tam, gdzie ciężarówka zwolniłaby wyraźnie - pochylenie
+## >= SLOW_GRADE % i długość >= SLOW_LEN m (~połowa podjazdów). Ciąg
+## podjazdów: wystarczy, że jeden z nich spełnia warunek.
+const SLOW_GRADE := 4.5
+const SLOW_LEN := 1800.0
+
+
+static func slow_lane(z: Dictionary) -> bool:
+	return int(z.get("structure", 0)) == 4 and float(z["grade"]) >= SLOW_GRADE and float(z["length"]) >= SLOW_LEN
+
+
+## Siatka terenu w shaderze ziemi (xr_main._update_terrain) [m wzdłuż trasy].
+const TERRAIN_GRID := 50.0
+
+
+## drop_at liniowo między węzłami siatki TERRAIN_GRID - tak jak teren
+## widoczny w shaderze (na dnie sinusoidalnej doliny dokładne dno leży do
+## ~1,5 m niżej niż łamana z węzłów co 50 m; kolizja i dekoracje mają stać
+## na tym, co widać).
+func drop_lin(d: float) -> float:
+	var d0 := floorf(d / TERRAIN_GRID) * TERRAIN_GRID
+	return lerpf(drop_at(d0), drop_at(d0 + TERRAIN_GRID), (d - d0) / TERRAIN_GRID)
+
+
 ## Filary mostów i estakad w [d0, d1): [{"d", "top", "bottom"}].
 func piers(d0: float, d1: float) -> Array:
 	var out := []

@@ -157,6 +157,7 @@ do_test() {
 	run_test segment_code_test "777"     "SEGMENT_CODE|BŁĄD"
 	run_test section_plan_test "777"     "SECTION_PLAN|BŁĄD"
 	run_test structure_plan_test "777"   "STRUCTURE_PLAN|BŁĄD"
+	run_test trap_plan_test "777"        "TRAP_PLAN|BŁĄD"
 	run_test endless_test "180 petrol 777 240 autostrada" "ŚWIAT|KONIEC|LIMIT|upadek"
 	[[ $failed == 0 ]] || fail "któryś test się wysypał"
 	ok "testy"
