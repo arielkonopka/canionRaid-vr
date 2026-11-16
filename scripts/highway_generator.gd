@@ -56,6 +56,8 @@ var sections: SectionPlan
 ## Budowle (etap 3): granice stref dzielą odcinki, ograniczenie (tunel 100,
 ## zjazd 80), meta "structure" na pierwszym odcinku budowli.
 var structures: StructurePlan
+## Pułapki (etap 4): łuk po prostej (0, 14), plama (12).
+var traps: TrapPlan
 ## Pogoda (WeatherPlan): mokra jezdnia w strefach opadu - odcinki dzielone
 ## w punktach zmiany nawierzchni (zlecenie warstwa-pogody). null = sucho.
 var weather: WeatherPlan
@@ -136,6 +138,17 @@ func _next_mark(d: float) -> Dictionary:
 			for m in [float(z["start"]), float(z["end"])]:
 				if m > d + 0.5 and m < float(best["dist"]):
 					best = {"dist": m, "kind": "structure"}
+	if traps:
+		for tr in traps.traps(d + 0.5, d + 6000.0):
+			var tk := int(tr["trap"])
+			var ms: Array = []
+			if tk == 0 or tk == 14:
+				ms = [float(tr["d"])]
+			elif tk == 12:
+				ms = [float(tr["d"]), float(tr["end"])]
+			for m in ms:
+				if m > d + 0.5 and m < float(best["dist"]):
+					best = {"dist": m, "kind": "trap"}
 	for j in plan.jumps_between(d + 0.5, d + 6000.0):
 		if float(j["start"]) > d + 0.5 and float(j["start"]) < float(best["dist"]):
 			best = {"dist": float(j["start"]), "kind": "detour", "jump": j}
@@ -196,6 +209,20 @@ func _module(out: Array, state: Dictionary, meta: Dictionary) -> void:
 		return
 	var in_city := not city.is_empty()
 	var roll := rng.randf()
+	# Pułapka "łuk po długiej prostej" (0, 14): tutaj łuk, a STRAIGHT_BEFORE
+	# przed nim tylko prosta (żadnych losowych łuków).
+	if traps:
+		for tr in traps.traps(d - 1.0, d + TrapPlan.STRAIGHT_BEFORE + 10.0):
+			var tk := int(tr["trap"])
+			if tk != 0 and tk != 14:
+				continue
+			var td := float(tr["d"])
+			if absf(td - d) < 0.5:
+				if _trap_curve(out, state, meta, room, tr):
+					return
+			elif td > d and td - d <= TrapPlan.STRAIGHT_BEFORE + 10.0:
+				_seg(out, state, room, 0.0, 0.0, meta)
+				return
 	# Tunel (3b): "curved" - jeden łuk od wlotu dopasowany do długości rury,
 	# inne tunele proste (wcześniej łuk w tunelu wypadał losowo).
 	var tz: Dictionary = structures.zone_at(d + 0.5) if structures else {}
@@ -248,6 +275,33 @@ func _curve(out: Array, state: Dictionary, meta: Dictionary, room: float, in_cit
 	_seg(out, state, EASE, 0.0, 0.0, {})
 
 
+## Łuk pułapki (TrapPlan 0 / 14): promień r, w drugiej połowie r_end
+## (zaciska się), kierunek i kąt z planu, ograniczenie BEZ zmian (to jest
+## pułapka - ostrzega tylko znak i tablice U-3). false = nie mieści się.
+func _trap_curve(out: Array, state: Dictionary, meta: Dictionary, room: float, tr: Dictionary) -> bool:
+	var yaw: float = state.get("yaw", 0.0)
+	var dir := float(tr["dir"])
+	var r1 := float(tr["r"])
+	var r2 := float(tr["r_end"])
+	# Kurs nie dalej niż MAX_YAW + 20° od startu (pułapka ma swój kierunek
+	# ze znaku, nie odwracamy go).
+	var ang := minf(deg_to_rad(float(tr["angle"])), MAX_YAW + deg_to_rad(20.0) - dir * yaw)
+	var l1 := ang * 0.5 * r1 - EASE * 0.5
+	var l2 := ang * 0.5 * r2 - EASE * 0.5
+	if ang < deg_to_rad(10.0) or l1 < 10.0 or l2 < 10.0 or l1 + l2 + 2.0 * EASE > room:
+		return false
+	var k1 := rad_to_deg(1.0 / r1) * dir
+	var k2 := rad_to_deg(1.0 / r2) * dir
+	var bank := BANK * dir
+	meta["arc"] = {"r": r2, "dir": int(dir)}
+	meta["trap"] = int(tr["trap"])
+	_seg(out, state, EASE, k1 * 0.5, bank, meta)
+	_seg(out, state, l1, k1, bank, {})
+	_seg(out, state, l2, k2, bank, {})
+	_seg(out, state, EASE, k2 * 0.5, 0.0, {})
+	return true
+
+
 ## Dokłada odcinek i przesuwa stan przez prawdziwe próbkowanie (jak
 ## TrackGenerator._push) - stan zgadza się co do milimetra z torem.
 func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: float, meta: Dictionary,
@@ -275,6 +329,12 @@ func _seg(out: Array, state: Dictionary, length: float, curve: float, bank: floa
 				_seg(out, state, length - cut, curve, bank, {}, width, limit)
 				return
 	var surf := weather.surface(d + 0.25) if weather else "dry"
+	# Plama (pułapka 12): nawierzchnia "patch<poziom>" (granice to znaczniki
+	# z _next_mark, więc odcinek leży w całości w plamie albo poza nią).
+	if traps:
+		var pt := traps.surface_at(d + 0.25)
+		if not pt.is_empty():
+			surf = "patch%d" % maxi(TrapPlan.PATCH_GRIP.find(float(pt["grip"])), 0)
 	# Przekrój (etap 2c-2e): szerokość na końcu odcinka (StuntTrack przechodzi
 	# płynnie od poprzedniej), odcinki dzielone w punktach strefy.
 	if sections and is_equal_approx(width, WIDTH):

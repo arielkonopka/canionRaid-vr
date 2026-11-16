@@ -1670,6 +1670,24 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   Testy `section_drive_test -- zwezenie|roboty|jedna|dwa|trzy` (dwa:
   trasa 77). **Do zrobienia**: bench na Queście w strefie robót, ocena
   użytkownika; rzadko (1/5) ~1 s bota na zamkniętym pasie w 1+1.
+- **Pułapki (etap 4 urozmaiceń, od 2026-11-16; inbox etap4-pulapki)**:
+  `TrapPlan` (od chmury; Python `tools/trap_plan_sim.py`) -
+  `EndlessTrack.traps`, `HighwayGenerator.traps`, `StuntTrack.hwy_traps`.
+  Zrobione (4a, krok 1): **0/14 łuk po prostej** - `_next_mark` dzieli na
+  `d`, `_module` daje prostą `STRAIGHT_BEFORE` 1,5 km przed i
+  `_trap_curve` (r w pierwszej połowie, `r_end` w drugiej, kąt z planu,
+  kurs do MAX_YAW + 20°, ograniczenie BEZ zmian - to jest pułapka);
+  **12 plama** - nawierzchnia "patch0-3" (`SURFACES`, grip 0,85 / 0,75 /
+  0,6 / 0,5 wg poziomu; kolor ciemniejszy, 1-2 z połyskiem), generator
+  dzieli odcinki na granicach plamy; **znaki** z `TrapPlan.items` w
+  `_build_section_items` (A-1/A-2 z tabliczką "tablet_N", A-15, A-12c,
+  A-19, A-30), tablice U-3 (`_chevron_board`), rękaw wiatrowy
+  (`_windsock`, nieruchomy). Znak ma meta "sign" i "d" (testy).
+  `tests/trap_drive_test.gd` (luk: trasa 18, 6150 m; plama: trasa 74,
+  8550 m). Jeszcze nie: 1, 6, 9, 10, 13 (krok 2-3), 7 i 11 (czekają na
+  odpowiedzi użytkownika), B-16 / belka / światła awaryjne / drzewa
+  z `items`, drugi przejazd 140 km/h przez łuk poziomu 3 (poziom 3 jest
+  dopiero od km 100).
 - **Budowle (etap 3 urozmaiceń, od 2026-11-14; inbox etap3-budowle)
   - W TOKU, 3a most, 3b tunel, 3c wiadukt kolejowy zrobione**: `StructurePlan` (chmura) w
   `EndlessTrack._ready` (`track.structures`, `STRUCT_SLOPES` false -
@@ -2620,6 +2638,12 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   estakada) OK, przekroje OK poza jednym BŁĘDEM "trzy" (379 z 69293
   próbek bota na zamykanym pasie) - 2 powtórzenia OK, niestabilne.
 
+- **Etap 4a, krok 1 (2026-11-16)**: TrapPlan w trasie, łuk po prostej
+  (0/14), plama (12), znaki, U-3, rękaw (sekcja 5, "Pułapki"). Zrzuty
+  `renders/2026-11-16-pulapki/`. Testy: pełny `quest.sh test` OK,
+  `drive_test` bez zmian (24.00-24.17), budowle (7 rodzajów), przekroje
+  (5) i `trap_drive_test` luk / plama - wszystko OK.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -2627,7 +2651,11 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 **Bieżące (2026-11-16)**: etapy urozmaiceń 1-2 i 3a-3e zrobione
 (sekcja 5, "Budowle"). Czeka odpowiedź chmury: auto na drugiej jezdni
 (sekcja 9). Zgłoszenia z gogli do zbadania przy następnym podłączeniu:
-czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli).
+czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli;
+teren na stałej siatce 50 m może je usunąć - sprawdzić i wpisać).
+Uwagi chmury do TrapPlan (PR #114): pułapka 6 bierze podjazd z k-1..k+1
+(dwa korki w jednym miejscu) i `traps()` filtruje po `end` / `d` + 400 m
+(światła korka poziomu 0 na samej granicy) - poprawić przy 1 / 6.
 Zrzuty w `structure_drive_test` mylą ujęcia (kamera nie tam, gdzie
 nazwa) - do poprawy. Pas dla wolnych (bez znaku zapowiedzi - do
 rozważenia), łuk w tunelu i lampy dwururowego tunelu w wąwozie zrobione.

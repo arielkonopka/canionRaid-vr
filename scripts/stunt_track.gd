@@ -42,6 +42,12 @@ const SURFACES := {
 	# poprzeczne (road.gdshader layout 3) - widoczna z daleka przy 400 km/h
 	# (przegląd renderów 2026-11-10: "wygląda jak zwykła droga").
 	"kicker": {"label": "skocznia", "grip": 1.0},
+	# Plama na jezdni (etap 4, pułapka 12; TrapPlan.PATCH_GRIP wg poziomu):
+	# frezowana, olej, koleiny, żwir - jawnie inna nawierzchnia.
+	"patch0": {"label": "łata", "grip": 0.85},
+	"patch1": {"label": "łata", "grip": 0.75},
+	"patch2": {"label": "łata", "grip": 0.6},
+	"patch3": {"label": "łata", "grip": 0.5},
 }
 
 const DEFAULT_TRACK: Array[Dictionary] = [
@@ -99,6 +105,7 @@ const LINE_DEPTH := 1.5
 var hwy_plan: HighwayPlan
 var hwy_sections: SectionPlan        # przekroje (etap 2): pachołki, znaki
 var hwy_structures: StructurePlan    # budowle (etap 3): mosty, tunele, wiadukty
+var hwy_traps: TrapPlan              # pułapki (etap 4): znaki, zapowiedzi
 ## Wąwóz: tor biegnie dnem między ścianami z łupku (z kolizją), bez filarów.
 @export var canyon: bool = false
 ## Odcinek autostrady (TrackGenerator.is_highway): druga jezdnia, bariery,
@@ -645,8 +652,11 @@ func _surface_material(surf: String) -> Material:
 		# Kolory ustalone z użytkownikiem: sucha #404040, mokra #101010,
 		# oblodzona #304070.
 		var colors := {"dry": Color("#404040"), "wet": Color("#101010"), "ice": Color("#304070"),
-				"kicker": Color("#404040")}
+				"kicker": Color("#404040"), "patch0": Color("#4c4842"), "patch1": Color("#2c2a28"),
+				"patch2": Color("#1e1c1a"), "patch3": Color("#5e5548")}
 		m.set_shader_parameter("asphalt", colors[surf])
+		if surf == "patch1" or surf == "patch2":
+			m.set_shader_parameter("wetness", 0.35)        # tłusty połysk
 		_shared_mats[key] = m
 	return _shared_mats[key]
 
@@ -1043,6 +1053,8 @@ func _node_at(node_name: String, dist: float) -> Node3D:
 
 func _road_sign(dist: float, kind: String, value := 0, plate := "", lift := 0.0) -> void:
 	var root := _node_at("RoadSign", dist)
+	root.set_meta("sign", kind)           # dla testów (trap_drive_test)
+	root.set_meta("d", dist)
 	# Znak stoi pionowo, także przy przechylonej i pochylonej jezdni:
 	# zostaje tylko kierunek w poziomie, a słupek zaczyna się na krawędzi
 	# jezdni (na jej wysokości).
@@ -2463,6 +2475,16 @@ func _build_section_items() -> void:
 	var d0 := float(_samples[0]["dist"])
 	var d1 := float(_samples[-1]["dist"])
 	var its: Array = hwy_sections.items(d0, d1)
+	# Pułapki (etap 4): znaki i naturalne zapowiedzi. Tabliczka pod znakiem
+	# ("tablet_N") dokleja się do znaku w tym samym miejscu.
+	var plates := {}
+	if hwy_traps:
+		for it in hwy_traps.items(d0, d1):
+			var kd: String = it["kind"]
+			if kd.begins_with("tablet_"):
+				plates[snappedf(float(it["d"]), 0.1)] = kd.substr(7) + " km/h"
+			else:
+				its.append(it)
 	if its.is_empty():
 		return
 	var inv := global_transform.affine_inverse()
@@ -2492,11 +2514,62 @@ func _build_section_items() -> void:
 				_road_sign(d, "highway_end")
 			"carriageway_closed":
 				_closed_barrier(up_xf)
+			"A-1", "A-2":
+				_road_sign(d, "curve_r" if kind == "A-1" else "curve_l", 0, String(plates.get(snappedf(d, 0.1), "")))
+			"A-15":
+				_road_sign(d, "slippery")
+			"A-12c", "A-19", "A-30":
+				_road_sign(d, kind)
+			"U-3":
+				_chevron_board(up_xf, x)
+			"windsock":
+				_windsock(up_xf)
+			"patch_milled", "patch_oil", "patch_ruts", "patch_gravel":
+				pass                       # plama to nawierzchnia "patch<poziom>" (generator)
 	if not cones.is_empty():
 		_cones = _mm("Cones", _cone_mesh(), cones)
 		_cone_bands = _mm("ConeBands", _cone_band_mesh(), cones)
 	if not posts.is_empty():
 		_posts_mm = _mm("Posts", _post_mesh(), posts)
+
+
+## Tablica U-3 (kierująca na łuku): czerwona z białym grotem w stronę
+## łuku, na słupku przy zewnętrznej krawędzi (x < 0 - grot w prawo).
+func _chevron_board(xf: Transform3D, x: float) -> void:
+	var root := Node3D.new()
+	root.name = "U3"
+	root.set_meta("u3", true)
+	root.transform = xf
+	_adopt(root)
+	var mats := _sign_mats()
+	_sign_box(root, Vector3(0.07, 1.2, 0.07), Vector3(0, 0.6, -0.04), mats["post"])
+	_sign_box(root, Vector3(0.5, 0.6, 0.02), Vector3(0, 1.45, 0), mats["red"])
+	var sg := 1.0 if x < 0.0 else -1.0
+	for k in [-1.0, 1.0]:
+		var arm := _sign_box(root, Vector3(0.06, 0.3, 0.01), Vector3(0.0, 1.45 + 0.09 * k, 0.015), mats["white"])
+		arm.rotation = Vector3(0, 0, 0.75 * k * sg)
+
+
+## Rękaw wiatrowy (pułapka 11, zapowiedź naturalna): maszt 5 m, pomarańczowo-
+## biały stożek. Wychylenie wg porywu - etap 4 po decyzji o wietrze.
+func _windsock(xf: Transform3D) -> void:
+	var root := Node3D.new()
+	root.name = "Windsock"
+	root.transform = xf
+	_adopt(root)
+	_sign_box(root, Vector3(0.08, 5.0, 0.08), Vector3(0, 2.5, 0), _sign_mats()["post"])
+	var c := CylinderMesh.new()
+	c.top_radius = 0.12
+	c.bottom_radius = 0.3
+	c.height = 1.4
+	c.radial_segments = 8
+	c.rings = 1
+	c.material = _flat_mat("windsock", Color(1.0, 0.45, 0.1), 0.7)
+	var mi := MeshInstance3D.new()
+	mi.name = "Sock"
+	mi.mesh = c
+	mi.transform = Transform3D(Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.75, 4.8, 0))
+	root.add_child(mi)
 
 
 func _mm(n: String, mesh: Mesh, xfs: Array[Transform3D]) -> MultiMeshInstance3D:
