@@ -4,7 +4,7 @@ Dokument przekazania dla agenta, który nie pamięta wcześniejszych sesji.
 Ma wystarczyć, żeby od razu kontynuować pracę. Zasady utrzymywania
 dokumentu są w `CLAUDE.md`.
 
-Ostatnia aktualizacja: 2026-11-15 (etap 3d pochylenie, kolizja terenu przy drodze - uwagi do PR #108)
+Ostatnia aktualizacja: 2026-11-16 (3e estakada, pas dla wolnych, łuk w tunelu)
 
 ---
 
@@ -1694,7 +1694,7 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   kawałek buduje swoją część (`_build_structures`), wloty i stok tylko
   przy prawdziwych końcach (`hwy.a/b`). Generator: odcinki w tunelu
   `roof` (sucho, bez deszczu), limit 100; `_build_highway` bez barier,
-  pasa rozdziału i nasypu w tunelu. Łuk w tunelu (`curved`) - jeszcze nie.
+  pasa rozdziału i nasypu w tunelu. Łuk w tunelu: `HighwayGenerator._module` w tunelu "curved" kładzie jeden łuk od wlotu z promieniem dobranym do długości rury (`_curve(..., fit)`, >= 10°, R 900-2500), inne tunele proste (wcześniej łuk wypadał losowo, 45%). Test `structure_drive_test -- tunel_luk` (trasa 26, 7,4-8,7 km, 22,8°).
   Rura w siatkach po ~250 m (limit ~8 świateł na obiekt w Mobile). UV2.y
   jezdni = 1 pod dachem (przyciemnienie i lampy w `road.gdshader` - wcześniej
   nieustawiane nigdzie, także w wąwozie). **3c wiadukt kolejowy**:
@@ -1818,6 +1818,12 @@ godot --headless --xr-mode off -s res://tests/title_test.gd </dev/null
 godot --headless --xr-mode off -s res://tests/track_height_test.gd </dev/null  # sam generator, sekundy
 ```
 
+- **Pułapka (2026-11-16)**: testy, które prowadzą auto teleportem na stałej
+  wysokości (`offroad_test`), na pochylonej autostradzie wchodzą w kolizję
+  terenu (`HighwayTerrain`) - wypadek, a powtórka wypadku zjada czas
+  testu. Objaw: rzadki BŁĄD "odrodzenie na trasie", stan 4/5 (EXPLODING /
+  REPLAY). W takich testach `crash_replay = false`; `offroad_test` bierze
+  ziarno z argumentu i wypisuje je w linii BŁĄD.
 - `track_height_test` (generator): 10 ziaren × 40 odcinków wąwozu
   z autostradą, najniższa jezdnia (z krawędzią na przechyłce) ≥ 1,9 m,
   inaczej "BŁĄD". Wynik: **jeszcze nie uruchomiony** (napisany w chmurze,
@@ -2578,6 +2584,15 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   most/tunel/wiadukt/podjazd/estakada OK, `section_drive_test` wszystkie
   rodzaje OK.
 
+- **Łuk w tunelu (2026-11-16)** (sekcja 5, tunel): tunel "curved" ma
+  jeden łuk od wlotu, inne proste. `offroad_test` padł raz w serii (ziarno
+  45201: auto teleportem w terenie na pochyleniu -> wypadek i powtórka);
+  poprawiony (`crash_replay = false`, ziarno w linii BŁĄD), potem 9 / 9 OK.
+  Testy: `quest.sh test` OK poza tym jednym (po poprawce osobno OK),
+  `drive_test` bez zmian (24.00-24.17), `structure_drive_test`
+  most/tunel/tunel_luk/wiadukt/podjazd/estakada OK, `section_drive_test`
+  wszystkie rodzaje OK.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -2587,8 +2602,9 @@ Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
 (sekcja 9). Zgłoszenia z gogli do zbadania przy następnym podłączeniu:
 czarne kostki w tunelu, błyski na horyzoncie (logcat, zrzut z gogli).
 Zrzuty w `structure_drive_test` mylą ujęcia (kamera nie tam, gdzie
-nazwa) - do poprawy. Dalej: łuk w tunelu (`curved`), lampy dwururowego
-tunelu w wąwozie (dziś nad osią całej drogi). Pas dla wolnych zrobiony
+nazwa) - do poprawy. Dalej: lampy dwururowego
+tunelu w wąwozie (dziś nad osią całej drogi). Pas dla wolnych i łuk
+w tunelu zrobione
 (znaku zapowiedzi brak - do rozważenia). Potem etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
 `section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.

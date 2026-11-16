@@ -16,12 +16,23 @@ var max_gap := 0.0
 var respawned := false
 var scans0 := -1
 var normal_scans := -1
+var seed_v := 0
 
 
 func _initialize() -> void:
 	var gs = root.get_node("GameSettings")
 	gs.persist = false
 	gs.track_mode = "autostrada"
+	# Bez powtórki wypadku: auto prowadzone na stałej wysokości bywa w terenie
+	# na pochyleniu (kolizja terenu od 2026-11-15) - wypadek i powtórka
+	# zjadały czas na odrodzenie (ziarno 45201).
+	gs.crash_replay = false
+	# Ziarno trasy (argument albo losowe) - wypisywane przy błędzie.
+	seed_v = randi() % 100000 + 1
+	for a in OS.get_cmdline_user_args():
+		if a.is_valid_int():
+			seed_v = int(a)
+	EndlessTrack.test_seed = seed_v
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 
@@ -62,13 +73,20 @@ func _physics_process(delta: float) -> bool:
 		var s: Dictionary = main.track.nearest_sample(main.car.global_position)
 		var gap: float = (main.car.global_position - main.track.to_global(s["pos"])).length()
 		max_gap = maxf(max_gap, gap)
+	if OS.get_environment("OFFROAD_TRACE") != "" and f % 30 == 0 and t2 >= 7.0:
+		var s4: Dictionary = main.track.nearest_sample(main.car.global_position)
+		print("t2 %.2f stan %d gap %.0f y %.1f koła %d v %.1f fallen %.2f" % [t2, main.race_state, (main.car.global_position - main.track.to_global(s4["pos"])).length(),
+				main.car.global_position.y, main.car.wheels_on_ground, main.car.linear_velocity.length(), main._fallen_time])
 	elif not respawned:
 		var s: Dictionary = main.track.nearest_sample(main.car.global_position)
 		respawned = (main.car.global_position - main.track.to_global(s["pos"])).length() < 5.0
 	if t2 > 12.0:
 		_check(normal_scans == 0, "zwykła jazda bez pełnego szukania próbki (%d)" % normal_scans)
 		_check(max_gap < 400.0, "najbliższa próbka idzie za autem (największa odległość %.0f m)" % max_gap)
-		_check(respawned, "daleko od drogi - odrodzenie na trasie")
+		var s3: Dictionary = main.track.nearest_sample(main.car.global_position)
+		_check(respawned, "daleko od drogi - odrodzenie na trasie (ziarno %d; stan %d, %.0f m od drogi, y %.1f, koła %d, v %.1f)" % [seed_v,
+				main.race_state, (main.car.global_position - main.track.to_global(s3["pos"])).length(), main.car.global_position.y,
+				main.car.wheels_on_ground, main.car.linear_velocity.length()])
 		print("offroad_test: ", "OK" if fails == 0 else "BŁĄD (%d)" % fails)
 		return true
 	return false
