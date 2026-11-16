@@ -1737,9 +1737,18 @@ wtyczka, `openxr_action_map.tres` i układ skryptu budowania (`quest.sh`).
   `HighwayScenery`) na dnie. Wcześniej nasyp, pas terenu i drzewa wisiały
   w powietrzu na wysokości drogi. Test `structure_drive_test -- estakada`
   (trasa 119, 41,0-41,4 km, dolina 76 m): przejazd, filary, promień z boku
-  pomostu trafia w dno (96% w `HighwayTerrain`, 4% w płaszczyznę 0,8 m
-  niżej - prawdopodobnie szwy kawałków, pierwsza próbka kawałka nie ma
-  poprzedniej). Boczny wiatr (pułapka 11) - etap 4.
+  pomostu trafia w dno (100% w `HighwayTerrain`, odchyłka <= 0,1 m).
+  **Pułapka (2026-11-16)**: teren w shaderze to łamana z węzłów co
+  `StructurePlan.TERRAIN_GRID` 50 m - na dnie sinusoidalnej doliny do
+  ~1,5 m wyżej niż `ground_at`. Kolizja na dokładnym dnie była pod
+  widoczną trawą, a płaszczyzna ziemi (min węzłów - 0,5) nad nią. Objaw:
+  promień z boku pomostu w najgłębszym miejscu trafiał w `Ground`. Teraz
+  węzły tablicy terenu leżą na stałej siatce wzdłuż trasy
+  (`xr_main._update_terrain`, `snappedf`), a kolizja doliny i dekoracje
+  biorą `drop_lin` (ta sama łamana). Przy okazji teren nie "pływa" przy
+  jeździe (wcześniej węzły przesuwały się z autem 5 razy na sekundę) -
+  możliwe źródło "błysków na horyzoncie". Boczny wiatr (pułapka 11) -
+  etap 4.
   Nasypy, dekoracje i podstawa wiaduktu na wysokości terenu (droga -
   ROAD_Y). Test `structure_drive_test -- podjazd` (trasa 1, 26,6-27,8 km,
   8%, 0 -> 96 m; sprawdza też zepchnięcie za barierę na stromym podjeździe
@@ -2601,6 +2610,16 @@ nie - komfort VR i wydajność na Queście ocenia użytkownik.
   w `renders/2026-11-16-tunel-nitki/`. Testy: pełny `quest.sh test` OK
   (także offroad_test), `drive_test` bez zmian (24.00-24.17).
 
+- **Teren na stałej siatce, pas dla wolnych rzadziej (2026-11-16)**:
+  kolizja dna doliny = widoczny teren (sekcja 5, 3e, pułapka); pas dla
+  wolnych tylko przy `StructurePlan.slow_lane` (od chmury, etap 4) -
+  test `structure_drive_test -- wolny` (trasa 47, 5,5% na 1,8 km), na
+  trasie 1 (8% na 1,2 km) pasa nie ma. `trap_plan_test` w `quest.sh`.
+  Testy: pełny `quest.sh test` OK, `drive_test` bez zmian (24.00-24.17),
+  budowle (most / tunel / tunel_luk / wiadukt / podjazd / wolny /
+  estakada) OK, przekroje OK poza jednym BŁĘDEM "trzy" (379 z 69293
+  próbek bota na zamykanym pasie) - 2 powtórzenia OK, niestabilne.
+
 ## 8. Kolejka zadań
 
 Kolejność to kolejność próśb użytkownika; zapytaj, od czego zacząć.
@@ -2614,7 +2633,8 @@ nazwa) - do poprawy. Pas dla wolnych (bez znaku zapowiedzi - do
 rozważenia), łuk w tunelu i lampy dwururowego tunelu w wąwozie zrobione.
 Dalej etap 4 (pułapki)
 i 5 (krajobraz, miasto z rondem). Drobiazg: rzadko (~1 na 5 przebiegów
-`section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1.
+`section_drive_test -- jedna`) bot ~1 s na zamkniętym pasie w 1+1;
+podobnie raz na ~3 przebiegi "trzy" (0,5% próbek, 3+3).
 Przy goglach: wgrać, bench (Perf "odcinki", tunel, shader rzeki, dźwięki
 aut, manekiny), ocena użytkownika; czy auto wyrzucone dalej niż 60 m
 za nasyp (wybuch, skocznia w bok) spada przez teren - wtedy poszerzyć

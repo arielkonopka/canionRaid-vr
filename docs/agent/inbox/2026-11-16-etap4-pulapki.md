@@ -1,4 +1,4 @@
-Status: nowe
+Status: przyjęte (2026-11-16), w toku - 4a
 Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-16-etap4-pulapki-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 4 = pułapki);

@@ -227,7 +227,7 @@ func build() -> void:
 			for sm in _samples:
 				var st := int(hwy_structures.zone_at(float(sm["dist"])).get("structure", 0))
 				if st == 6:
-					sm = (sm as Dictionary).merged({"drop": hwy_structures.drop_at(float(sm["dist"]))})
+					sm = (sm as Dictionary).merged({"drop": hwy_structures.drop_lin(float(sm["dist"]))})
 				if st != 2:
 					sc_samples.append(sm)
 		for node in Scenery.scatter(sc_samples, rng, 16.0,
@@ -2229,7 +2229,7 @@ func _build_highway() -> void:
 		# ROAD_Y niżej) - wcześniej zawsze y = 0.
 		var ty: float = c.y - HighwayGenerator.ROAD_Y if hwy_structures and hwy_structures.slopes else 0.0
 		var st_here := int(hwy_structures.zone_at(float(smp["dist"])).get("structure", 0)) if hwy_structures else 0
-		var drop: float = hwy_structures.drop_at(float(smp["dist"])) if st_here == 6 and hwy_structures.slopes else 0.0
+		var drop: float = hwy_structures.drop_lin(float(smp["dist"])) if st_here == 6 and hwy_structures.slopes else 0.0
 		var h_r := maxf(out_r.y - ty, 0.0)
 		var h_l := maxf(out_l.y - ty, 0.0)
 		var p := {

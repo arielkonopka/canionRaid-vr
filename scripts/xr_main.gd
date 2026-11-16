@@ -710,7 +710,10 @@ func _update_terrain() -> void:
 	var mat := ($Ground/GroundMesh as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 	if mat == null:
 		return
-	var p := _last_safe_dist
+	# Węzły na stałej siatce wzdłuż trasy (StructurePlan.TERRAIN_GRID), nie
+	# przesuwane z autem: teren nie "pływa" przy jeździe, a kolizja terenu
+	# i dekoracje (drop_lin) leżą na tej samej łamanej co widoczny teren.
+	var p := snappedf(_last_safe_dist, StructurePlan.TERRAIN_GRID)
 	var xf: Transform3D = track.transform_at_distance(p)
 	var fwd := (-xf.basis.z * Vector3(1, 0, 1)).normalized()
 	# Wysokość świata w punkcie trasy = ROAD_Y + height; teren = ground_at.y.
@@ -719,7 +722,7 @@ func _update_terrain() -> void:
 		_terr.resize(81)
 	var base_off: float = xf.origin.y - HighwayGenerator.ROAD_Y - float(track.structures.height_at(p))
 	for i in range(81):
-		var d := p + (i - 40) * 50.0
+		var d := p + (i - 40) * StructurePlan.TERRAIN_GRID
 		_terr[i] = float(track.structures.ground_at(maxf(d, 0.0))["y"]) + base_off
 	mat.set_shader_parameter("terr", _terr)
 	mat.set_shader_parameter("terr_o", Vector2(xf.origin.x, xf.origin.z))

@@ -8,7 +8,7 @@ extends SceneTree
 ##   godot --headless --xr-mode off -s res://tests/structure_drive_test.gd -- most </dev/null
 ##   godot --xr-mode off -s res://tests/structure_drive_test.gd -- most KATALOG </dev/null
 
-const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4], "estakada": [119, 6], "tunel_luk": [26, 1]}
+const KINDS := {"most": [33, 2], "tunel": [1, 1], "wiadukt": [33, 3], "podjazd": [1, 4], "estakada": [119, 6], "tunel_luk": [26, 1], "wolny": [47, 4]}
 var kind := "most"
 var main
 var f := 0
@@ -98,7 +98,7 @@ func _physics_process(delta: float) -> bool:
 		var s0 := float(z["start"])
 		var e0 := float(z["end"])
 		shots = [["przed", s0 - 120.0, "road"], ["na", s0 + 40.0, "road"], ["bok", (s0 + e0) * 0.5, "side"]]
-		if kind == "podjazd":
+		if kind in ["podjazd", "wolny"]:
 			shots = [["przed", s0 - 100.0, "road"], ["na", (s0 + e0) * 0.5, "road"], ["bok", (s0 + e0) * 0.5 + 100.0, "side"], ["szczyt", e0 + 50.0, "road"]]
 		if kind == "wiadukt":
 			shots = [["przed", s0 - 300.0, "road"], ["blisko", s0 - 120.0, "road"], ["bok", s0 - 60.0, "side"]]
@@ -129,7 +129,7 @@ func _physics_process(delta: float) -> bool:
 			var mat := (main.get_node("Ground/GroundMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 			if mat.shader == main._GROUND_RIVER_SH:
 				river_shader_on = true
-		if kind == "podjazd" and p > s0 - 200.0:
+		if kind in ["podjazd", "wolny"] and p > s0 - 200.0:
 			# Jezdnia na wysokości planu, ziemia (kolizja) przy terenie.
 			var sp: StructurePlan = main.track.structures
 			var rxf: Transform3D = main.track.transform_at_distance(p)
@@ -142,7 +142,7 @@ func _physics_process(delta: float) -> bool:
 				if not sm1.is_empty():
 					slow_w = maxf(slow_w, float(sm1["width"]))
 				# Wolne auto (60% limitu) na prawym pasie przed graczem.
-				if slow_bot == null:
+				if slow_bot == null and kind == "wolny":
 					main._spawn_bot(p + 120.0, 0, 84.0)
 					if not main._bots.is_empty():
 						slow_bot = main._bots[-1]
@@ -257,10 +257,18 @@ func _physics_process(delta: float) -> bool:
 				var q6 := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 300.0)
 				q6.exclude = [main.car.get_rid()]
 				var hit: Dictionary = main.car.get_world_3d().direct_space_state.intersect_ray(q6)
-				var want: float = exf.origin.y - HighwayGenerator.ROAD_Y - drop
+				# Dno widoczne (łamana co TERRAIN_GRID) - tam ma być kolizja.
+				var want: float = exf.origin.y - HighwayGenerator.ROAD_Y - sp6.drop_lin(p + 20.0)
 				valley_probes += 1
 				var cn: String = "brak" if hit.is_empty() else String((hit["collider"] as Node).name)
 				valley_hits[cn] = int(valley_hits.get(cn, 0)) + 1
+				if cn == "Ground" and OS.get_environment("VALLEY_TRACE") != "":
+					var q7 := PhysicsRayQueryParameters3D.create(q6.from, q6.to)
+					q7.exclude = [main.car.get_rid(), (hit["collider"] as CollisionObject3D).get_rid()]
+					var h7: Dictionary = main.car.get_world_3d().direct_space_state.intersect_ray(q7)
+					print("  bez Ground: ", "nic" if h7.is_empty() else "%s y %.2f (want %.2f, Ground y %.2f)" % [(h7["collider"] as Node).name, (h7["position"] as Vector3).y, want, (hit["position"] as Vector3).y])
+					var chk = main.track._chunk_for(p + 20.0)
+					print("  dziura: d %.1f (kawałek %.1f-%.1f, próbek %d)" % [p + 20.0, float(chk._samples[0]["dist"]), float(chk._samples[-1]["dist"]), chk._samples.size()])
 				var e: float = absf(float((hit["position"] as Vector3).y) - want) if not hit.is_empty() else 999.0
 				if e > valley_err:
 					valley_err = e
@@ -352,16 +360,21 @@ func _end() -> bool:
 	if not z.is_empty() and kind == "estakada":
 		_check(lives_lost == 0, "przejazd estakadą bez utraty życia")
 		_check(piers_seen > 0, "filary estakady (%d)" % piers_seen)
-		_check(valley_probes > 0 and valley_err < 1.5, "z boku pomostu kolizja na dnie doliny (%d próbek %s, najgorsza: %s)" % [valley_probes, str(valley_hits), valley_info])
-	elif not z.is_empty() and kind == "podjazd":
+		_check(valley_probes > 0 and valley_err < 0.3 and valley_hits.get("Ground", 0) == 0, "z boku pomostu kolizja na dnie doliny (%d próbek %s, najgorsza: %s)" % [valley_probes, str(valley_hits), valley_info])
+	elif not z.is_empty() and kind in ["podjazd", "wolny"]:
 		_check(h_probes > 0 and h_err < 0.8, "jezdnia na wysokości planu (maks. odchyłka %.2f m, szczyt %.0f m)" % [h_err, top_h])
 		_check(ground_err < 0.1, "kolizja ziemi nie nad terenem przy aucie (maks. %.2f m)" % ground_err)
 		_check(lives_lost == 0, "przejazd podjazdem bez utraty życia")
-		_check(slow_zone, "pas dla wolnych na podjeździe")
-		_check(slow_w > HighwayGenerator.WIDTH + 3.0, "jezdnia szersza o pas (%.2f m)" % slow_w)
-		_check(slow_cand > 0 and slow_on * 2 > slow_cand, "wolne auto (60%% limitu, prawy pas) na pasie dla wolnych (%d z %d próbek)" % [slow_on, slow_cand])
-		_check(side_done and side_ok, "auto za barierą na podjeździe stoi na trawie (%s)" % side_info)
+		if kind == "podjazd":                # zepchnięcie na >= 6% (trasa 1: 8%)
+			_check(side_done and side_ok, "auto za barierą na podjeździe stoi na trawie (%s)" % side_info)
 		_check(bot_samples == 0 or bot_slow * 10 < bot_samples, "boty na podjeździe nie stają (%d z %d próbek < 30 km/h)" % [bot_slow, bot_samples])
+		if kind == "podjazd":
+			# 8% na 1,2 km - za krótki na pas dla wolnych (StructurePlan.slow_lane).
+			_check(not slow_zone, "krótki podjazd bez pasa dla wolnych")
+		if kind == "wolny":
+			_check(slow_zone, "pas dla wolnych na podjeździe")
+			_check(slow_w > HighwayGenerator.WIDTH + 3.0, "jezdnia szersza o pas (%.2f m)" % slow_w)
+			_check(slow_cand > 0 and slow_on * 2 > slow_cand, "wolne auto (60%% limitu, prawy pas) na pasie dla wolnych (%d z %d próbek)" % [slow_on, slow_cand])
 	elif not z.is_empty() and kind == "wiadukt":
 		_check(overpass_seen, "wiadukt stoi")
 		_check(lives_lost == 0, "przejazd pod wiaduktem bez utraty życia")
