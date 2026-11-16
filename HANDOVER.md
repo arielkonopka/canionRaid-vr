@@ -2958,6 +2958,10 @@ Propozycje (do uzgodnienia):
 
 ## 9. Otwarte pytania do użytkownika
 
+- (2026-11-16, do chmury: `docs/agent/outbox/2026-11-16-etap4-pulapki-rozpoznanie.md`)
+  Etap 4 pułapki - rozpoznanie i prośba o zlecenie (zakres, poziomy,
+  niski wiadukt, boczny wiatr). Do odpowiedzi: porządki.
+
 - (2026-11-15, do chmury: `docs/agent/outbox/2026-11-15-zla-jezdnia-pytanie.md`)
   Auto po koziołkowaniu ląduje na jezdni z naprzeciwka i nie ma jak wrócić
   (bariera ciągła, żadna reguła upadku się nie włącza). Propozycje: A -
