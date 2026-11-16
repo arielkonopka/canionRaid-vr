@@ -252,6 +252,15 @@ class StructurePlan:
         return 140.0
 
 
+SLOW_GRADE = 4.5
+SLOW_LEN = 1800.0
+
+
+def slow_lane(z):
+    """Pas dla wolnych tylko na podjeździe >= 4,5 % i >= 1,8 km."""
+    return z.get("structure") == 4 and z["grade"] >= SLOW_GRADE and z["length"] >= SLOW_LEN
+
+
 def check(sp, km):
     errors = []
     d1 = km * 1000.0

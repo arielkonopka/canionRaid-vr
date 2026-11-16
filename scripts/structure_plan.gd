@@ -305,6 +305,18 @@ func drop_at(d: float) -> float:
 	return height_at(d) - float(ground_at(d)["y"])
 
 
+## Czy podjazd dostaje pas dla wolnych (etap 4, odpowiedź na pytanie agenta
+## 2026-11-16): tylko tam, gdzie ciężarówka zwolniłaby wyraźnie - pochylenie
+## >= SLOW_GRADE % i długość >= SLOW_LEN m (~połowa podjazdów). Ciąg
+## podjazdów: wystarczy, że jeden z nich spełnia warunek.
+const SLOW_GRADE := 4.5
+const SLOW_LEN := 1800.0
+
+
+static func slow_lane(z: Dictionary) -> bool:
+	return int(z.get("structure", 0)) == 4 and float(z["grade"]) >= SLOW_GRADE and float(z["length"]) >= SLOW_LEN
+
+
 ## Filary mostów i estakad w [d0, d1): [{"d", "top", "bottom"}].
 func piers(d0: float, d1: float) -> Array:
 	var out := []
