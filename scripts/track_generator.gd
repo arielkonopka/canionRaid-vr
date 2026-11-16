@@ -417,7 +417,7 @@ static func _tunnel(out: Array, state: Dictionary, d: Dictionary, rng: RandomNum
 		_push(out, state, {"len": 45.0, "width": w * 2.0 + ISLAND_W, "bank": 0.0, "pitch": 0.0,
 				"meta": {"island": {"start": 45.0, "len": length, "w": ISLAND_W}}})
 		_push(out, state, {"len": length, "pitch": 0.0, "bank": 0.0, "curve": curve,
-				"surface": "dry", "roof": true,
+				"surface": "dry", "roof": true, "roof_twin": true,
 				"meta": {"tunnel_len": length, "twin": {"road_w": w, "island_w": ISLAND_W}}})
 		_push(out, state, {"len": 45.0, "width": w, "curve": 0.0})
 		return
