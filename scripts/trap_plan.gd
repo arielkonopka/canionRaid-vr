@@ -11,8 +11,9 @@ class_name TrapPlan
 ## POZIOM (trap_level 0-3, z SegmentCode: do km 30 najwyżej 1, do km 100
 ## najwyżej 2, w build/fade najwyżej 1) to dwie rzeczy naraz:
 ##   - zapowiedź: znak SIGN_DIST[poziom] m przed pułapką (300 / 150 / 60 m),
-##     na poziomie 3 bez znaku (SIGN_AT_3 = false) - zostaje naturalna
-##     zapowiedź, która jest ZAWSZE (rękaw wiatru, widoczny szczyt i światła
+##     na poziomie 3 też znak, ale późno - SIGN_LATE 60 m (SIGN_AT_3 = true,
+##     decyzja użytkownika 2026-11-17: "zawsze znak, najwyżej późno");
+##     do tego naturalna zapowiedź, która jest ZAWSZE (rękaw wiatru, widoczny szczyt i światła
 ##     awaryjne, ciemna plama, pachołki, belka z wysokością);
 ##   - siła: tabele niżej (promień łuku, odstęp drzew, podmuch...).
 ##
@@ -27,7 +28,7 @@ const SEG_LEN := SegmentCode.SEG_LEN
 const WIDTH := HighwayGenerator.WIDTH
 const SIGN_DIST := [300.0, 150.0, 60.0, -1.0]
 ## true = na poziomie 3 znak późno (SIGN_LATE) zamiast braku znaku.
-const SIGN_AT_3 := false
+const SIGN_AT_3 := true
 const SIGN_LATE := 60.0
 const HANDLED := [0, 1, 6, 7, 9, 10, 11, 12, 13, 14]
 
