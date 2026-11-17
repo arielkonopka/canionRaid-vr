@@ -17,9 +17,9 @@ from section_plan_sim import SectionPlan, WIDTH
 # Drabina zapowiedzi wg trap_level: odległość znaku przed pułapką [m]
 # (None = bez znaku - zostaje tylko naturalna zapowiedź, np. rękaw wiatru,
 # widoczny szczyt, ciemna plama). SIGN_AT_3 = True: na poziomie 3 znak
-# późno zamiast braku (decyzja użytkownika).
+# późno zamiast braku (decyzja użytkownika 2026-11-17: zawsze znak).
 SIGN_DIST = [300.0, 150.0, 60.0, None]
-SIGN_AT_3 = False
+SIGN_AT_3 = True
 SIGN_LATE = 60.0
 HANDLED = (0, 1, 6, 7, 9, 10, 11, 12, 13, 14)   # 4a; 8 - 4b; 2-5 - 4c (węzły)
 
@@ -234,6 +234,14 @@ def check(tp, km):
             g = tp.gust((tr["d"] + tr["end"]) / 2, i * 0.37)
             if abs(g) > tr["gust"] + 1e-6:
                 errors.append("poryw ponad limit %s" % tr)
+    for tr in trs:
+        if tr["level"] != 3 or tr["trap"] == 14:
+            continue
+        signs = [i for i in tp._items(tr) if i["kind"][:2] in ("A-", "B-")]
+        if not SIGN_AT_3 and signs:
+            errors.append("znak na poziomie 3 %s" % tr)
+        if SIGN_AT_3 and tr["trap"] not in (9, 13) and not signs:
+            errors.append("poziom 3 bez znaku %s" % tr)
     lies = [tr["k"] for tr in trs if tr["trap"] == 14]
     for a, b in zip(lies, lies[1:]):
         if b - a < 33:

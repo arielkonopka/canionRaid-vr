@@ -3,12 +3,17 @@ Od: wątek w chmurze "Zaplanuj urozmaicenia trasy i miasta" (odpowiedź na
 outbox/2026-11-16-etap4-pulapki-rozpoznanie.md)
 Decyzje użytkownika: kolejność etapów z 2026-11-13 (etap 4 = pułapki);
 "znak kłamie" rzadko i dalej na trasie (2026-11-11).
-Otwarte: pytania 3, 4, 5 zadane użytkownikowi na kartach w wątku
-w chmurze (2026-11-16 ~01:50 UTC). Rekomendacje (kod już je zakłada):
-3 - bez znaku na poziomie 3, zawsze naturalna zapowiedź; 4 - niski
-wiadukt = pułapka na wysokie auta botów; 5 - wiatr jako jawna siła.
-Wynik dopiszę tutaj. Zacznij od pułapek, których te pytania nie
-dotyczą (1, 6, 9, 10, 12, 13, 0, 14).
+Decyzje użytkownika 2026-11-17 22:50 UTC (karty w wątku w chmurze):
+3 - "Zawsze znak, najwyżej późno": na poziomie 3 znak 60 m przed pułapką
+(`SIGN_AT_3 = true` - zmienione w tym pliku w PR z decyzją; test i symulacja
+sprawdzają teraz, że poziom 3 ma znak); naturalna zapowiedź jak zawsze.
+4 - "Pułapka na wysokie auta botów" - jak w rekomendacji niżej.
+5 - "Tak, jawna siła z podmuchami" - jak w rekomendacji niżej.
+Kod planu nic więcej nie wymaga; 4 i 5 to realizacja po Waszej stronie
+(punkty "Ruch" niżej). Po scaleniu uruchomcie `tests/trap_plan_test.gd`
+i `tests/trap_drive_test.gd` (liczba elementów do 150 km bez zmian - 321,
+bo poziom 3 pojawia się dopiero dalej; ziarno 777 ma go na k 172 i 359)
+i potwierdźcie tutaj w odpowiedzi.
 
 # Etap 4: pułapki (TrapPlan)
 
@@ -34,15 +39,15 @@ dotyczą (1, 6, 9, 10, 12, 13, 0, 14).
      3,0 / 2,0 / 1,2 / 0,8 m od krawędzi, pas na moście 3,75 / 3,5 /
      3,25 / 3,0 m bez pobocza, podmuch 6 / 9 / 12 / 15 m/s, plama
      30-120 m z przyczepnością 0,85-0,5, skos robót x1,0-0,45.
-3. **Niewidoczna** - pytanie do użytkownika. Przełącznik:
-   `TrapPlan.SIGN_AT_3` (false = bez znaku, true = znak 60 m przed).
-4. **Niski wiadukt** - pytanie do użytkownika. Rekomendacja: pułapka na
+3. **Niewidoczna** - decyzja: zawsze znak, najwyżej późno.
+   `TrapPlan.SIGN_AT_3 = true` (znak 60 m przed na poziomie 3).
+4. **Niski wiadukt** - decyzja użytkownika (2026-11-17): pułapka na
    wysokie auta BOTÓW (furgonetki, ciężarówki z `CarStyles`, jeśli są;
    furiat w pościgu w furgonetce rozbija się o belkę - punkty dla gracza
    jak za rozbicie, "pułapka jako broń" z dokumentu). Spokojne wysokie
    auta zwalniają i zjeżdżają na pobocze przed wiaduktem (kierowcy znają
    B-16). Prześwit z `TrapPlan` (`clear`) zamiast `CLEAR_RAIL_LOW`.
-5. **Wiatr** - pytanie do użytkownika. Rekomendacja: tak, jawna siła.
+5. **Wiatr** - decyzja użytkownika (2026-11-17): tak, jawna siła z podmuchami.
    `TrapPlan.gust(d, t)` daje prędkość podmuchu [m/s, + w prawo].
    Siła: F = 0,5 · 1,225 · Cd_bok (~0,9) · A_bok (bok auta, ~4-6 m²) ·
    v², przyłożona w środku bocznej powierzchni (nieco nad środkiem

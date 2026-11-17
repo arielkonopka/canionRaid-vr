@@ -89,11 +89,18 @@ func _invariants(tp: TrapPlan, d1: float, label: String) -> void:
 				if absf(tp.gust((float(tr["d"]) + float(tr["end"])) * 0.5, float(i) * 0.37)) > float(tr["gust"]) + 0.001:
 					_fail("%s: poryw ponad limit %s" % [label, tr])
 					break
-		# Drabina: poziom 3 bez znaku (SIGN_AT_3 = false), 0-2 ze znakiem tam, gdzie jest.
-		if int(tr["level"]) == 3 and not TrapPlan.SIGN_AT_3 and t != 14:
+		# Drabina: poziom 3 - znak późno (SIGN_AT_3 = true, decyzja użytkownika
+		# 2026-11-17: "zawsze znak, najwyżej późno") albo bez znaku (false).
+		if int(tr["level"]) == 3 and t != 14:
+			var signs := 0
 			for it in tp._items(tr):
 				if String(it["kind"]).begins_with("A-") or String(it["kind"]).begins_with("B-"):
-					_fail("%s: znak na poziomie 3 %s" % [label, it])
+					signs += 1
+			if not TrapPlan.SIGN_AT_3 and signs > 0:
+				_fail("%s: znak na poziomie 3 %s" % [label, tr])
+			var has_sign: bool = t == 0 or String(TrapPlan.SIGN.get(t, "")) != ""
+			if TrapPlan.SIGN_AT_3 and has_sign and signs == 0:
+				_fail("%s: poziom 3 bez znaku %s" % [label, tr])
 	for it in tp.items(0.0, d1):
 		if String(it["kind"]) == "tree" and absf(float(it["x"])) < 4.7:
 			_fail("%s: drzewo na jezdni %s" % [label, it])
